@@ -11,7 +11,7 @@ export type MonitorInfo = {
 export type UsageWindow = {
   id: string;
   label: string;
-  usedPercent: number;
+  remainingPercent: number;
   resetAt?: string | null;
 };
 
