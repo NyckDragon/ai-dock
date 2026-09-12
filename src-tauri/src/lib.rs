@@ -7,6 +7,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            commands::dock::get_monitors,
             commands::dock::set_dock_state,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,

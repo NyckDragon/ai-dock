@@ -1,12 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DockSide, PromptItem, ProviderUsage } from "../types";
+import type { DockSide, MonitorInfo, PromptItem, ProviderUsage } from "../types";
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
-export async function setDock(side: DockSide, expanded: boolean) {
+export async function setDock(side: DockSide, expanded: boolean, monitorIndex: number) {
   if (!isTauri()) return;
-  await invoke("set_dock_state", { side, expanded });
+  await invoke("set_dock_state", { side, expanded, monitorIndex });
+}
+
+export async function fetchMonitors(): Promise<MonitorInfo[]> {
+  if (!isTauri()) {
+    return [
+      { index: 0, name: "Tela 1", width: 1920, height: 1080, scaleFactor: 1 },
+      { index: 1, name: "Tela 2", width: 2560, height: 1440, scaleFactor: 1 }
+    ];
+  }
+  return invoke<MonitorInfo[]>("get_monitors");
 }
 
 export async function fetchUsage(): Promise<ProviderUsage[]> {

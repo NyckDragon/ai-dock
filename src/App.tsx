@@ -1,27 +1,44 @@
 import {
   Bot,
+  Check,
   ChevronLeft,
   ChevronRight,
+  FolderOpen,
+  Monitor as MonitorIcon,
   PanelLeftClose,
   PanelRightClose,
   RefreshCw,
   Settings2,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PromptLibrary } from "./components/PromptLibrary";
 import { UsageCard } from "./components/UsageCard";
-import { chooseObsidianFolder, fetchUsage, scanPrompts, setDock } from "./lib/tauri";
-import type { DockSide, PromptItem, ProviderUsage } from "./types";
+import {
+  chooseObsidianFolder,
+  fetchMonitors,
+  fetchUsage,
+  scanPrompts,
+  setDock
+} from "./lib/tauri";
+import type { DockSide, MonitorInfo, PromptItem, ProviderUsage } from "./types";
 
 const STORAGE_SIDE = "ai-dock-side";
+const STORAGE_MONITOR = "ai-dock-monitor-index";
 const STORAGE_OBSIDIAN = "ai-dock-obsidian-path";
 
 export default function App() {
   const [expanded, setExpanded] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [side, setSide] = useState<DockSide>(() =>
     localStorage.getItem(STORAGE_SIDE) === "left" ? "left" : "right"
   );
+  const [monitorIndex, setMonitorIndex] = useState(() => {
+    const stored = Number(localStorage.getItem(STORAGE_MONITOR));
+    return Number.isInteger(stored) && stored >= 0 ? stored : 0;
+  });
+  const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [providers, setProviders] = useState<ProviderUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [obsidianPath, setObsidianPath] = useState<string | null>(() => localStorage.getItem(STORAGE_OBSIDIAN));
@@ -33,6 +50,19 @@ export default function App() {
       setProviders(await fetchUsage());
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshMonitorsList() {
+    try {
+      const available = await fetchMonitors();
+      setMonitors(available);
+      if (available.length > 0 && monitorIndex >= available.length) {
+        localStorage.setItem(STORAGE_MONITOR, "0");
+        setMonitorIndex(0);
+      }
+    } catch {
+      setMonitors([]);
     }
   }
 
@@ -49,12 +79,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    void setDock(side, expanded);
-  }, [expanded, side]);
+    void setDock(side, expanded, monitorIndex);
+  }, [expanded, side, monitorIndex]);
 
   useEffect(() => {
     void refreshProviders();
     void refreshPrompts(obsidianPath);
+    void refreshMonitorsList();
   }, []);
 
   async function chooseObsidian() {
@@ -69,6 +100,16 @@ export default function App() {
     const next = side === "right" ? "left" : "right";
     localStorage.setItem(STORAGE_SIDE, next);
     setSide(next);
+  }
+
+  function selectMonitor(index: number) {
+    localStorage.setItem(STORAGE_MONITOR, String(index));
+    setMonitorIndex(index);
+  }
+
+  function cycleMonitor() {
+    if (monitors.length < 2) return;
+    selectMonitor((monitorIndex + 1) % monitors.length);
   }
 
   if (!expanded) {
@@ -104,10 +145,19 @@ export default function App() {
             <button className={`icon-button ${loading ? "is-spinning" : ""}`} onClick={refreshProviders} title="Atualizar uso">
               <RefreshCw size={15} />
             </button>
+            {monitors.length > 1 && (
+              <button className="icon-button" onClick={cycleMonitor} title="Mover para a próxima tela">
+                <MonitorIcon size={15} />
+              </button>
+            )}
             <button className="icon-button" onClick={toggleSide} title="Trocar lado">
               {side === "right" ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
             </button>
-            <button className="icon-button" title="Configurações (em breve)">
+            <button
+              className={`icon-button ${settingsOpen ? "is-active" : ""}`}
+              onClick={() => setSettingsOpen((open) => !open)}
+              title="Configurações"
+            >
               <Settings2 size={16} />
             </button>
             <button className="collapse-button" onClick={() => setExpanded(false)} title="Recolher">
@@ -116,22 +166,100 @@ export default function App() {
           </div>
         </header>
 
-        <div className="panel-scroll">
-          <section className="usage-section">
-            <div className="section-heading section-heading--usage">
-              <div>
-                <span className="eyebrow">USO</span>
-                <h2>Suas IAs</h2>
+        {settingsOpen ? (
+          <div className="panel-scroll settings-scroll">
+            <section className="settings-page">
+              <div className="settings-title-row">
+                <div>
+                  <span className="eyebrow">PREFERÊNCIAS</span>
+                  <h2>Configurações</h2>
+                </div>
+                <button className="icon-button" onClick={() => setSettingsOpen(false)} title="Fechar configurações">
+                  <X size={15} />
+                </button>
               </div>
-              <Bot size={17} className="muted-icon" />
-            </div>
-            <div className="usage-stack">
-              {providers.map((provider) => <UsageCard provider={provider} key={provider.id} />)}
-            </div>
-          </section>
 
-          <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={chooseObsidian} />
-        </div>
+              <div className="settings-group">
+                <div className="settings-label">Tela do dock</div>
+                <div className="monitor-list">
+                  {monitors.length === 0 ? (
+                    <div className="settings-hint">Nenhuma tela encontrada.</div>
+                  ) : monitors.map((monitor) => (
+                    <button
+                      key={monitor.index}
+                      className={`monitor-option ${monitor.index === monitorIndex ? "is-selected" : ""}`}
+                      onClick={() => selectMonitor(monitor.index)}
+                    >
+                      <span className="monitor-option__icon"><MonitorIcon size={15} /></span>
+                      <span className="monitor-option__copy">
+                        <strong>Tela {monitor.index + 1}</strong>
+                        <small>{monitor.name} · {monitor.width} × {monitor.height}</small>
+                      </span>
+                      {monitor.index === monitorIndex && <Check size={15} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="settings-group">
+                <div className="settings-label">Lado da tela</div>
+                <div className="side-picker">
+                  <button
+                    className={side === "left" ? "is-selected" : ""}
+                    onClick={() => {
+                      localStorage.setItem(STORAGE_SIDE, "left");
+                      setSide("left");
+                    }}
+                  >
+                    Esquerda
+                  </button>
+                  <button
+                    className={side === "right" ? "is-selected" : ""}
+                    onClick={() => {
+                      localStorage.setItem(STORAGE_SIDE, "right");
+                      setSide("right");
+                    }}
+                  >
+                    Direita
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-group">
+                <div className="settings-label">Obsidian</div>
+                <button className="obsidian-setting" onClick={chooseObsidian}>
+                  <span className="monitor-option__icon"><FolderOpen size={15} /></span>
+                  <span className="monitor-option__copy">
+                    <strong>{obsidianPath ? "Pasta conectada" : "Conectar pasta"}</strong>
+                    <small>{obsidianPath || "Selecione seu Vault ou a pasta de prompts"}</small>
+                  </span>
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+
+              <div className="settings-note">
+                Você também pode arrastar o AI Dock pelo cabeçalho. A tela selecionada fica salva para a próxima abertura.
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div className="panel-scroll">
+            <section className="usage-section">
+              <div className="section-heading section-heading--usage">
+                <div>
+                  <span className="eyebrow">USO</span>
+                  <h2>Suas IAs</h2>
+                </div>
+                <Bot size={17} className="muted-icon" />
+              </div>
+              <div className="usage-stack">
+                {providers.map((provider) => <UsageCard provider={provider} key={provider.id} />)}
+              </div>
+            </section>
+
+            <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={chooseObsidian} />
+          </div>
+        )}
       </div>
     </main>
   );

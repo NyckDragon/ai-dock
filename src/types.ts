@@ -1,5 +1,13 @@
 export type DockSide = "left" | "right";
 
+export type MonitorInfo = {
+  index: number;
+  name: string;
+  width: number;
+  height: number;
+  scaleFactor: number;
+};
+
 export type UsageWindow = {
   id: string;
   label: string;
