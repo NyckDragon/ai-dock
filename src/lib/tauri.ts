@@ -28,8 +28,8 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
         connected: true,
         plan: "Max",
         windows: [
-          { id: "session", label: "Sessão · 5h", usedPercent: 70 },
-          { id: "weekly", label: "Semanal", usedPercent: 42 }
+          { id: "session", label: "Sessão · 5h", remainingPercent: 30 },
+          { id: "weekly", label: "Semanal", remainingPercent: 58 }
         ]
       },
       {
@@ -38,8 +38,8 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
         connected: true,
         plan: "Plus",
         windows: [
-          { id: "session", label: "Sessão · 5h", usedPercent: 40 },
-          { id: "weekly", label: "Semanal", usedPercent: 21 }
+          { id: "session", label: "Sessão · 5h", remainingPercent: 60 },
+          { id: "weekly", label: "Semanal", remainingPercent: 79 }
         ]
       }
     ];
