@@ -8,7 +8,7 @@ use std::{env, fs, path::PathBuf};
 pub struct UsageWindow {
     id: String,
     label: String,
-    used_percent: f64,
+    remaining_percent: f64,
     reset_at: Option<String>,
 }
 
@@ -42,6 +42,10 @@ fn percent(value: Option<&Value>) -> Option<f64> {
     value.and_then(|v| v.as_f64().or_else(|| v.as_i64().map(|n| n as f64)))
 }
 
+fn remaining_percent(consumed: f64) -> f64 {
+    (100.0 - consumed).clamp(0.0, 100.0)
+}
+
 fn string(value: Option<&Value>) -> Option<String> {
     value.and_then(Value::as_str).map(str::to_string)
 }
@@ -62,24 +66,23 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected("codex", "Codex", "O auth.json do Codex não pôde ser lido.");
     };
 
-    let tokens = json.get("tokens").unwrap_or(&Value::Null);
-    let access_token = tokens
-        .get("access_token")
-        .or_else(|| tokens.get("accessToken"))
+    let access_token = json
+        .get("tokens")
+        .and_then(|tokens| tokens.get("access_token").or_else(|| tokens.get("accessToken")))
         .and_then(Value::as_str);
     let Some(access_token) = access_token else {
         return disconnected("codex", "Codex", "Nenhum token OAuth do Codex foi encontrado.");
     };
-    let account_id = tokens
-        .get("account_id")
-        .or_else(|| tokens.get("accountId"))
+    let account_id = json
+        .get("tokens")
+        .and_then(|tokens| tokens.get("account_id").or_else(|| tokens.get("accountId")))
         .and_then(Value::as_str);
 
     let mut request = client
         .get("https://chatgpt.com/backend-api/wham/usage")
         .header(AUTHORIZATION, format!("Bearer {access_token}"))
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "AI-Dock/0.1");
+        .header(USER_AGENT, "codex-cli");
     if let Some(account_id) = account_id {
         request = request.header("ChatGPT-Account-Id", account_id);
     }
@@ -104,8 +107,8 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
             windows.push(UsageWindow {
                 id: "session".into(),
                 label: "Sessão · 5h".into(),
-                used_percent: used,
-                reset_at: primary.get("reset_at").and_then(Value::as_i64).map(|s| format_unix(s)),
+                remaining_percent: remaining_percent(used),
+                reset_at: primary.get("reset_at").and_then(Value::as_i64).map(format_unix),
             });
         }
     }
@@ -114,8 +117,8 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
             windows.push(UsageWindow {
                 id: "weekly".into(),
                 label: "Semanal".into(),
-                used_percent: used,
-                reset_at: secondary.get("reset_at").and_then(Value::as_i64).map(|s| format_unix(s)),
+                remaining_percent: remaining_percent(used),
+                reset_at: secondary.get("reset_at").and_then(Value::as_i64).map(format_unix),
             });
         }
     }
@@ -130,19 +133,31 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
     }
 }
 
+fn claude_credentials_path() -> Option<PathBuf> {
+    env::var_os("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .or_else(|| home_dir().map(|p| p.join(".claude")))
+        .map(|p| p.join(".credentials.json"))
+}
+
 async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
-    let Some(path) = home_dir().map(|p| p.join(".claude").join(".credentials.json")) else {
-        return disconnected("claude", "Claude", "Não foi possível localizar a pasta do usuário.");
-    };
-    let Ok(raw) = fs::read_to_string(path) else {
-        return disconnected("claude", "Claude", "Claude Code não conectado. Execute `claude login`.");
-    };
-    let Ok(json) = serde_json::from_str::<Value>(&raw) else {
-        return disconnected("claude", "Claude", "As credenciais do Claude não puderam ser lidas.");
-    };
-    let oauth = json.get("claudeAiOauth").unwrap_or(&Value::Null);
-    let Some(access_token) = oauth.get("accessToken").and_then(Value::as_str) else {
-        return disconnected("claude", "Claude", "Nenhum token OAuth do Claude Code foi encontrado.");
+    let file_token = claude_credentials_path()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .and_then(|json| {
+            json.get("claudeAiOauth")
+                .and_then(|oauth| oauth.get("accessToken"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
+
+    let access_token = env::var("CLAUDE_CODE_OAUTH_TOKEN").ok().filter(|v| !v.trim().is_empty()).or(file_token);
+    let Some(access_token) = access_token else {
+        return disconnected(
+            "claude",
+            "Claude",
+            "Claude Code não conectado. O AI Dock usa a sessão do Claude Code; execute `claude login` para vincular.",
+        );
     };
 
     let response = match client
@@ -160,7 +175,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
     };
 
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        return disconnected("claude", "Claude", "Sessão do Claude expirou. Execute `claude logout` e `claude login`.");
+        return disconnected("claude", "Claude", "Sessão do Claude Code expirou. Execute `claude login` novamente.");
     }
     if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
         return disconnected("claude", "Claude", "A Anthropic limitou temporariamente a consulta de uso. Tente atualizar depois.");
@@ -174,21 +189,21 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
     };
     let mut windows = vec![];
     if let Some(five) = usage.get("five_hour") {
-        if let Some(used) = percent(five.get("utilization")) {
+        if let Some(utilization) = percent(five.get("utilization")) {
             windows.push(UsageWindow {
                 id: "session".into(),
                 label: "Sessão · 5h".into(),
-                used_percent: used,
+                remaining_percent: remaining_percent(utilization),
                 reset_at: string(five.get("resets_at")),
             });
         }
     }
     if let Some(seven) = usage.get("seven_day") {
-        if let Some(used) = percent(seven.get("utilization")) {
+        if let Some(utilization) = percent(seven.get("utilization")) {
             windows.push(UsageWindow {
                 id: "weekly".into(),
                 label: "Semanal".into(),
-                used_percent: used,
+                remaining_percent: remaining_percent(utilization),
                 reset_at: string(seven.get("resets_at")),
             });
         }
@@ -205,22 +220,10 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
 }
 
 fn format_unix(timestamp: i64) -> String {
-    // JavaScript's Date can parse this ISO representation reliably.
-    let seconds = timestamp.max(0);
-    let dt = std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds as u64);
-    let system_now = std::time::SystemTime::now();
-    let offset = dt.duration_since(system_now).ok().map(|d| d.as_secs() as i64).unwrap_or(0);
-    // Keep dependency surface small: return a millisecond timestamp encoded as an ISO-compatible JS date via frontend fallback.
-    let target_ms = (std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i128 + offset as i128 * 1000) as i64;
-    // Date accepts numeric strings poorly, so produce a UTC timestamp manually using a tiny conversion helper.
-    unix_to_iso(target_ms / 1000)
+    unix_to_iso(timestamp.max(0))
 }
 
 fn unix_to_iso(seconds: i64) -> String {
-    // Howard Hinnant civil-from-days algorithm; avoids another runtime dependency for one display field.
     let days = seconds.div_euclid(86_400);
     let sod = seconds.rem_euclid(86_400);
     let z = days + 719_468;
@@ -251,7 +254,6 @@ pub async fn get_provider_usage() -> Vec<ProviderUsage> {
         }
     };
 
-    // Kept explicit for the MVP. Each provider is isolated and can be parallelized later.
     let claude = claude_usage(&client).await;
     let codex = codex_usage(&client).await;
     vec![claude, codex]
