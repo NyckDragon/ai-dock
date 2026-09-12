@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AI Dock",
+  "version": "0.1.0",
+  "identifier": "app.aidock.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "AI Dock",
+        "width": 58,
+        "height": 210,
+        "minWidth": 58,
+        "minHeight": 210,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "windows": {
+      "wix": null,
+      "nsis": null
+    }
+  }
+}
