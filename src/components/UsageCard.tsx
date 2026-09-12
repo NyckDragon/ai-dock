@@ -37,14 +37,14 @@ export function UsageCard({ provider }: { provider: ProviderUsage }) {
 
       <div className="usage-windows">
         {provider.windows.map((window) => {
-          const percent = clamp(window.usedPercent);
+          const percent = clamp(window.remainingPercent);
           return (
             <div className="usage-window" key={window.id}>
               <div className="usage-window__labels">
                 <span>{window.label}</span>
-                <strong>{Math.round(percent)}%</strong>
+                <strong>{Math.round(percent)}% restante</strong>
               </div>
-              <div className="usage-track">
+              <div className="usage-track" title={`${Math.round(percent)}% restante`}>
                 <div className="usage-fill" style={{ width: `${percent}%` }} />
               </div>
               {formatReset(window.resetAt) ? (
