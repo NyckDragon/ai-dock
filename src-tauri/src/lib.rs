@@ -9,6 +9,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::dock::get_monitors,
             commands::dock::set_dock_state,
+            commands::dock::raise_dock,
             commands::dock::quit_app,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
@@ -29,7 +30,10 @@ pub fn run() {
 
                 let keep_topmost = window.clone();
                 window.on_window_event(move |event| {
-                    if matches!(event, tauri::WindowEvent::Focused(false)) {
+                    if matches!(
+                        event,
+                        tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+                    ) {
                         let _ = keep_topmost.set_always_on_top(true);
                     }
                 });
