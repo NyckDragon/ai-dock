@@ -51,12 +51,12 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
         id: "antigravity",
         name: "Antigravity",
         connected: true,
-        plan: "Google AI Pro",
+        plan: "Pro",
         windows: [
-          { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 82 },
-          { id: "gemini-weekly", label: "Gemini · semanal", remainingPercent: 68 },
-          { id: "third-party-session", label: "Claude + GPT · 5h", remainingPercent: 54 },
-          { id: "third-party-weekly", label: "Claude + GPT · semanal", remainingPercent: 74 }
+          { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 100 },
+          { id: "gemini-weekly", label: "Gemini · semanal", remainingPercent: 87 },
+          { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 100 },
+          { id: "claude-gpt-weekly", label: "Claude + GPT · semanal", remainingPercent: 49 }
         ]
       }
     ];
@@ -85,16 +85,23 @@ export async function clearClaudeWebSession(): Promise<void> {
 
 export async function fetchProviderSetupStatus(): Promise<ProviderSetupStatus> {
   if (!isTauri()) {
-    return { installed: false, authenticated: false, version: null, npmAvailable: true };
+    return { installed: false, authenticated: false, version: null, npmAvailable: true, npmManaged: false };
   }
   return invoke<ProviderSetupStatus>("provider_setup_status");
 }
 
 export async function installProviderCli(): Promise<ProviderSetupStatus> {
   if (!isTauri()) {
-    return { installed: true, authenticated: false, version: "Claude Code", npmAvailable: true };
+    return { installed: true, authenticated: false, version: "Claude Code", npmAvailable: true, npmManaged: true };
   }
   return invoke<ProviderSetupStatus>("install_provider_cli");
+}
+
+export async function uninstallProviderCli(): Promise<ProviderSetupStatus> {
+  if (!isTauri()) {
+    return { installed: false, authenticated: false, version: null, npmAvailable: true, npmManaged: false };
+  }
+  return invoke<ProviderSetupStatus>("uninstall_provider_cli");
 }
 
 export async function openProviderSetup(): Promise<void> {
