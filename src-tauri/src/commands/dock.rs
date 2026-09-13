@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +14,15 @@ pub struct MonitorInfo {
 fn main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     app.get_webview_window("main")
         .ok_or_else(|| "Janela principal não encontrada".to_string())
+}
+
+fn boot_log(message: &str) {
+    if let Some(dir) = dirs::data_local_dir() {
+        let folder = dir.join("AI Dock");
+        let _ = std::fs::create_dir_all(&folder);
+        let line = format!("{message}\n");
+        let _ = std::fs::write(folder.join("boot.log"), line);
+    }
 }
 
 pub fn place_dock(
@@ -33,10 +42,7 @@ pub fn place_dock(
     let scale = selected_monitor.scale_factor().max(1.0);
     let monitor_pos = selected_monitor.position();
     let monitor_size = selected_monitor.size();
-    let work_w = monitor_size.width as f64 / scale;
     let work_h = monitor_size.height as f64 / scale;
-    let origin_x = monitor_pos.x as f64 / scale;
-    let origin_y = monitor_pos.y as f64 / scale;
 
     let logical_width = if expanded { 360.0 } else { 58.0 };
     let logical_height = if expanded {
@@ -47,23 +53,30 @@ pub fn place_dock(
             .clamp(210.0, (work_h - 28.0).max(210.0))
     };
 
+    let width = (logical_width * scale).round() as u32;
+    let height = (logical_height * scale).round() as u32;
+    let margin = (10.0 * scale).round() as i32;
     let x = if side == "left" {
-        origin_x + 10.0
+        monitor_pos.x + margin
     } else {
-        origin_x + work_w - logical_width - 10.0
+        monitor_pos.x + monitor_size.width as i32 - width as i32 - margin
     };
-    let y = origin_y + ((work_h - logical_height) / 2.0).max(10.0);
+    let y = monitor_pos.y + ((monitor_size.height as i32 - height as i32) / 2).max(margin);
+
+    boot_log(&format!(
+        "place_dock side={side} expanded={expanded} scale={scale} pos={x},{y} size={width}x{height}"
+    ));
 
     let _ = window.set_always_on_top(true);
-    let _ = window.set_skip_taskbar(true);
     window
-        .set_size(LogicalSize::new(logical_width, logical_height))
+        .set_size(PhysicalSize::new(width, height))
         .map_err(|e| e.to_string())?;
     window
-        .set_position(LogicalPosition::new(x, y))
+        .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     let _ = window.unminimize();
     let _ = window.show();
+    let _ = window.set_focus();
     let _ = window.set_always_on_top(true);
     Ok(())
 }
@@ -95,6 +108,7 @@ pub fn get_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
 pub fn raise_dock(app: AppHandle) -> Result<(), String> {
     let window = main_window(&app)?;
     let _ = window.unminimize();
+    let _ = window.show();
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -107,7 +121,13 @@ pub fn set_dock_state(
     monitor_index: Option<usize>,
     compact_height: Option<f64>,
 ) -> Result<(), String> {
-    place_dock(&main_window(&app)?, &side, expanded, monitor_index, compact_height)
+    place_dock(
+        &main_window(&app)?,
+        &side,
+        expanded,
+        monitor_index,
+        compact_height,
+    )
 }
 
 #[tauri::command]

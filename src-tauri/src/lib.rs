@@ -25,9 +25,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_decorations(false);
                 let _ = window.set_resizable(false);
-                if commands::dock::place_dock(&window, "right", false, None, Some(236.0)).is_err() {
-                    let _ = window.center();
-                }
+                let _ = window.set_skip_taskbar(false);
+                let _ = window.center();
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_always_on_top(true);
