@@ -11,6 +11,8 @@ pub fn run() {
             commands::dock::set_dock_state,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
+            commands::providers::provider_setup_status,
+            commands::providers::open_provider_setup,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
