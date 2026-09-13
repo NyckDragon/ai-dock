@@ -4,9 +4,19 @@ import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUs
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
-export async function setDock(side: DockSide, expanded: boolean, monitorIndex: number) {
+export async function setDock(
+  side: DockSide,
+  expanded: boolean,
+  monitorIndex: number,
+  compactHeight = 240
+) {
   if (!isTauri()) return;
-  await invoke("set_dock_state", { side, expanded, monitorIndex });
+  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight });
+}
+
+export async function raiseDock() {
+  if (!isTauri()) return;
+  await invoke("raise_dock");
 }
 
 export async function quitApp() {
@@ -28,39 +38,7 @@ export async function fetchMonitors(): Promise<MonitorInfo[]> {
 }
 
 export async function fetchUsage(): Promise<ProviderUsage[]> {
-  if (!isTauri()) {
-    return [
-      {
-        id: "claude",
-        name: "Claude",
-        connected: false,
-        windows: [],
-        error: "Claude ainda não conectado."
-      },
-      {
-        id: "codex",
-        name: "Codex",
-        connected: true,
-        plan: "Plus",
-        windows: [
-          { id: "session", label: "Sessão · 5h", remainingPercent: 60 },
-          { id: "weekly", label: "Semanal", remainingPercent: 79 }
-        ]
-      },
-      {
-        id: "antigravity",
-        name: "Antigravity",
-        connected: true,
-        plan: "Pro",
-        windows: [
-          { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 100 },
-          { id: "gemini-weekly", label: "Gemini · semanal", remainingPercent: 87 },
-          { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 100 },
-          { id: "claude-gpt-weekly", label: "Claude + GPT · semanal", remainingPercent: 49 }
-        ]
-      }
-    ];
-  }
+  if (!isTauri()) return [];
   return invoke<ProviderUsage[]>("get_provider_usage");
 }
 
