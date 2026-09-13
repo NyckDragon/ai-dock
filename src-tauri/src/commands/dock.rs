@@ -86,3 +86,8 @@ pub fn set_dock_state(
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
+}

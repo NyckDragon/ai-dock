@@ -41,6 +41,10 @@ fn stored_session_key() -> Option<String> {
     credential_entry().ok()?.get_password().ok().filter(|value| !value.trim().is_empty())
 }
 
+pub fn has_stored_session() -> bool {
+    stored_session_key().is_some()
+}
+
 fn cookie_header(session_key: &str) -> String {
     format!("sessionKey={session_key}")
 }
@@ -50,7 +54,7 @@ async fn fetch_json(client: &reqwest::Client, url: &str, session_key: &str) -> R
         .get(url)
         .header("Cookie", cookie_header(session_key))
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "Mozilla/5.0 AI-Dock/0.2.2")
+        .header(USER_AGENT, "Mozilla/5.0 AI-Dock/0.2.3")
         .header("Origin", "https://claude.ai")
         .header("Referer", "https://claude.ai/settings/usage")
         .send()
@@ -85,6 +89,14 @@ fn reset(value: Option<&Value>) -> Option<String> {
 }
 
 fn organization_id(document: &Value) -> Option<String> {
+    if let Some(id) = document
+        .get("uuid")
+        .or_else(|| document.get("id"))
+        .and_then(Value::as_str)
+    {
+        return Some(id.to_string());
+    }
+
     let list = document.as_array()?;
     list.iter().find_map(|org| {
         org.get("uuid")
@@ -129,7 +141,7 @@ async fn usage_with_key(client: &reqwest::Client, session_key: &str) -> Result<P
         id: "claude".into(),
         name: "Claude".into(),
         connected: true,
-        plan: None,
+        plan: Some("Web".into()),
         windows,
         error: None,
     })

@@ -1,6 +1,6 @@
 [package]
 name = "ai-dock"
-version = "0.2.2"
+version = "0.2.3"
 description = "Windows 11 AI usage monitor and Obsidian prompt launcher"
 authors = ["Nycolas Monteiro"]
 edition = "2021"
@@ -23,5 +23,5 @@ dirs = "6"
 walkdir = "2"
 regex = "1"
 portable-pty = "0.9"
-keyring = "3"
+keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

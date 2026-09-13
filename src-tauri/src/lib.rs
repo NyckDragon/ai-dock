@@ -9,6 +9,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::dock::get_monitors,
             commands::dock::set_dock_state,
+            commands::dock::quit_app,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
             commands::providers::provider_setup_status,
