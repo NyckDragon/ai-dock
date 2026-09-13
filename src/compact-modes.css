@@ -1,9 +1,10 @@
 .dock-pill {
   height: calc(100% - 4px);
-  padding: 12px 0 8px;
-  gap: 8px;
+  padding: 10px 0 8px;
+  gap: 6px;
   box-shadow: none !important;
-  overflow: hidden;
+  overflow: visible;
+  justify-content: flex-start;
 }
 .dock-pill:hover {
   transform: none;
@@ -11,6 +12,14 @@
 }
 .dock-glow {
   display: none !important;
+}
+.dock-spark {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  color: #d7ceff;
 }
 
 .compact-metrics {
@@ -34,6 +43,7 @@
   color: #e6e8ed;
   font-size: 9px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .compact-metric--percent {
@@ -50,8 +60,12 @@
   width: 100%;
   height: 100%;
   border-radius: 7px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  white-space: nowrap;
   background: #0c0e14;
 }
 
@@ -71,9 +85,11 @@
 .compact-gauge--empty { --ring-color: #555b66; opacity: .62; }
 
 .compact-gauge__face small {
-  font-size: 6px;
-  margin-left: 1px;
+  display: inline;
+  font-size: 7px;
+  margin: 0;
   color: #969ca7;
+  line-height: 1;
 }
 
 .compact-mode-picker {
