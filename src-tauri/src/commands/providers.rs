@@ -28,7 +28,7 @@ pub struct ProviderUsage {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ClaudeConnectionStatus {
+pub struct ProviderSetupStatus {
     installed: bool,
     authenticated: bool,
     version: Option<String>,
@@ -237,7 +237,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
     }
 }
 
-fn claude_executable() -> Option<PathBuf> {
+fn provider_executable() -> Option<PathBuf> {
     if let Some(home) = home_dir() {
         let native = home.join(".local").join("bin").join("claude.exe");
         if native.is_file() {
@@ -264,7 +264,7 @@ fn claude_executable() -> Option<PathBuf> {
         .next()
 }
 
-fn claude_version(executable: &PathBuf) -> Option<String> {
+fn provider_version(executable: &PathBuf) -> Option<String> {
     let command_line = format!("\"{}\" --version", executable.display());
     let output = Command::new("cmd.exe")
         .args(["/C", &command_line])
@@ -278,18 +278,18 @@ fn claude_version(executable: &PathBuf) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn get_claude_connection_status() -> ClaudeConnectionStatus {
-    let executable = claude_executable();
-    ClaudeConnectionStatus {
+pub fn provider_setup_status() -> ProviderSetupStatus {
+    let executable = provider_executable();
+    ProviderSetupStatus {
         installed: executable.is_some(),
         authenticated: claude_oauth_token().is_some(),
-        version: executable.as_ref().and_then(claude_version),
+        version: executable.as_ref().and_then(provider_version),
     }
 }
 
 #[tauri::command]
-pub fn start_claude_login() -> Result<(), String> {
-    let executable = claude_executable().ok_or_else(|| {
+pub fn open_provider_setup() -> Result<(), String> {
+    let executable = provider_executable().ok_or_else(|| {
         "Claude Code não está instalado. Instale o Claude Code oficial e tente novamente.".to_string()
     })?;
 
@@ -303,7 +303,7 @@ pub fn start_claude_login() -> Result<(), String> {
     command
         .spawn()
         .map(|_| ())
-        .map_err(|_| "Não foi possível abrir o login do Claude Code.".to_string())
+        .map_err(|_| "Não foi possível abrir a autenticação do Claude Code.".to_string())
 }
 
 fn format_unix(timestamp: i64) -> String {
