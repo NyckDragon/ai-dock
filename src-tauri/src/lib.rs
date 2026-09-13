@@ -14,6 +14,9 @@ pub fn run() {
             commands::providers::provider_setup_status,
             commands::providers::install_provider_cli,
             commands::providers::open_provider_setup,
+            commands::claude_web::claude_web_status,
+            commands::claude_web::set_claude_web_session,
+            commands::claude_web::clear_claude_web_session,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
