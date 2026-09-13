@@ -31,7 +31,8 @@ import {
   quitApp,
   saveClaudeWebSession,
   scanPrompts,
-  setDock
+  setDock,
+  uninstallProviderCli
 } from "./lib/tauri";
 import type {
   CompactMode,
@@ -46,13 +47,20 @@ const STORAGE_SIDE = "ai-dock-side";
 const STORAGE_MONITOR = "ai-dock-monitor-index";
 const STORAGE_OBSIDIAN = "ai-dock-obsidian-path";
 const STORAGE_COMPACT_MODE = "ai-dock-compact-mode";
+const STORAGE_COMPACT_SIGN = "ai-dock-compact-sign";
 
 const compactModes: { id: CompactMode; title: string; description: string }[] = [
-  { id: "classic", title: "Padrão", description: "Ícone + status" },
-  { id: "percent", title: "Só %", description: "Percentual restante" },
-  { id: "ring", title: "Só círculo", description: "Borda de quota" },
-  { id: "ring-percent", title: "Círculo + %", description: "Borda + percentual" }
+  { id: "classic", title: "Padrão", description: "Ícone + AI + pontos" },
+  { id: "percent", title: "Números", description: "AI + percentual" },
+  { id: "ring", title: "Círculo", description: "AI + anel" },
+  { id: "square", title: "Quadrado", description: "AI + borda quadrada" }
 ];
+
+function readCompactMode(): CompactMode {
+  const stored = localStorage.getItem(STORAGE_COMPACT_MODE);
+  if (stored === "ring-percent") return "ring";
+  return compactModes.some((mode) => mode.id === stored) ? (stored as CompactMode) : "classic";
+}
 
 function errorMessage(error: unknown) {
   if (typeof error === "string") return error;
@@ -72,35 +80,53 @@ function quotaTone(remaining: number | null) {
   return "danger";
 }
 
-function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mode: CompactMode }) {
+function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
+  const slots: ProviderUsage[] = [];
+  for (const provider of providers) {
+    if (provider.id !== "antigravity") {
+      slots.push(provider);
+      continue;
+    }
+    const gemini = provider.windows.filter((window) => window.id.startsWith("gemini"));
+    const other = provider.windows.filter((window) => window.id.startsWith("claude-gpt") || window.id.startsWith("third-party"));
+    slots.push({ ...provider, id: "antigravity-gemini", name: "Gemini", windows: gemini });
+    slots.push({ ...provider, id: "antigravity-gpt", name: "Claude + GPT", windows: other });
+  }
+  return slots;
+}
+
+function CompactProviderMetric({
+  provider,
+  mode,
+  showSign
+}: {
+  provider: ProviderUsage;
+  mode: CompactMode;
+  showSign: boolean;
+}) {
   const remaining = providerHeadroom(provider);
   const rounded = remaining == null ? null : Math.round(remaining);
+  const label = rounded == null ? "--" : showSign ? `${rounded}%` : `${rounded}`;
   const title = rounded == null ? `${provider.name}: não conectado` : `${provider.name}: ${rounded}% restante`;
 
   if (mode === "percent") {
     return (
       <span className="compact-metric compact-metric--percent" title={title}>
-        {rounded == null ? "--" : `${rounded}%`}
+        {label}
       </span>
     );
   }
 
   const degrees = remaining == null ? 0 : remaining * 3.6;
   const tone = quotaTone(remaining);
-  const ringClass = `compact-ring compact-ring--${tone}${mode === "ring" ? " compact-ring--only" : ""}`;
+  const ringClass = `compact-ring compact-ring--${tone}${mode === "square" ? " compact-ring--square" : ""}`;
 
   return (
-    <span
-      className={ringClass}
-      title={title}
-      style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}
-    >
-      {mode === "ring-percent" ? (
-        <span className="compact-ring__value">
-          {rounded == null ? "--" : rounded}
-          {rounded == null ? null : <small>%</small>}
-        </span>
-      ) : null}
+    <span className={ringClass} title={title} style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}>
+      <span className="compact-ring__value">
+        {rounded == null ? "--" : rounded}
+        {rounded == null || !showSign ? null : <small>%</small>}
+      </span>
     </span>
   );
 }
@@ -108,13 +134,9 @@ function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mo
 export default function App() {
   const [expanded, setExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [side, setSide] = useState<DockSide>(() =>
-    localStorage.getItem(STORAGE_SIDE) === "left" ? "left" : "right"
-  );
-  const [compactMode, setCompactMode] = useState<CompactMode>(() => {
-    const stored = localStorage.getItem(STORAGE_COMPACT_MODE) as CompactMode | null;
-    return compactModes.some((mode) => mode.id === stored) ? stored! : "classic";
-  });
+  const [side, setSide] = useState<DockSide>(() => (localStorage.getItem(STORAGE_SIDE) === "left" ? "left" : "right"));
+  const [compactMode, setCompactMode] = useState<CompactMode>(readCompactMode);
+  const [showSign, setShowSign] = useState(() => localStorage.getItem(STORAGE_COMPACT_SIGN) !== "off");
   const [monitorIndex, setMonitorIndex] = useState(() => {
     const stored = Number(localStorage.getItem(STORAGE_MONITOR));
     return Number.isInteger(stored) && stored >= 0 ? stored : 0;
@@ -134,10 +156,7 @@ export default function App() {
   const [webNote, setWebNote] = useState<string | null>(null);
   const [webError, setWebError] = useState<string | null>(null);
 
-  const compactProviders = useMemo(
-    () => providers.filter((provider) => ["claude", "codex", "antigravity"].includes(provider.id)).slice(0, 3),
-    [providers]
-  );
+  const compactProviders = useMemo(() => compactSlots(providers), [providers]);
 
   async function refreshProviders() {
     setLoading(true);
@@ -156,166 +175,68 @@ export default function App() {
     }
   }
 
-  async function refreshWebStatus() {
-    try {
-      const snapshot = await fetchClaudeWebStatus();
-      setWebConnected(Boolean(snapshot.connected));
-      if (snapshot.connected) {
-        setWebNote("Sessão do claude.ai salva neste PC.");
-        setWebError(null);
-      } else if (snapshot.error) {
-        setWebNote(null);
-        setWebError(snapshot.error);
-      }
-    } catch {
-      setWebConnected(false);
-    }
-  }
-
-  async function refreshMonitorsList() {
-    try {
-      const available = await fetchMonitors();
-      setMonitors(available);
-      if (available.length > 0 && monitorIndex >= available.length) {
-        localStorage.setItem(STORAGE_MONITOR, "0");
-        setMonitorIndex(0);
-      }
-    } catch {
-      setMonitors([]);
-    }
-  }
-
-  async function refreshPrompts(path: string | null) {
-    if (!path) {
-      setPrompts([]);
-      return;
-    }
-    try {
-      setPrompts(await scanPrompts(path));
-    } catch {
-      setPrompts([]);
-    }
-  }
-
   useEffect(() => {
     void setDock(side, expanded, monitorIndex);
-  }, [expanded, side, monitorIndex]);
+  }, [expanded, side, monitorIndex, compactMode]);
 
   useEffect(() => {
     void refreshProviders();
-    void refreshPrompts(obsidianPath);
-    void refreshMonitorsList();
+    if (obsidianPath) {
+      scanPrompts(obsidianPath).then(setPrompts).catch(() => setPrompts([]));
+    }
+    fetchMonitors().then(setMonitors).catch(() => setMonitors([]));
     void refreshProviderStatus();
-    void refreshWebStatus();
+    fetchClaudeWebStatus()
+      .then((snapshot) => {
+        setWebConnected(Boolean(snapshot.connected));
+        if (snapshot.connected) setWebNote("Sessão do claude.ai salva neste PC.");
+        else if (snapshot.error) setWebError(snapshot.error);
+      })
+      .catch(() => setWebConnected(false));
   }, []);
 
-  async function chooseObsidian() {
-    const path = await chooseObsidianFolder();
-    if (!path) return;
-    localStorage.setItem(STORAGE_OBSIDIAN, path);
-    setObsidianPath(path);
-    await refreshPrompts(path);
+  async function installClaude() {
+    if (!window.confirm("Instalar o Claude Code CLI (terminal), não o Claude Desktop?")) return;
+    setSetupStarting(true);
+    setSetupError(null);
+    try {
+      setProviderStatus(await installProviderCli());
+      setSetupNote("Claude Code CLI instalado.");
+    } catch (error) {
+      setSetupError(errorMessage(error));
+    } finally {
+      setSetupStarting(false);
+    }
+  }
+
+  async function removeClaudeCli() {
+    if (!window.confirm("Desinstalar o Claude Code CLI instalado via npm? O Claude Desktop permanece.")) return;
+    setSetupStarting(true);
+    setSetupError(null);
+    try {
+      setProviderStatus(await uninstallProviderCli());
+      setSetupNote("Claude Code CLI desinstalado.");
+    } catch (error) {
+      setSetupError(errorMessage(error));
+    } finally {
+      setSetupStarting(false);
+    }
   }
 
   async function connectClaudeWeb() {
     setWebBusy(true);
     setWebError(null);
-    setWebNote("Validando a sessão no claude.ai...");
     try {
-      const snapshot = await saveClaudeWebSession(sessionKey);
-      setWebConnected(Boolean(snapshot.connected));
+      await saveClaudeWebSession(sessionKey);
+      setWebConnected(true);
       setSessionKey("");
-      setWebNote("Claude Web conectado. Os limites entram no card.");
+      setWebNote("Claude Web conectado.");
       await refreshProviders();
     } catch (error) {
       setWebConnected(false);
-      setWebNote(null);
       setWebError(errorMessage(error));
     } finally {
       setWebBusy(false);
-    }
-  }
-
-  async function disconnectClaudeWeb() {
-    setWebBusy(true);
-    setWebError(null);
-    try {
-      await clearClaudeWebSession();
-      setWebConnected(false);
-      setWebNote("Sessão do Claude Web removida deste PC.");
-      await refreshProviders();
-    } catch (error) {
-      setWebError(errorMessage(error));
-    } finally {
-      setWebBusy(false);
-    }
-  }
-
-  async function installClaude() {
-    setSetupStarting(true);
-    setSetupError(null);
-    setSetupNote("Instalando Claude Code em segundo plano...");
-    try {
-      const latest = await installProviderCli();
-      setProviderStatus(latest);
-      setSetupNote("Claude Code instalado. Agora clique em Conectar Claude para autorizar sua conta uma vez.");
-    } catch (error) {
-      setSetupError(errorMessage(error));
-      setSetupNote(null);
-    } finally {
-      setSetupStarting(false);
-    }
-  }
-
-  async function connectClaude() {
-    setSetupStarting(true);
-    setSetupError(null);
-    setSetupNote(null);
-    try {
-      await openProviderSetup();
-      setSetupNote("O Claude foi aberto para autenticação. Entre com a mesma conta do Claude Desktop e, quando terminar, volte aqui e clique em Verificar conexão.");
-    } catch (error) {
-      setSetupError(errorMessage(error));
-    } finally {
-      setSetupStarting(false);
-    }
-  }
-
-  async function verifyClaude() {
-    setSetupError(null);
-    const latest = await fetchProviderSetupStatus().catch(() => null);
-    if (latest) {
-      setProviderStatus(latest);
-      setSetupNote(
-        latest.authenticated
-          ? "Claude Code conectado. Atualizando os limites."
-          : "A autenticação ainda não foi detectada. Termine o login na janela do Claude e tente novamente."
-      );
-    }
-    await refreshProviders();
-  }
-
-  function toggleSide() {
-    const next = side === "right" ? "left" : "right";
-    localStorage.setItem(STORAGE_SIDE, next);
-    setSide(next);
-  }
-
-  function selectMonitor(index: number) {
-    localStorage.setItem(STORAGE_MONITOR, String(index));
-    setMonitorIndex(index);
-  }
-
-  function cycleMonitor() {
-    if (monitors.length < 2) return;
-    selectMonitor((monitorIndex + 1) % monitors.length);
-  }
-
-  function selectCompactMode(mode: CompactMode) {
-    localStorage.setItem(STORAGE_COMPACT_MODE, mode);
-    setCompactMode(mode);
-    if (expanded) {
-      void setDock(side, true, monitorIndex);
     }
   }
 
@@ -324,20 +245,18 @@ export default function App() {
       <main className={`compact-shell compact-shell--${side}`}>
         <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
           <div className="dock-glow" />
+          <Sparkles size={17} />
+          <span className="dock-word">AI</span>
           {compactMode === "classic" ? (
-            <>
-              <Sparkles size={19} />
-              <span className="dock-word">AI</span>
-              <span className="dock-statuses">
-                {compactProviders.map((provider) => (
-                  <i key={provider.id} className={`mini-dot mini-dot--${provider.connected ? "on" : "off"}`} />
-                ))}
-              </span>
-            </>
+            <span className="dock-statuses">
+              {compactProviders.map((provider) => (
+                <i key={provider.id} className={`mini-dot mini-dot--${provider.connected && provider.windows.length ? "on" : "off"}`} />
+              ))}
+            </span>
           ) : (
             <span className="compact-metrics">
               {compactProviders.map((provider) => (
-                <CompactProviderMetric key={provider.id} provider={provider} mode={compactMode} />
+                <CompactProviderMetric key={provider.id} provider={provider} mode={compactMode} showSign={showSign} />
               ))}
             </span>
           )}
@@ -359,22 +278,18 @@ export default function App() {
             </div>
           </div>
           <div className="header-actions">
-            <button className={`icon-button ${loading ? "is-spinning" : ""}`} onClick={refreshProviders} title="Atualizar uso">
+            <button className={`icon-button ${loading ? "is-spinning" : ""}`} onClick={() => void refreshProviders()} title="Atualizar uso">
               <RefreshCw size={15} />
             </button>
             {monitors.length > 1 && (
-              <button className="icon-button" onClick={cycleMonitor} title="Mover para a próxima tela">
+              <button className="icon-button" onClick={() => setMonitorIndex((index) => (index + 1) % monitors.length)} title="Próxima tela">
                 <MonitorIcon size={15} />
               </button>
             )}
-            <button className="icon-button" onClick={toggleSide} title="Trocar lado">
+            <button className="icon-button" onClick={() => setSide((value) => (value === "right" ? "left" : "right"))} title="Trocar lado">
               {side === "right" ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
             </button>
-            <button
-              className={`icon-button ${settingsOpen ? "is-active" : ""}`}
-              onClick={() => setSettingsOpen((open) => !open)}
-              title="Configurações"
-            >
+            <button className={`icon-button ${settingsOpen ? "is-active" : ""}`} onClick={() => setSettingsOpen((open) => !open)} title="Configurações">
               <Settings2 size={16} />
             </button>
             <button className="icon-button" onClick={() => void quitApp()} title="Encerrar AI Dock">
@@ -394,7 +309,7 @@ export default function App() {
                   <span className="eyebrow">PREFERÊNCIAS</span>
                   <h2>Configurações</h2>
                 </div>
-                <button className="icon-button" onClick={() => setSettingsOpen(false)} title="Fechar configurações">
+                <button className="icon-button" onClick={() => setSettingsOpen(false)} title="Fechar">
                   <X size={15} />
                 </button>
               </div>
@@ -406,13 +321,28 @@ export default function App() {
                     <button
                       key={mode.id}
                       className={compactMode === mode.id ? "is-selected" : ""}
-                      onClick={() => selectCompactMode(mode.id)}
+                      onClick={() => {
+                        localStorage.setItem(STORAGE_COMPACT_MODE, mode.id);
+                        setCompactMode(mode.id);
+                      }}
                     >
                       {mode.title}
                       <small>{mode.description}</small>
                     </button>
                   ))}
                 </div>
+                {compactMode !== "classic" && (
+                  <button
+                    className={`compact-toggle ${showSign ? "is-selected" : ""}`}
+                    onClick={() => {
+                      const next = !showSign;
+                      localStorage.setItem(STORAGE_COMPACT_SIGN, next ? "on" : "off");
+                      setShowSign(next);
+                    }}
+                  >
+                    {showSign ? "Ocultar o sinal de %" : "Mostrar o sinal de %"}
+                  </button>
+                )}
               </div>
 
               <div className="settings-group">
@@ -422,27 +352,16 @@ export default function App() {
                     <span className="monitor-option__icon provider-connect-icon"><Sparkles size={15} /></span>
                     <span className="monitor-option__copy">
                       <strong>{webConnected ? "Claude Web conectado" : "Conectar pelo claude.ai"}</strong>
-                      <small>Cola o sessionKey uma vez. Fica só neste PC.</small>
+                      <small>O Claude Desktop aberto não entrega quota. Precisa do sessionKey.</small>
                     </span>
                     <span className={`provider-status-dot ${webConnected ? "is-connected" : ""}`} />
                   </div>
-
                   <p className="provider-connect-copy">
-                    No Chrome/Edge: claude.ai → F12 → Application → Cookies → sessionKey. Cole só o valor aqui. Não envie isso em chat.
+                    claude.ai → F12 → Application → Cookies → sessionKey. Cole só no dock.
                   </p>
-
                   {!webConnected && (
-                    <input
-                      className="provider-session-input"
-                      type="password"
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder="sessionKey"
-                      value={sessionKey}
-                      onChange={(event) => setSessionKey(event.target.value)}
-                    />
+                    <input className="provider-session-input" type="password" autoComplete="off" spellCheck={false} placeholder="sessionKey" value={sessionKey} onChange={(event) => setSessionKey(event.target.value)} />
                   )}
-
                   <div className="provider-connect-actions">
                     {!webConnected && (
                       <button className="provider-primary-button" onClick={() => void connectClaudeWeb()} disabled={webBusy || sessionKey.trim().length < 20}>
@@ -450,53 +369,24 @@ export default function App() {
                       </button>
                     )}
                     {webConnected && (
-                      <button className="provider-secondary-button" onClick={() => void disconnectClaudeWeb()} disabled={webBusy}>
-                        Remover sessão
-                      </button>
+                      <button className="provider-secondary-button" onClick={() => void clearClaudeWebSession().then(() => { setWebConnected(false); void refreshProviders(); })}>Remover sessão</button>
                     )}
                   </div>
-
                   {webNote ? <div className="provider-connect-note">{webNote}</div> : null}
                   {webError ? <div className="provider-connect-error">{webError}</div> : null}
 
                   <details className="provider-advanced">
-                    <summary>Opção avançada: Claude Code</summary>
-                    <div className="provider-connect-head" style={{ marginTop: 10 }}>
-                      <span className="monitor-option__icon provider-connect-icon"><Terminal size={15} /></span>
-                      <span className="monitor-option__copy">
-                        <strong>
-                          {providerStatus?.authenticated
-                            ? "Claude Code conectado"
-                            : providerStatus?.installed
-                              ? "Claude Code pronto"
-                              : "Claude Code não instalado"}
-                        </strong>
-                        <small>
-                          {providerStatus?.version
-                            ? providerStatus.version
-                            : providerStatus?.installed
-                              ? "Só falta autorizar sua conta"
-                              : providerStatus?.npmAvailable
-                                ? "Pode ser instalado pelo próprio AI Dock"
-                                : "Node/npm não encontrado neste PC"}
-                        </small>
-                      </span>
-                    </div>
+                    <summary>Avançado: Claude Code CLI (terminal)</summary>
+                    <p className="provider-connect-copy">Isso instala o CLI, não o app da Microsoft Store. Não é o Claude Desktop.</p>
                     <div className="provider-connect-actions">
                       {!providerStatus?.installed && providerStatus?.npmAvailable && (
-                        <button className="provider-primary-button" onClick={installClaude} disabled={setupStarting}>
-                          {setupStarting ? "Instalando..." : "Instalar Claude Code"}
-                        </button>
-                      )}
-                      {providerStatus?.installed && !providerStatus.authenticated && (
-                        <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
-                          {setupStarting ? "Abrindo..." : "Conectar Claude Code"}
-                        </button>
+                        <button className="provider-primary-button" onClick={() => void installClaude()} disabled={setupStarting}>Instalar CLI</button>
                       )}
                       {providerStatus?.installed && (
-                        <button className="provider-secondary-button" onClick={verifyClaude}>
-                          {providerStatus.authenticated ? "Atualizar conexão" : "Verificar conexão"}
-                        </button>
+                        <button className="provider-danger-button" onClick={() => void removeClaudeCli()} disabled={setupStarting}>Desinstalar CLI</button>
+                      )}
+                      {providerStatus?.installed && (
+                        <button className="provider-secondary-button" onClick={() => void openProviderSetup()}>Abrir CLI</button>
                       )}
                     </div>
                     {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
@@ -508,14 +398,8 @@ export default function App() {
               <div className="settings-group">
                 <div className="settings-label">Tela do dock</div>
                 <div className="monitor-list">
-                  {monitors.length === 0 ? (
-                    <div className="settings-hint">Nenhuma tela encontrada.</div>
-                  ) : monitors.map((monitor) => (
-                    <button
-                      key={monitor.index}
-                      className={`monitor-option ${monitor.index === monitorIndex ? "is-selected" : ""}`}
-                      onClick={() => selectMonitor(monitor.index)}
-                    >
+                  {monitors.map((monitor) => (
+                    <button key={monitor.index} className={`monitor-option ${monitor.index === monitorIndex ? "is-selected" : ""}`} onClick={() => { localStorage.setItem(STORAGE_MONITOR, String(monitor.index)); setMonitorIndex(monitor.index); }}>
                       <span className="monitor-option__icon"><MonitorIcon size={15} /></span>
                       <span className="monitor-option__copy">
                         <strong>Tela {monitor.index + 1}</strong>
@@ -528,49 +412,24 @@ export default function App() {
               </div>
 
               <div className="settings-group">
-                <div className="settings-label">Lado da tela</div>
-                <div className="side-picker">
-                  <button
-                    className={side === "left" ? "is-selected" : ""}
-                    onClick={() => {
-                      localStorage.setItem(STORAGE_SIDE, "left");
-                      setSide("left");
-                    }}
-                  >
-                    Esquerda
-                  </button>
-                  <button
-                    className={side === "right" ? "is-selected" : ""}
-                    onClick={() => {
-                      localStorage.setItem(STORAGE_SIDE, "right");
-                      setSide("right");
-                    }}
-                  >
-                    Direita
-                  </button>
-                </div>
-              </div>
-
-              <div className="settings-group">
                 <div className="settings-label">Obsidian</div>
-                <button className="obsidian-setting" onClick={chooseObsidian}>
+                <button className="obsidian-setting" onClick={async () => {
+                  const path = await chooseObsidianFolder();
+                  if (!path) return;
+                  localStorage.setItem(STORAGE_OBSIDIAN, path);
+                  setObsidianPath(path);
+                  setPrompts(await scanPrompts(path).catch(() => []));
+                }}>
                   <span className="monitor-option__icon"><FolderOpen size={15} /></span>
                   <span className="monitor-option__copy">
                     <strong>{obsidianPath ? "Pasta conectada" : "Conectar pasta"}</strong>
-                    <small>{obsidianPath || "Selecione seu Vault ou a pasta de prompts"}</small>
+                    <small>{obsidianPath || "Vault ou pasta de prompts"}</small>
                   </span>
-                  <ChevronRight size={15} />
                 </button>
               </div>
 
               <div className="settings-group">
-                <button className="provider-danger-button" onClick={() => void quitApp()}>
-                  Encerrar AI Dock
-                </button>
-              </div>
-
-              <div className="settings-note">
-                As preferências ficam salvas. Recolher só esconde o painel; Encerrar mata o processo.
+                <button className="provider-danger-button" onClick={() => void quitApp()}>Encerrar AI Dock</button>
               </div>
             </section>
           </div>
@@ -588,8 +447,13 @@ export default function App() {
                 {providers.map((provider) => <UsageCard provider={provider} key={provider.id} />)}
               </div>
             </section>
-
-            <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={chooseObsidian} />
+            <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={async () => {
+              const path = await chooseObsidianFolder();
+              if (!path) return;
+              localStorage.setItem(STORAGE_OBSIDIAN, path);
+              setObsidianPath(path);
+              setPrompts(await scanPrompts(path).catch(() => []));
+            }} />
           </div>
         )}
       </div>
