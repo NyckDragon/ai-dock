@@ -24,6 +24,12 @@ export type ProviderUsage = {
   error?: string | null;
 };
 
+export type ProviderSetupStatus = {
+  installed: boolean;
+  authenticated: boolean;
+  version?: string | null;
+};
+
 export type PromptItem = {
   path: string;
   title: string;
