@@ -36,23 +36,35 @@
   display: grid;
   place-items: center;
   isolation: isolate;
-  background: conic-gradient(var(--ring-color) var(--ring-value), rgba(255,255,255,.085) 0);
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ring-color) 28%, transparent));
+  background: transparent;
+}
+
+/* Progress lives only in the border. The center stays visually identical
+   to the percentage tile instead of looking like a filled gauge. */
+.compact-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(var(--ring-color) var(--ring-value), rgba(255,255,255,.10) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ring-color) 22%, transparent));
 }
 
 .compact-ring::after {
   content: "";
   position: absolute;
-  inset: 3px;
+  inset: 5px;
   z-index: -1;
   border-radius: inherit;
-  background: linear-gradient(180deg, rgba(24,27,36,.98), rgba(10,12,17,.98));
+  background: rgba(255,255,255,.035);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.045);
 }
 
-.compact-ring--good { --ring-color: #7ee2ad; }
-.compact-ring--warning { --ring-color: #e6c45f; }
-.compact-ring--danger { --ring-color: #ef7b7b; }
+.compact-ring--good { --ring-color: #71df9c; }
+.compact-ring--warning { --ring-color: #e5bc52; }
+.compact-ring--danger { --ring-color: #ef6f72; }
 .compact-ring--empty {
   --ring-color: #555b66;
   opacity: .58;
@@ -73,13 +85,12 @@
   color: #969ca7;
 }
 
-.compact-ring--only::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ring-color);
-  box-shadow: 0 0 7px var(--ring-color);
+.compact-ring--only::after {
+  inset: 7px;
+}
+
+.compact-ring--only .compact-ring__value {
+  display: none;
 }
 
 .compact-mode-picker {
