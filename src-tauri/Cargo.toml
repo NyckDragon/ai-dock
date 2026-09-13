@@ -1,6 +1,6 @@
 [package]
 name = "ai-dock"
-version = "0.1.0"
+version = "0.1.2"
 description = "AI usage monitor and Obsidian prompt launcher for Windows"
 authors = ["AI Dock"]
 edition = "2021"
