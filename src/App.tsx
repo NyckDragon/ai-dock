@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
-  Terminal,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +28,7 @@ import {
   installProviderCli,
   openProviderSetup,
   quitApp,
+  raiseDock,
   saveClaudeWebSession,
   scanPrompts,
   setDock,
@@ -53,7 +53,7 @@ const compactModes: { id: CompactMode; title: string; description: string }[] = 
   { id: "classic", title: "Padrão", description: "Ícone + AI + pontos" },
   { id: "percent", title: "Números", description: "AI + percentual" },
   { id: "ring", title: "Círculo", description: "AI + anel" },
-  { id: "square", title: "Quadrado", description: "AI + borda quadrada" }
+  { id: "square", title: "Quadrado", description: "AI + borda do retângulo" }
 ];
 
 function readCompactMode(): CompactMode {
@@ -87,12 +87,19 @@ function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
       slots.push(provider);
       continue;
     }
-    const gemini = provider.windows.filter((window) => window.id.startsWith("gemini"));
-    const other = provider.windows.filter((window) => window.id.startsWith("claude-gpt") || window.id.startsWith("third-party"));
+    const gemini = provider.windows.filter((item) => item.id.startsWith("gemini"));
+    const other = provider.windows.filter((item) => item.id.startsWith("claude-gpt") || item.id.startsWith("third-party"));
     slots.push({ ...provider, id: "antigravity-gemini", name: "Gemini", windows: gemini });
     slots.push({ ...provider, id: "antigravity-gpt", name: "Claude + GPT", windows: other });
   }
   return slots;
+}
+
+function compactWindowHeight(mode: CompactMode, count: number) {
+  const n = Math.max(count, 4);
+  if (mode === "classic") return 220;
+  if (mode === "ring") return 92 + n * 42;
+  return 92 + n * 36;
 }
 
 function CompactProviderMetric({
@@ -119,11 +126,14 @@ function CompactProviderMetric({
 
   const degrees = remaining == null ? 0 : remaining * 3.6;
   const tone = quotaTone(remaining);
-  const ringClass = `compact-ring compact-ring--${tone}${mode === "square" ? " compact-ring--square" : ""}`;
 
   return (
-    <span className={ringClass} title={title} style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}>
-      <span className="compact-ring__value">
+    <span
+      className={`compact-gauge compact-gauge--${tone}${mode === "ring" ? " compact-gauge--circle" : ""}`}
+      title={title}
+      style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}
+    >
+      <span className="compact-gauge__face">
         {rounded == null ? "--" : rounded}
         {rounded == null || !showSign ? null : <small>%</small>}
       </span>
@@ -157,6 +167,7 @@ export default function App() {
   const [webError, setWebError] = useState<string | null>(null);
 
   const compactProviders = useMemo(() => compactSlots(providers), [providers]);
+  const windowHeight = compactWindowHeight(compactMode, compactProviders.length);
 
   async function refreshProviders() {
     setLoading(true);
@@ -167,17 +178,23 @@ export default function App() {
     }
   }
 
-  async function refreshProviderStatus() {
-    try {
-      setProviderStatus(await fetchProviderSetupStatus());
-    } catch {
-      setProviderStatus(null);
-    }
-  }
+  useEffect(() => {
+    void setDock(side, expanded, monitorIndex, windowHeight);
+  }, [expanded, side, monitorIndex, compactMode, windowHeight]);
 
   useEffect(() => {
-    void setDock(side, expanded, monitorIndex);
-  }, [expanded, side, monitorIndex, compactMode]);
+    const tick = window.setInterval(() => {
+      void raiseDock();
+    }, 2500);
+    const onFocus = () => void raiseDock();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     void refreshProviders();
@@ -185,7 +202,7 @@ export default function App() {
       scanPrompts(obsidianPath).then(setPrompts).catch(() => setPrompts([]));
     }
     fetchMonitors().then(setMonitors).catch(() => setMonitors([]));
-    void refreshProviderStatus();
+    fetchProviderSetupStatus().then(setProviderStatus).catch(() => setProviderStatus(null));
     fetchClaudeWebStatus()
       .then((snapshot) => {
         setWebConnected(Boolean(snapshot.connected));
@@ -223,29 +240,11 @@ export default function App() {
     }
   }
 
-  async function connectClaudeWeb() {
-    setWebBusy(true);
-    setWebError(null);
-    try {
-      await saveClaudeWebSession(sessionKey);
-      setWebConnected(true);
-      setSessionKey("");
-      setWebNote("Claude Web conectado.");
-      await refreshProviders();
-    } catch (error) {
-      setWebConnected(false);
-      setWebError(errorMessage(error));
-    } finally {
-      setWebBusy(false);
-    }
-  }
-
   if (!expanded) {
     return (
       <main className={`compact-shell compact-shell--${side}`}>
         <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
-          <div className="dock-glow" />
-          <Sparkles size={17} />
+          <Sparkles size={16} />
           <span className="dock-word">AI</span>
           {compactMode === "classic" ? (
             <span className="dock-statuses">
@@ -286,7 +285,11 @@ export default function App() {
                 <MonitorIcon size={15} />
               </button>
             )}
-            <button className="icon-button" onClick={() => setSide((value) => (value === "right" ? "left" : "right"))} title="Trocar lado">
+            <button className="icon-button" onClick={() => {
+              const next = side === "right" ? "left" : "right";
+              localStorage.setItem(STORAGE_SIDE, next);
+              setSide(next);
+            }} title="Trocar lado">
               {side === "right" ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
             </button>
             <button className={`icon-button ${settingsOpen ? "is-active" : ""}`} onClick={() => setSettingsOpen((open) => !open)} title="Configurações">
@@ -356,15 +359,13 @@ export default function App() {
                     </span>
                     <span className={`provider-status-dot ${webConnected ? "is-connected" : ""}`} />
                   </div>
-                  <p className="provider-connect-copy">
-                    claude.ai → F12 → Application → Cookies → sessionKey. Cole só no dock.
-                  </p>
+                  <p className="provider-connect-copy">claude.ai → F12 → Application → Cookies → sessionKey.</p>
                   {!webConnected && (
                     <input className="provider-session-input" type="password" autoComplete="off" spellCheck={false} placeholder="sessionKey" value={sessionKey} onChange={(event) => setSessionKey(event.target.value)} />
                   )}
                   <div className="provider-connect-actions">
                     {!webConnected && (
-                      <button className="provider-primary-button" onClick={() => void connectClaudeWeb()} disabled={webBusy || sessionKey.trim().length < 20}>
+                      <button className="provider-primary-button" onClick={() => void saveClaudeWebSession(sessionKey).then(() => { setWebConnected(true); setSessionKey(""); setWebNote("Claude Web conectado."); void refreshProviders(); }).catch((error) => { setWebConnected(false); setWebError(errorMessage(error)); })} disabled={webBusy || sessionKey.trim().length < 20}>
                         {webBusy ? "Validando..." : "Salvar e testar"}
                       </button>
                     )}
@@ -374,10 +375,9 @@ export default function App() {
                   </div>
                   {webNote ? <div className="provider-connect-note">{webNote}</div> : null}
                   {webError ? <div className="provider-connect-error">{webError}</div> : null}
-
                   <details className="provider-advanced">
                     <summary>Avançado: Claude Code CLI (terminal)</summary>
-                    <p className="provider-connect-copy">Isso instala o CLI, não o app da Microsoft Store. Não é o Claude Desktop.</p>
+                    <p className="provider-connect-copy">Instala o CLI, não o Claude Desktop da Store.</p>
                     <div className="provider-connect-actions">
                       {!providerStatus?.installed && providerStatus?.npmAvailable && (
                         <button className="provider-primary-button" onClick={() => void installClaude()} disabled={setupStarting}>Instalar CLI</button>
