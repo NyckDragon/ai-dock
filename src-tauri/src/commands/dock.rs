@@ -11,14 +11,15 @@ pub struct MonitorInfo {
     scale_factor: f64,
 }
 
+fn main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    app.get_webview_window("main")
+        .ok_or_else(|| "Janela principal não encontrada".to_string())
+}
+
 #[tauri::command]
 pub fn get_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Janela principal não encontrada".to_string())?;
-
+    let window = main_window(&app)?;
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
-
     Ok(monitors
         .iter()
         .enumerate()
@@ -39,16 +40,22 @@ pub fn get_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
 }
 
 #[tauri::command]
+pub fn raise_dock(app: AppHandle) -> Result<(), String> {
+    let window = main_window(&app)?;
+    let _ = window.unminimize();
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_dock_state(
     app: AppHandle,
     side: String,
     expanded: bool,
     monitor_index: Option<usize>,
+    compact_height: Option<f64>,
 ) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Janela principal não encontrada".to_string())?;
-
+    let window = main_window(&app)?;
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     let selected_monitor = monitor_index
         .and_then(|index| monitors.get(index).cloned())
@@ -61,7 +68,11 @@ pub fn set_dock_state(
     let monitor_size = selected_monitor.size();
 
     let logical_width = if expanded { 372.0 } else { 58.0 };
-    let logical_height = if expanded { 650.0 } else { 318.0 };
+    let logical_height = if expanded {
+        650.0
+    } else {
+        compact_height.unwrap_or(240.0).clamp(210.0, 420.0)
+    };
     let width = (logical_width * scale) as u32;
     let height = (logical_height * scale) as u32;
     let margin = (10.0 * scale) as i32;
@@ -82,8 +93,8 @@ pub fn set_dock_state(
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
+    let _ = window.unminimize();
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
-
     Ok(())
 }
 
