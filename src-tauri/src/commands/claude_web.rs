@@ -154,6 +154,18 @@ pub(crate) async fn usage(client: &reqwest::Client) -> ProviderUsage {
 }
 
 #[tauri::command]
+pub async fn claude_web_usage() -> ProviderUsage {
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return disconnected("claude", "Claude", "Não foi possível iniciar a conexão com o Claude Web."),
+    };
+    usage(&client).await
+}
+
+#[tauri::command]
 pub fn claude_web_status() -> bool {
     has_session_key()
 }
