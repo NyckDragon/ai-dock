@@ -9,6 +9,14 @@ export async function setDock(side: DockSide, expanded: boolean, monitorIndex: n
   await invoke("set_dock_state", { side, expanded, monitorIndex });
 }
 
+export async function quitApp() {
+  if (!isTauri()) {
+    window.close();
+    return;
+  }
+  await invoke("quit_app");
+}
+
 export async function fetchMonitors(): Promise<MonitorInfo[]> {
   if (!isTauri()) {
     return [
@@ -54,6 +62,25 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
     ];
   }
   return invoke<ProviderUsage[]>("get_provider_usage");
+}
+
+export async function fetchClaudeWebStatus(): Promise<ProviderUsage> {
+  if (!isTauri()) {
+    return { id: "claude", name: "Claude", connected: false, windows: [], error: "Prévia local." };
+  }
+  return invoke<ProviderUsage>("claude_web_status");
+}
+
+export async function saveClaudeWebSession(sessionKey: string): Promise<ProviderUsage> {
+  if (!isTauri()) {
+    throw new Error("Abra o AI Dock instalado para salvar a sessão.");
+  }
+  return invoke<ProviderUsage>("set_claude_web_session", { sessionKey });
+}
+
+export async function clearClaudeWebSession(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("clear_claude_web_session");
 }
 
 export async function fetchProviderSetupStatus(): Promise<ProviderSetupStatus> {
