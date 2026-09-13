@@ -1,5 +1,6 @@
 use portable_pty::{native_pty_system, CommandBuilder, PtySize, PtySystem};
 use regex::Regex;
+use serde_json::{json, Value};
 use std::{
     env,
     io::{Read, Write},
@@ -16,19 +17,283 @@ use std::os::windows::process::CommandExt;
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+const LS_SERVICE: &str = "exa.language_server_pb.LanguageServerService";
+
+struct LanguageServer {
+    ports: Vec<u16>,
+    extension_port: Option<u16>,
+    csrf_token: String,
+}
 
 pub(crate) async fn usage() -> ProviderUsage {
-    tauri::async_runtime::spawn_blocking(usage_blocking)
+    let servers = tauri::async_runtime::spawn_blocking(discover_language_servers)
+        .await
+        .unwrap_or_default();
+
+    for server in &servers {
+        if let Some(usage) = try_language_server(server).await {
+            return usage;
+        }
+    }
+
+    tauri::async_runtime::spawn_blocking(usage_via_agy)
         .await
         .unwrap_or_else(|_| disconnected("antigravity", "Antigravity", "Falha ao iniciar a leitura local do Antigravity."))
 }
 
-fn usage_blocking() -> ProviderUsage {
+fn run_hidden(program: &str, args: &[&str]) -> Option<String> {
+    let mut command = Command::new(program);
+    command.args(args);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let output = command.output().ok()?;
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn flag_value(tokens: &[&str], flag: &str) -> Option<String> {
+    for (index, token) in tokens.iter().enumerate() {
+        if let Some(value) = token.strip_prefix(&format!("{flag}=")) {
+            return Some(value.trim_matches('"').to_string());
+        }
+        if *token == flag {
+            return tokens.get(index + 1).map(|value| value.trim_matches('"').to_string());
+        }
+    }
+    None
+}
+
+fn discover_language_servers() -> Vec<LanguageServer> {
+    let script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(language_server|language-server|agy)' } | Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress";
+    let Some(raw) = run_hidden("powershell.exe", &["-NoProfile", "-NonInteractive", "-Command", script]) else {
+        return vec![];
+    };
+    if raw.trim().is_empty() {
+        return vec![];
+    }
+
+    let Ok(parsed) = serde_json::from_str::<Value>(raw.trim()) else {
+        return vec![];
+    };
+    let processes = match parsed {
+        Value::Array(items) => items,
+        object @ Value::Object(_) => vec![object],
+        _ => vec![],
+    };
+    let netstat = run_hidden("netstat.exe", &["-ano", "-p", "TCP"]).unwrap_or_default();
+    let mut found = vec![];
+
+    for process in processes {
+        let command_line = process.get("CommandLine").and_then(Value::as_str).unwrap_or_default();
+        let pid = process.get("ProcessId").and_then(Value::as_u64).unwrap_or_default() as u32;
+        if command_line.is_empty() || pid == 0 {
+            continue;
+        }
+
+        let tokens: Vec<&str> = command_line.split_whitespace().collect();
+        let ide_name = flag_value(&tokens, "--ide_name")
+            .or_else(|| flag_value(&tokens, "--override_ide_name"))
+            .unwrap_or_default()
+            .to_lowercase();
+        let app_data = flag_value(&tokens, "--app_data_dir")
+            .unwrap_or_default()
+            .to_lowercase();
+        let lower_command = command_line.to_lowercase();
+        let is_antigravity = ide_name == "antigravity"
+            || ide_name == "antigravity-ide"
+            || app_data.contains("antigravity")
+            || lower_command.contains("\\antigravity\\")
+            || lower_command.contains("/antigravity/");
+        if !is_antigravity {
+            continue;
+        }
+
+        let csrf_token = flag_value(&tokens, "--csrf_token").unwrap_or_default();
+        if csrf_token.is_empty() {
+            continue;
+        }
+        let extension_port = flag_value(&tokens, "--extension_server_port")
+            .and_then(|value| value.parse::<u16>().ok());
+
+        let mut ports: Vec<u16> = netstat
+            .lines()
+            .filter(|line| line.contains("LISTENING") && line.trim().ends_with(&pid.to_string()))
+            .filter_map(|line| {
+                let local = line.split_whitespace().nth(1)?;
+                let (address, port) = local.rsplit_once(':')?;
+                if address == "127.0.0.1" || address == "0.0.0.0" || address == "[::1]" || address == "[::]" {
+                    port.parse::<u16>().ok()
+                } else {
+                    None
+                }
+            })
+            .collect();
+        ports.sort_unstable();
+        ports.dedup();
+
+        if ports.is_empty() && extension_port.is_none() {
+            continue;
+        }
+        found.push(LanguageServer {
+            ports,
+            extension_port,
+            csrf_token,
+        });
+    }
+
+    found
+}
+
+fn local_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .timeout(Duration::from_secs(4))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+async fn ls_call(scheme: &str, port: u16, csrf: &str, method: &str) -> Option<Value> {
+    let url = format!("{scheme}://127.0.0.1:{port}/{LS_SERVICE}/{method}");
+    let response = local_client()
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Connect-Protocol-Version", "1")
+        .header("X-Codeium-Csrf-Token", csrf)
+        .json(&json!({
+            "metadata": {
+                "ideName": "antigravity",
+                "extensionName": "antigravity",
+                "ideVersion": "unknown",
+                "locale": "en"
+            }
+        }))
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    response.json::<Value>().await.ok()
+}
+
+async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
+    let mut attempts = vec![];
+    for port in &server.ports {
+        attempts.push(("https", *port));
+        attempts.push(("http", *port));
+    }
+    if let Some(port) = server.extension_port {
+        attempts.push(("http", port));
+    }
+
+    for (scheme, port) in attempts {
+        if let Some(document) = ls_call(scheme, port, &server.csrf_token, "RetrieveUserQuotaSummary").await {
+            let payload = document.get("response").unwrap_or(&document);
+            let windows = parse_quota_summary(payload);
+            if !windows.is_empty() {
+                let plan = ls_call(scheme, port, &server.csrf_token, "GetUserStatus")
+                    .await
+                    .and_then(|doc| extract_plan(&doc));
+                return Some(ProviderUsage {
+                    id: "antigravity".into(),
+                    name: "Antigravity".into(),
+                    connected: true,
+                    plan,
+                    windows,
+                    error: None,
+                });
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
+    let groups = document.get("groups").and_then(Value::as_array).cloned().unwrap_or_default();
+    let mut windows = vec![];
+
+    for group in groups {
+        let group_name = group.get("displayName").and_then(Value::as_str).unwrap_or_default().to_lowercase();
+        let family = if group_name.contains("gemini") {
+            "Gemini"
+        } else if group_name.contains("claude") || group_name.contains("gpt") {
+            "Claude + GPT"
+        } else {
+            continue;
+        };
+
+        for bucket in group.get("buckets").and_then(Value::as_array).cloned().unwrap_or_default() {
+            let bucket_id = bucket.get("bucketId").and_then(Value::as_str).unwrap_or_default().to_lowercase();
+            let bucket_name = bucket.get("displayName").and_then(Value::as_str).unwrap_or_default().to_lowercase();
+            let cadence_text = format!("{bucket_id} {bucket_name}");
+            let (cadence_id, cadence_label) = if cadence_text.contains("week") {
+                ("weekly", "semanal")
+            } else if cadence_text.contains("5h")
+                || cadence_text.contains("5-hour")
+                || cadence_text.contains("five hour")
+                || cadence_text.contains("session")
+            {
+                ("session", "5h")
+            } else {
+                continue;
+            };
+
+            let remaining_fraction = bucket
+                .get("remainingFraction")
+                .and_then(Value::as_f64)
+                .or_else(|| bucket.pointer("/remaining/remainingFraction").and_then(Value::as_f64));
+            let Some(remaining_fraction) = remaining_fraction else { continue };
+            let remaining_percent = (remaining_fraction * 100.0).clamp(0.0, 100.0);
+            let prefix = if family == "Gemini" { "gemini" } else { "claude-gpt" };
+            let id = format!("{prefix}-{cadence_id}");
+            let reset_at = bucket
+                .get("resetTime")
+                .and_then(Value::as_str)
+                .or_else(|| bucket.pointer("/remaining/resetTime").and_then(Value::as_str))
+                .map(str::to_string);
+
+            let window = UsageWindow {
+                id: id.clone(),
+                label: format!("{family} · {cadence_label}"),
+                remaining_percent,
+                reset_at,
+            };
+            if let Some(existing) = windows.iter_mut().find(|item: &&mut UsageWindow| item.id == id) {
+                *existing = window;
+            } else {
+                windows.push(window);
+            }
+        }
+    }
+
+    windows.sort_by_key(|item| match item.id.as_str() {
+        "gemini-session" => 0,
+        "gemini-weekly" => 1,
+        "claude-gpt-session" => 2,
+        "claude-gpt-weekly" => 3,
+        _ => 4,
+    });
+    windows
+}
+
+fn extract_plan(document: &Value) -> Option<String> {
+    document
+        .pointer("/userStatus/userTier/name")
+        .or_else(|| document.pointer("/response/userStatus/userTier/name"))
+        .or_else(|| document.pointer("/userStatus/planStatus/planInfo/planName"))
+        .or_else(|| document.pointer("/response/userStatus/planStatus/planInfo/planName"))
+        .and_then(Value::as_str)
+        .map(|value| value.trim_start_matches("Google AI ").to_string())
+}
+
+fn usage_via_agy() -> ProviderUsage {
     let Some(executable) = locate_agy() else {
         return disconnected(
             "antigravity",
             "Antigravity",
-            "Antigravity CLI (agy) não encontrado. Instale o agy oficial e faça login uma vez para mostrar as quotas aqui.",
+            "O Antigravity aberto não expôs a quota local e o fallback agy não foi encontrado. Mantenha o Antigravity aberto e clique em Atualizar.",
         );
     };
 
@@ -80,7 +345,7 @@ fn usage_blocking() -> ProviderUsage {
             match reader.read(&mut chunk) {
                 Ok(0) | Err(_) => break,
                 Ok(size) => {
-                    let mut buffer = reader_buffer.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut buffer = reader_buffer.lock().unwrap_or_else(|error| error.into_inner());
                     if buffer.len() >= 262_144 {
                         break;
                     }
@@ -116,22 +381,18 @@ fn usage_blocking() -> ProviderUsage {
     let output = snapshot_text(&captured);
 
     if looks_signed_out(&output) {
-        return disconnected(
-            "antigravity",
-            "Antigravity",
-            "O agy está instalado, mas não está logado. Abra o Antigravity CLI uma vez e entre com sua conta Google.",
-        );
+        return disconnected("antigravity", "Antigravity", "O agy está instalado, mas não está logado.");
     }
 
-    let windows = parse_usage(&output);
+    let windows = parse_terminal_usage(&output);
     if windows.is_empty() {
         return disconnected(
             "antigravity",
             "Antigravity",
             if settled {
-                "O painel de quota do Antigravity abriu, mas não consegui interpretar os percentuais. Atualize o agy e tente novamente."
+                "O painel de quota abriu, mas os percentuais não puderam ser interpretados."
             } else {
-                "Antigravity não retornou as quotas a tempo. Abra o agy, confirme que /usage funciona e atualize novamente."
+                "Antigravity não retornou as quotas a tempo."
             },
         );
     }
@@ -147,15 +408,21 @@ fn usage_blocking() -> ProviderUsage {
 }
 
 fn snapshot_text(captured: &Arc<Mutex<Vec<u8>>>) -> String {
-    let buffer = captured.lock().unwrap_or_else(|e| e.into_inner());
+    let buffer = captured.lock().unwrap_or_else(|error| error.into_inner());
     String::from_utf8_lossy(&buffer).into_owned()
 }
 
 fn locate_agy() -> Option<PathBuf> {
     if let Some(local_app_data) = env::var_os("LOCALAPPDATA") {
-        let candidate = PathBuf::from(local_app_data).join("agy").join("bin").join("agy.exe");
-        if candidate.is_file() {
-            return Some(candidate);
+        let local = PathBuf::from(local_app_data);
+        for candidate in [
+            local.join("agy").join("bin").join("agy.exe"),
+            local.join("Programs").join("Antigravity").join("agy.exe"),
+            local.join("Programs").join("Antigravity").join("bin").join("agy.exe"),
+        ] {
+            if candidate.is_file() {
+                return Some(candidate);
+            }
         }
     }
 
@@ -197,7 +464,7 @@ fn looks_signed_out(raw: &str) -> bool {
         || lower.contains("not logged")
 }
 
-fn parse_usage(raw: &str) -> Vec<UsageWindow> {
+fn parse_terminal_usage(raw: &str) -> Vec<UsageWindow> {
     let clean = strip_terminal_sequences(raw);
     let lines: Vec<String> = clean
         .lines()
@@ -225,11 +492,11 @@ fn parse_usage(raw: &str) -> Vec<UsageWindow> {
 
         let Some(active_group) = group else { continue };
         let Some(capture) = percent_re.captures(line) else { continue };
-        let Some(value) = capture.get(1).and_then(|m| m.as_str().parse::<f64>().ok()) else { continue };
-        let qualifier = capture.get(2).map(|m| m.as_str().to_lowercase()).unwrap_or_default();
+        let Some(value) = capture.get(1).and_then(|match_| match_.as_str().parse::<f64>().ok()) else { continue };
+        let qualifier = capture.get(2).map(|match_| match_.as_str().to_lowercase()).unwrap_or_default();
         let remaining = if qualifier == "used" { 100.0 - value } else { value };
 
-        let percent_start = capture.get(0).map(|m| m.start()).unwrap_or(line.len());
+        let percent_start = capture.get(0).map(|match_| match_.start()).unwrap_or(line.len());
         let mut label = line[..percent_start].to_string();
         label = decoration_re.replace_all(&label, " ").into_owned();
         label = space_re.replace_all(&label, " ").trim_matches([' ', ':', '-']).to_string();
@@ -260,7 +527,7 @@ fn parse_usage(raw: &str) -> Vec<UsageWindow> {
             .iter()
             .skip(index)
             .take(4)
-            .find_map(|candidate| iso_re.find(candidate).map(|m| m.as_str().to_string()));
+            .find_map(|candidate| iso_re.find(candidate).map(|match_| match_.as_str().to_string()));
         let item = UsageWindow {
             id: id.clone(),
             label: format!("{active_group} · {cadence_label}"),
