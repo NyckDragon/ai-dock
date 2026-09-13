@@ -6,7 +6,7 @@ use std::{env, fs, path::PathBuf, process::Command};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
-use super::antigravity;
+use super::{antigravity, claude_web};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -187,7 +187,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected(
             "claude",
             "Claude",
-            "Claude ainda não vinculado. Abra Configurações → Claude para instalar/conectar uma vez.",
+            "Claude Code ainda não vinculado.",
         );
     };
 
@@ -241,10 +241,28 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         id: "claude".into(),
         name: "Claude".into(),
         connected: true,
-        plan: None,
+        plan: Some("Code".into()),
         windows,
         error: None,
     }
+}
+
+async fn resolve_claude(client: &reqwest::Client) -> ProviderUsage {
+    let code = claude_usage(client).await;
+    if code.connected {
+        return code;
+    }
+
+    let web = claude_web::claude_web_status().await;
+    if web.connected || claude_web::has_stored_session() {
+        return web;
+    }
+
+    disconnected(
+        "claude",
+        "Claude",
+        "Claude ainda não vinculado. Em Configurações → Claude, cole o sessionKey do claude.ai.",
+    )
 }
 
 fn provider_executable() -> Option<PathBuf> {
@@ -408,7 +426,7 @@ pub async fn get_provider_usage() -> Vec<ProviderUsage> {
     };
 
     let (claude, codex, antigravity) = tokio::join!(
-        claude_usage(&client),
+        resolve_claude(&client),
         codex_usage(&client),
         antigravity::usage(),
     );
