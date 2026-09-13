@@ -23,10 +23,9 @@ pub fn run() {
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_always_on_top(true);
                 let _ = window.set_decorations(false);
                 let _ = window.set_resizable(false);
-                let _ = window.set_skip_taskbar(true);
+                let _ = commands::dock::place_dock(&window, "right", false, None, Some(236.0));
 
                 let keep_topmost = window.clone();
                 window.on_window_event(move |event| {
