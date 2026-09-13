@@ -36,6 +36,7 @@ pub struct ProviderSetupStatus {
     installed: bool,
     authenticated: bool,
     version: Option<String>,
+    npm_available: bool,
 }
 
 pub(crate) fn disconnected(id: &str, name: &str, error: impl Into<String>) -> ProviderUsage {
@@ -186,7 +187,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected(
             "claude",
             "Claude",
-            "Claude Code não conectado. Em Configurações → Claude, use Conectar Claude uma vez.",
+            "Claude ainda não vinculado. Abra Configurações → Claude para instalar/conectar uma vez.",
         );
     };
 
@@ -283,6 +284,15 @@ fn provider_version(executable: &PathBuf) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
+fn npm_available() -> bool {
+    run_hidden("where.exe", &["npm.cmd"])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+        || run_hidden("where.exe", &["npm"])
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn provider_setup_status() -> ProviderSetupStatus {
     let executable = provider_executable();
@@ -290,15 +300,48 @@ pub fn provider_setup_status() -> ProviderSetupStatus {
         installed: executable.is_some(),
         authenticated: claude_oauth_token().is_some(),
         version: executable.as_ref().and_then(provider_version),
+        npm_available: npm_available(),
     }
+}
+
+#[tauri::command]
+pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
+    if provider_executable().is_some() {
+        return Ok(provider_setup_status());
+    }
+    if !npm_available() {
+        return Err("O Node/npm não foi encontrado neste PC. Preciso instalar essa dependência antes de instalar o Claude Code.".to_string());
+    }
+
+    let output = tauri::async_runtime::spawn_blocking(|| {
+        run_hidden("cmd.exe", &["/C", "npm install -g @anthropic-ai/claude-code"])
+    })
+    .await
+    .map_err(|_| "A instalação do Claude Code foi interrompida.".to_string())?
+    .map_err(|_| "Não foi possível iniciar o instalador do Claude Code.".to_string())?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "A instalação do Claude Code falhou. Tente novamente.".to_string()
+        } else {
+            format!("A instalação do Claude Code falhou: {stderr}")
+        });
+    }
+
+    let status = provider_setup_status();
+    if !status.installed {
+        return Err("O npm concluiu a instalação, mas o AI Dock ainda não encontrou o Claude Code. Feche e abra o AI Dock e tente novamente.".to_string());
+    }
+    Ok(status)
 }
 
 #[tauri::command]
 pub fn open_provider_setup() -> Result<(), String> {
     let executable = provider_executable().ok_or_else(|| {
-        "Claude Code não está instalado. Instale o Claude Code oficial para vincular os limites da sua conta.".to_string()
+        "Claude Code não está instalado. Use o botão Instalar Claude Code primeiro.".to_string()
     })?;
-    let command_line = format!("\"{}\" auth login", executable.display());
+    let command_line = format!("\"{}\"", executable.display());
 
     if run_hidden("where.exe", &["wt.exe"])
         .map(|output| output.status.success())
@@ -311,20 +354,17 @@ pub fn open_provider_setup() -> Result<(), String> {
                 "Conectar Claude ao AI Dock",
                 "cmd.exe",
                 "/K",
-                &format!("{command_line} & echo. & echo Login concluido? Feche esta janela e volte ao AI Dock."),
+                &command_line,
             ])
             .spawn()
             .map(|_| ())
-            .map_err(|_| "Não foi possível abrir a autenticação no Windows Terminal.".to_string())
+            .map_err(|_| "Não foi possível abrir o Claude no Windows Terminal.".to_string())
     } else {
         Command::new("cmd.exe")
-            .args([
-                "/K",
-                &format!("{command_line} & echo. & echo Login concluido? Feche esta janela e volte ao AI Dock."),
-            ])
+            .args(["/K", &command_line])
             .spawn()
             .map(|_| ())
-            .map_err(|_| "Não foi possível abrir a autenticação do Claude Code.".to_string())
+            .map_err(|_| "Não foi possível abrir o Claude para autenticação.".to_string())
     }
 }
 
@@ -367,21 +407,10 @@ pub async fn get_provider_usage() -> Vec<ProviderUsage> {
         }
     };
 
-    let claude_future = claude_usage(&client);
-    let codex_future = codex_usage(&client);
-    let antigravity_future = antigravity::usage();
-    let (claude, codex, antigravity) = tokio_join(claude_future, codex_future, antigravity_future).await;
+    let (claude, codex, antigravity) = tokio::join!(
+        claude_usage(&client),
+        codex_usage(&client),
+        antigravity::usage(),
+    );
     vec![claude, codex, antigravity]
-}
-
-async fn tokio_join<A, B, C>(a: A, b: B, c: C) -> (ProviderUsage, ProviderUsage, ProviderUsage)
-where
-    A: std::future::Future<Output = ProviderUsage>,
-    B: std::future::Future<Output = ProviderUsage>,
-    C: std::future::Future<Output = ProviderUsage>,
-{
-    let a = a.await;
-    let b = b.await;
-    let c = c.await;
-    (a, b, c)
 }
