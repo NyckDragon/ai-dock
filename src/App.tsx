@@ -44,8 +44,8 @@ const STORAGE_COMPACT_MODE = "ai-dock-compact-mode";
 const compactModes: { id: CompactMode; title: string; description: string }[] = [
   { id: "classic", title: "Padrão", description: "Ícone + status" },
   { id: "percent", title: "Só %", description: "Percentual restante" },
-  { id: "ring", title: "Só círculo", description: "Anel de quota" },
-  { id: "ring-percent", title: "Círculo + %", description: "Anel com número" }
+  { id: "ring", title: "Só círculo", description: "Borda de quota" },
+  { id: "ring-percent", title: "Círculo + %", description: "Borda + percentual" }
 ];
 
 function errorMessage(error: unknown) {
@@ -57,6 +57,13 @@ function errorMessage(error: unknown) {
 function providerHeadroom(provider: ProviderUsage) {
   if (!provider.connected || provider.windows.length === 0) return null;
   return Math.max(0, Math.min(100, Math.min(...provider.windows.map((item) => item.remainingPercent))));
+}
+
+function quotaTone(remaining: number | null) {
+  if (remaining == null) return "empty";
+  if (remaining > 60) return "good";
+  if (remaining > 25) return "warning";
+  return "danger";
 }
 
 function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mode: CompactMode }) {
@@ -73,7 +80,9 @@ function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mo
   }
 
   const degrees = remaining == null ? 0 : remaining * 3.6;
-  const ringClass = remaining == null ? "compact-ring compact-ring--empty" : "compact-ring";
+  const tone = quotaTone(remaining);
+  const ringClass = `compact-ring compact-ring--${tone}${mode === "ring" ? " compact-ring--only" : ""}`;
+
   return (
     <span
       className={ringClass}
@@ -81,9 +90,11 @@ function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mo
       style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}
     >
       {mode === "ring-percent" ? (
-        <span className="compact-ring__value">{rounded == null ? "--" : rounded}</span>
+        <span className="compact-ring__value">
+          {rounded == null ? "--" : rounded}
+          {rounded == null ? null : <small>%</small>}
+        </span>
       ) : null}
-      <i className={`compact-provider-badge compact-provider-badge--${provider.id}`} />
     </span>
   );
 }
@@ -225,6 +236,9 @@ export default function App() {
   function selectCompactMode(mode: CompactMode) {
     localStorage.setItem(STORAGE_COMPACT_MODE, mode);
     setCompactMode(mode);
+    if (expanded) {
+      void setDock(side, true, monitorIndex);
+    }
   }
 
   if (!expanded) {
