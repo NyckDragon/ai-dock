@@ -7,6 +7,7 @@ import {
   Monitor as MonitorIcon,
   PanelLeftClose,
   PanelRightClose,
+  Power,
   RefreshCw,
   Settings2,
   Sparkles,
@@ -20,11 +21,15 @@ import { PromptLibrary } from "./components/PromptLibrary";
 import { UsageCard } from "./components/UsageCard";
 import {
   chooseObsidianFolder,
+  clearClaudeWebSession,
+  fetchClaudeWebStatus,
   fetchMonitors,
   fetchProviderSetupStatus,
   fetchUsage,
   installProviderCli,
   openProviderSetup,
+  quitApp,
+  saveClaudeWebSession,
   scanPrompts,
   setDock
 } from "./lib/tauri";
@@ -123,6 +128,11 @@ export default function App() {
   const [setupStarting, setSetupStarting] = useState(false);
   const [setupNote, setSetupNote] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [webConnected, setWebConnected] = useState(false);
+  const [sessionKey, setSessionKey] = useState("");
+  const [webBusy, setWebBusy] = useState(false);
+  const [webNote, setWebNote] = useState<string | null>(null);
+  const [webError, setWebError] = useState<string | null>(null);
 
   const compactProviders = useMemo(
     () => providers.filter((provider) => ["claude", "codex", "antigravity"].includes(provider.id)).slice(0, 3),
@@ -143,6 +153,22 @@ export default function App() {
       setProviderStatus(await fetchProviderSetupStatus());
     } catch {
       setProviderStatus(null);
+    }
+  }
+
+  async function refreshWebStatus() {
+    try {
+      const snapshot = await fetchClaudeWebStatus();
+      setWebConnected(Boolean(snapshot.connected));
+      if (snapshot.connected) {
+        setWebNote("Sessão do claude.ai salva neste PC.");
+        setWebError(null);
+      } else if (snapshot.error) {
+        setWebNote(null);
+        setWebError(snapshot.error);
+      }
+    } catch {
+      setWebConnected(false);
     }
   }
 
@@ -180,6 +206,7 @@ export default function App() {
     void refreshPrompts(obsidianPath);
     void refreshMonitorsList();
     void refreshProviderStatus();
+    void refreshWebStatus();
   }, []);
 
   async function chooseObsidian() {
@@ -188,6 +215,40 @@ export default function App() {
     localStorage.setItem(STORAGE_OBSIDIAN, path);
     setObsidianPath(path);
     await refreshPrompts(path);
+  }
+
+  async function connectClaudeWeb() {
+    setWebBusy(true);
+    setWebError(null);
+    setWebNote("Validando a sessão no claude.ai...");
+    try {
+      const snapshot = await saveClaudeWebSession(sessionKey);
+      setWebConnected(Boolean(snapshot.connected));
+      setSessionKey("");
+      setWebNote("Claude Web conectado. Os limites entram no card.");
+      await refreshProviders();
+    } catch (error) {
+      setWebConnected(false);
+      setWebNote(null);
+      setWebError(errorMessage(error));
+    } finally {
+      setWebBusy(false);
+    }
+  }
+
+  async function disconnectClaudeWeb() {
+    setWebBusy(true);
+    setWebError(null);
+    try {
+      await clearClaudeWebSession();
+      setWebConnected(false);
+      setWebNote("Sessão do Claude Web removida deste PC.");
+      await refreshProviders();
+    } catch (error) {
+      setWebError(errorMessage(error));
+    } finally {
+      setWebBusy(false);
+    }
   }
 
   async function installClaude() {
@@ -227,7 +288,7 @@ export default function App() {
       setProviderStatus(latest);
       setSetupNote(
         latest.authenticated
-          ? "Claude conectado. Atualizando os limites."
+          ? "Claude Code conectado. Atualizando os limites."
           : "A autenticação ainda não foi detectada. Termine o login na janela do Claude e tente novamente."
       );
     }
@@ -316,6 +377,9 @@ export default function App() {
             >
               <Settings2 size={16} />
             </button>
+            <button className="icon-button" onClick={() => void quitApp()} title="Encerrar AI Dock">
+              <Power size={15} />
+            </button>
             <button className="collapse-button" onClick={() => setExpanded(false)} title="Recolher">
               {side === "right" ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
             </button>
@@ -355,58 +419,89 @@ export default function App() {
                 <div className="settings-label">Claude</div>
                 <div className="provider-connect-card">
                   <div className="provider-connect-head">
-                    <span className="monitor-option__icon provider-connect-icon"><Terminal size={15} /></span>
+                    <span className="monitor-option__icon provider-connect-icon"><Sparkles size={15} /></span>
                     <span className="monitor-option__copy">
-                      <strong>
-                        {providerStatus?.authenticated
-                          ? "Claude conectado"
-                          : providerStatus?.installed
-                            ? "Claude Code pronto"
-                            : "Claude ainda não vinculado"}
-                      </strong>
-                      <small>
-                        {providerStatus?.version
-                          ? providerStatus.version
-                          : providerStatus?.installed
-                            ? "Só falta autorizar sua conta"
-                            : providerStatus?.npmAvailable
-                              ? "Pode ser instalado pelo próprio AI Dock"
-                              : "Node/npm não encontrado neste PC"}
-                      </small>
+                      <strong>{webConnected ? "Claude Web conectado" : "Conectar pelo claude.ai"}</strong>
+                      <small>Cola o sessionKey uma vez. Fica só neste PC.</small>
                     </span>
-                    <span className={`provider-status-dot ${providerStatus?.authenticated ? "is-connected" : ""}`} />
+                    <span className={`provider-status-dot ${webConnected ? "is-connected" : ""}`} />
                   </div>
 
                   <p className="provider-connect-copy">
-                    O Claude Desktop não expõe a quota da assinatura para outros apps. O AI Dock usa a autenticação oficial do Claude Code apenas para consultar os limites da mesma conta.
+                    No Chrome/Edge: claude.ai → F12 → Application → Cookies → sessionKey. Cole só o valor aqui. Não envie isso em chat.
                   </p>
 
+                  {!webConnected && (
+                    <input
+                      className="provider-session-input"
+                      type="password"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="sessionKey"
+                      value={sessionKey}
+                      onChange={(event) => setSessionKey(event.target.value)}
+                    />
+                  )}
+
                   <div className="provider-connect-actions">
-                    {!providerStatus?.installed && providerStatus?.npmAvailable && (
-                      <button className="provider-primary-button" onClick={installClaude} disabled={setupStarting}>
-                        {setupStarting ? "Instalando..." : "Instalar Claude Code"}
+                    {!webConnected && (
+                      <button className="provider-primary-button" onClick={() => void connectClaudeWeb()} disabled={webBusy || sessionKey.trim().length < 20}>
+                        {webBusy ? "Validando..." : "Salvar e testar"}
                       </button>
                     )}
-                    {providerStatus?.installed && !providerStatus.authenticated && (
-                      <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
-                        {setupStarting ? "Abrindo..." : "Conectar Claude"}
-                      </button>
-                    )}
-                    {providerStatus?.installed && (
-                      <button className="provider-secondary-button" onClick={verifyClaude}>
-                        {providerStatus.authenticated ? "Atualizar conexão" : "Verificar conexão"}
+                    {webConnected && (
+                      <button className="provider-secondary-button" onClick={() => void disconnectClaudeWeb()} disabled={webBusy}>
+                        Remover sessão
                       </button>
                     )}
                   </div>
 
-                  {!providerStatus?.installed && providerStatus && !providerStatus.npmAvailable ? (
-                    <div className="provider-connect-note">
-                      Para eu automatizar a instalação do Claude Code neste PC, primeiro precisamos instalar Node.js/npm. Não precisa fazer nada no terminal agora.
-                    </div>
-                  ) : null}
+                  {webNote ? <div className="provider-connect-note">{webNote}</div> : null}
+                  {webError ? <div className="provider-connect-error">{webError}</div> : null}
 
-                  {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
-                  {setupError ? <div className="provider-connect-error">{setupError}</div> : null}
+                  <details className="provider-advanced">
+                    <summary>Opção avançada: Claude Code</summary>
+                    <div className="provider-connect-head" style={{ marginTop: 10 }}>
+                      <span className="monitor-option__icon provider-connect-icon"><Terminal size={15} /></span>
+                      <span className="monitor-option__copy">
+                        <strong>
+                          {providerStatus?.authenticated
+                            ? "Claude Code conectado"
+                            : providerStatus?.installed
+                              ? "Claude Code pronto"
+                              : "Claude Code não instalado"}
+                        </strong>
+                        <small>
+                          {providerStatus?.version
+                            ? providerStatus.version
+                            : providerStatus?.installed
+                              ? "Só falta autorizar sua conta"
+                              : providerStatus?.npmAvailable
+                                ? "Pode ser instalado pelo próprio AI Dock"
+                                : "Node/npm não encontrado neste PC"}
+                        </small>
+                      </span>
+                    </div>
+                    <div className="provider-connect-actions">
+                      {!providerStatus?.installed && providerStatus?.npmAvailable && (
+                        <button className="provider-primary-button" onClick={installClaude} disabled={setupStarting}>
+                          {setupStarting ? "Instalando..." : "Instalar Claude Code"}
+                        </button>
+                      )}
+                      {providerStatus?.installed && !providerStatus.authenticated && (
+                        <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
+                          {setupStarting ? "Abrindo..." : "Conectar Claude Code"}
+                        </button>
+                      )}
+                      {providerStatus?.installed && (
+                        <button className="provider-secondary-button" onClick={verifyClaude}>
+                          {providerStatus.authenticated ? "Atualizar conexão" : "Verificar conexão"}
+                        </button>
+                      )}
+                    </div>
+                    {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
+                    {setupError ? <div className="provider-connect-error">{setupError}</div> : null}
+                  </details>
                 </div>
               </div>
 
@@ -468,8 +563,14 @@ export default function App() {
                 </button>
               </div>
 
+              <div className="settings-group">
+                <button className="provider-danger-button" onClick={() => void quitApp()}>
+                  Encerrar AI Dock
+                </button>
+              </div>
+
               <div className="settings-note">
-                As preferências ficam salvas. O dock continua fixo na tela escolhida e pode ser arrastado pelo cabeçalho quando estiver aberto.
+                As preferências ficam salvas. Recolher só esconde o painel; Encerrar mata o processo.
               </div>
             </section>
           </div>
