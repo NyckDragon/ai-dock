@@ -4,75 +4,83 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 10px;
 }
 
 .compact-metric {
-  min-width: 34px;
-  min-height: 34px;
+  min-width: 38px;
+  min-height: 38px;
   display: grid;
   place-items: center;
   color: #dfe2e8;
-  font-size: 9px;
-  font-weight: 750;
+  font-size: 10px;
+  font-weight: 780;
   letter-spacing: -.02em;
 }
 
 .compact-metric--percent {
-  min-width: 40px;
-  min-height: 25px;
-  border-radius: 9px;
-  border: 1px solid rgba(255,255,255,.07);
+  width: 42px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.09);
   background: rgba(255,255,255,.035);
 }
 
 .compact-ring {
   --ring-value: 0deg;
-  width: 34px;
-  height: 34px;
+  --ring-color: #7ee2ad;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   position: relative;
   display: grid;
   place-items: center;
-  background: conic-gradient(#8f78ff var(--ring-value), rgba(255,255,255,.075) 0);
-  box-shadow: 0 0 14px rgba(112,75,255,.11);
+  isolation: isolate;
+  background: conic-gradient(var(--ring-color) var(--ring-value), rgba(255,255,255,.085) 0);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ring-color) 28%, transparent));
 }
 
 .compact-ring::after {
   content: "";
   position: absolute;
-  inset: 4px;
+  inset: 3px;
+  z-index: -1;
   border-radius: inherit;
-  background: #0d1016;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+  background: linear-gradient(180deg, rgba(24,27,36,.98), rgba(10,12,17,.98));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.045);
+}
+
+.compact-ring--good { --ring-color: #7ee2ad; }
+.compact-ring--warning { --ring-color: #e6c45f; }
+.compact-ring--danger { --ring-color: #ef7b7b; }
+.compact-ring--empty {
+  --ring-color: #555b66;
+  opacity: .58;
 }
 
 .compact-ring__value {
   position: relative;
   z-index: 1;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
-  color: #eceef3;
+  color: #f0f2f5;
+  letter-spacing: -.04em;
 }
 
-.compact-ring--empty {
-  background: conic-gradient(#4a4e58 0deg, rgba(255,255,255,.075) 0);
-  opacity: .58;
+.compact-ring__value small {
+  font-size: 6px;
+  margin-left: 1px;
+  color: #969ca7;
 }
 
-.compact-provider-badge {
-  position: absolute;
+.compact-ring--only::before {
+  content: "";
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  right: -1px;
-  bottom: 3px;
-  z-index: 2;
-  background: #8f78ff;
+  background: var(--ring-color);
+  box-shadow: 0 0 7px var(--ring-color);
 }
-.compact-provider-badge--claude { background: #d59a73; }
-.compact-provider-badge--codex { background: #85d8b0; }
-.compact-provider-badge--antigravity { background: #78a8ff; }
 
 .compact-mode-picker {
   display: grid;
