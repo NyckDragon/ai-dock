@@ -4,14 +4,21 @@ import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUs
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
+function measurePillHeight() {
+  const pill = document.querySelector(".dock-pill");
+  if (!(pill instanceof HTMLElement)) return 320;
+  return Math.ceil(pill.getBoundingClientRect().height) + 20;
+}
+
 export async function setDock(
   side: DockSide,
   expanded: boolean,
   monitorIndex: number,
-  compactHeight = 240
+  compactHeight = 320
 ) {
   if (!isTauri()) return;
-  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight });
+  const height = expanded ? 560 : Math.max(compactHeight, measurePillHeight());
+  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight: height });
 }
 
 export async function raiseDock() {
