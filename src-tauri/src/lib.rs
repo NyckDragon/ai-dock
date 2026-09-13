@@ -14,7 +14,7 @@ pub fn run() {
             commands::providers::get_provider_usage,
             commands::providers::provider_setup_status,
             commands::providers::install_provider_cli,
-            commands::providers::uninstall_provider_cli,
+            commands::cli::uninstall_provider_cli,
             commands::providers::open_provider_setup,
             commands::claude_web::claude_web_status,
             commands::claude_web::set_claude_web_session,
