@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,7 +38,10 @@ pub fn place_dock(
         .or_else(|| window.primary_monitor().ok().flatten())
         .ok_or_else(|| "Monitor não encontrado".to_string())?;
 
-    let scale = selected_monitor.scale_factor().max(1.0);
+    let scale = window
+        .scale_factor()
+        .unwrap_or_else(|_| selected_monitor.scale_factor())
+        .max(1.0);
     let monitor_pos = selected_monitor.position();
     let monitor_size = selected_monitor.size();
     let work_h = monitor_size.height as f64 / scale;
@@ -47,35 +50,32 @@ pub fn place_dock(
     let logical_height = if expanded {
         560.0_f64.min(work_h - 28.0).max(380.0)
     } else {
-        compact_height
-            .unwrap_or(300.0)
-            .clamp(280.0, (work_h - 28.0).max(280.0))
+        compact_height.unwrap_or(320.0).clamp(220.0, (work_h - 28.0).max(220.0))
     };
 
-    let width = (logical_width * scale).round() as u32;
-    let height = (logical_height * scale).round() as u32;
+    window
+        .set_size(LogicalSize::new(logical_width, logical_height))
+        .map_err(|e| e.to_string())?;
+
+    let size = window.outer_size().map_err(|e| e.to_string())?;
     let margin = (10.0 * scale).round() as i32;
     let x = if side == "left" {
         monitor_pos.x + margin
     } else {
-        monitor_pos.x + monitor_size.width as i32 - width as i32 - margin
+        monitor_pos.x + monitor_size.width as i32 - size.width as i32 - margin
     };
-    let y = monitor_pos.y + ((monitor_size.height as i32 - height as i32) / 2).max(margin);
+    let y = monitor_pos.y + ((monitor_size.height as i32 - size.height as i32) / 2).max(margin);
 
     boot_log(&format!(
-        "place_dock side={side} expanded={expanded} scale={scale} pos={x},{y} size={width}x{height}"
+        "place_dock side={side} expanded={expanded} scale={scale} pos={x},{y} logical={logical_width}x{logical_height} outer={}x{}",
+        size.width, size.height
     ));
 
-    let _ = window.set_always_on_top(true);
-    window
-        .set_size(PhysicalSize::new(width, height))
-        .map_err(|e| e.to_string())?;
     window
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     let _ = window.unminimize();
     let _ = window.show();
-    let _ = window.set_focus();
     let _ = window.set_always_on_top(true);
     Ok(())
 }
