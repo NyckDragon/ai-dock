@@ -6,24 +6,28 @@ use std::{env, fs, path::PathBuf, process::Command};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+use super::antigravity;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UsageWindow {
-    id: String,
-    label: String,
-    remaining_percent: f64,
-    reset_at: Option<String>,
+pub(crate) struct UsageWindow {
+    pub(crate) id: String,
+    pub(crate) label: String,
+    pub(crate) remaining_percent: f64,
+    pub(crate) reset_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderUsage {
-    id: String,
-    name: String,
-    connected: bool,
-    plan: Option<String>,
-    windows: Vec<UsageWindow>,
-    error: Option<String>,
+pub(crate) struct ProviderUsage {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) connected: bool,
+    pub(crate) plan: Option<String>,
+    pub(crate) windows: Vec<UsageWindow>,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,7 +38,7 @@ pub struct ProviderSetupStatus {
     version: Option<String>,
 }
 
-fn disconnected(id: &str, name: &str, error: impl Into<String>) -> ProviderUsage {
+pub(crate) fn disconnected(id: &str, name: &str, error: impl Into<String>) -> ProviderUsage {
     ProviderUsage {
         id: id.to_string(),
         name: name.to_string(),
@@ -61,6 +65,14 @@ fn string(value: Option<&Value>) -> Option<String> {
     value.and_then(Value::as_str).map(str::to_string)
 }
 
+fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
+    let mut command = Command::new(program);
+    command.args(args);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command.output()
+}
+
 async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
     let auth_path = env::var_os("CODEX_HOME")
         .map(PathBuf::from)
@@ -71,7 +83,7 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected("codex", "Codex", "Não foi possível localizar a pasta do usuário.");
     };
     let Ok(raw) = fs::read_to_string(&auth_path) else {
-        return disconnected("codex", "Codex", "Codex não conectado. Execute `codex login`.");
+        return disconnected("codex", "Codex", "Codex não conectado.");
     };
     let Ok(json) = serde_json::from_str::<Value>(&raw) else {
         return disconnected("codex", "Codex", "O auth.json do Codex não pôde ser lido.");
@@ -103,7 +115,7 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
         Err(_) => return disconnected("codex", "Codex", "Falha de rede ao consultar o uso do Codex."),
     };
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        return disconnected("codex", "Codex", "Sessão do Codex expirou. Execute `codex login` novamente.");
+        return disconnected("codex", "Codex", "Sessão do Codex expirou.");
     }
     if !response.status().is_success() {
         return disconnected("codex", "Codex", format!("Codex retornou HTTP {}.", response.status().as_u16()));
@@ -174,7 +186,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected(
             "claude",
             "Claude",
-            "Claude Code não conectado. Abra Configurações → Claude e clique em Conectar.",
+            "Claude Code não conectado. Em Configurações → Claude, use Conectar Claude uma vez.",
         );
     };
 
@@ -206,24 +218,21 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         return disconnected("claude", "Claude", "Resposta de uso do Claude inválida.");
     };
     let mut windows = vec![];
-    if let Some(five) = usage.get("five_hour") {
-        if let Some(utilization) = percent(five.get("utilization")) {
-            windows.push(UsageWindow {
-                id: "session".into(),
-                label: "Sessão · 5h".into(),
-                remaining_percent: remaining_percent(utilization),
-                reset_at: string(five.get("resets_at")),
-            });
-        }
-    }
-    if let Some(seven) = usage.get("seven_day") {
-        if let Some(utilization) = percent(seven.get("utilization")) {
-            windows.push(UsageWindow {
-                id: "weekly".into(),
-                label: "Semanal".into(),
-                remaining_percent: remaining_percent(utilization),
-                reset_at: string(seven.get("resets_at")),
-            });
+    for (key, id, label) in [
+        ("five_hour", "session", "Sessão · 5h"),
+        ("seven_day", "weekly", "Semanal"),
+        ("seven_day_sonnet", "weekly-sonnet", "Sonnet · semanal"),
+        ("seven_day_opus", "weekly-opus", "Opus · semanal"),
+    ] {
+        if let Some(window) = usage.get(key) {
+            if let Some(utilization) = percent(window.get("utilization")) {
+                windows.push(UsageWindow {
+                    id: id.into(),
+                    label: label.into(),
+                    remaining_percent: remaining_percent(utilization),
+                    reset_at: string(window.get("resets_at")),
+                });
+            }
         }
     }
 
@@ -252,7 +261,7 @@ fn provider_executable() -> Option<PathBuf> {
         }
     }
 
-    let output = Command::new("where.exe").arg("claude").output().ok()?;
+    let output = run_hidden("where.exe", &["claude"]).ok()?;
     if !output.status.success() {
         return None;
     }
@@ -266,10 +275,7 @@ fn provider_executable() -> Option<PathBuf> {
 
 fn provider_version(executable: &PathBuf) -> Option<String> {
     let command_line = format!("\"{}\" --version", executable.display());
-    let output = Command::new("cmd.exe")
-        .args(["/C", &command_line])
-        .output()
-        .ok()?;
+    let output = run_hidden("cmd.exe", &["/C", &command_line]).ok()?;
     if !output.status.success() {
         return None;
     }
@@ -290,20 +296,36 @@ pub fn provider_setup_status() -> ProviderSetupStatus {
 #[tauri::command]
 pub fn open_provider_setup() -> Result<(), String> {
     let executable = provider_executable().ok_or_else(|| {
-        "Claude Code não está instalado. Instale o Claude Code oficial e tente novamente.".to_string()
+        "Claude Code não está instalado. Instale o Claude Code oficial para vincular os limites da sua conta.".to_string()
     })?;
+    let command_line = format!("\"{}\" auth login", executable.display());
 
-    let command_line = format!("\"{}\" auth login --claudeai", executable.display());
-    let mut command = Command::new("cmd.exe");
-    command.args(["/C", &command_line]);
-
-    #[cfg(target_os = "windows")]
-    command.creation_flags(0x00000010);
-
-    command
-        .spawn()
-        .map(|_| ())
-        .map_err(|_| "Não foi possível abrir a autenticação do Claude Code.".to_string())
+    if run_hidden("where.exe", &["wt.exe"])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+    {
+        Command::new("wt.exe")
+            .args([
+                "new-tab",
+                "--title",
+                "Conectar Claude ao AI Dock",
+                "cmd.exe",
+                "/K",
+                &format!("{command_line} & echo. & echo Login concluido? Feche esta janela e volte ao AI Dock."),
+            ])
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Não foi possível abrir a autenticação no Windows Terminal.".to_string())
+    } else {
+        Command::new("cmd.exe")
+            .args([
+                "/K",
+                &format!("{command_line} & echo. & echo Login concluido? Feche esta janela e volte ao AI Dock."),
+            ])
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Não foi possível abrir a autenticação do Claude Code.".to_string())
+    }
 }
 
 fn format_unix(timestamp: i64) -> String {
@@ -331,17 +353,35 @@ fn unix_to_iso(seconds: i64) -> String {
 
 #[tauri::command]
 pub async fn get_provider_usage() -> Vec<ProviderUsage> {
-    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build() {
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+    {
         Ok(client) => client,
         Err(_) => {
             return vec![
                 disconnected("claude", "Claude", "Não foi possível iniciar o cliente HTTP."),
                 disconnected("codex", "Codex", "Não foi possível iniciar o cliente HTTP."),
+                disconnected("antigravity", "Antigravity", "Não foi possível iniciar o cliente HTTP."),
             ];
         }
     };
 
-    let claude = claude_usage(&client).await;
-    let codex = codex_usage(&client).await;
-    vec![claude, codex]
+    let claude_future = claude_usage(&client);
+    let codex_future = codex_usage(&client);
+    let antigravity_future = antigravity::usage();
+    let (claude, codex, antigravity) = tokio_join(claude_future, codex_future, antigravity_future).await;
+    vec![claude, codex, antigravity]
+}
+
+async fn tokio_join<A, B, C>(a: A, b: B, c: C) -> (ProviderUsage, ProviderUsage, ProviderUsage)
+where
+    A: std::future::Future<Output = ProviderUsage>,
+    B: std::future::Future<Output = ProviderUsage>,
+    C: std::future::Future<Output = ProviderUsage>,
+{
+    let a = a.await;
+    let b = b.await;
+    let c = c.await;
+    (a, b, c)
 }

@@ -1,6 +1,6 @@
 [package]
 name = "ai-dock"
-version = "0.1.2"
+version = "0.2.0"
 description = "AI usage monitor and Obsidian prompt launcher for Windows"
 authors = ["AI Dock"]
 edition = "2021"
@@ -21,3 +21,5 @@ serde_yaml = "0.9"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 dirs = "6"
 walkdir = "2"
+regex = "1"
+portable-pty = "0.9"

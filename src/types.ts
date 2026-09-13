@@ -1,4 +1,5 @@
 export type DockSide = "left" | "right";
+export type CompactMode = "classic" | "percent" | "ring" | "ring-percent";
 
 export type MonitorInfo = {
   index: number;
@@ -16,7 +17,7 @@ export type UsageWindow = {
 };
 
 export type ProviderUsage = {
-  id: "claude" | "codex" | string;
+  id: "claude" | "codex" | "antigravity" | string;
   name: string;
   connected: boolean;
   plan?: string | null;

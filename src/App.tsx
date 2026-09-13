@@ -13,8 +13,9 @@ import {
   Terminal,
   X
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./provider-connect.css";
+import "./compact-modes.css";
 import { PromptLibrary } from "./components/PromptLibrary";
 import { UsageCard } from "./components/UsageCard";
 import {
@@ -26,16 +27,65 @@ import {
   scanPrompts,
   setDock
 } from "./lib/tauri";
-import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUsage } from "./types";
+import type {
+  CompactMode,
+  DockSide,
+  MonitorInfo,
+  PromptItem,
+  ProviderSetupStatus,
+  ProviderUsage
+} from "./types";
 
 const STORAGE_SIDE = "ai-dock-side";
 const STORAGE_MONITOR = "ai-dock-monitor-index";
 const STORAGE_OBSIDIAN = "ai-dock-obsidian-path";
+const STORAGE_COMPACT_MODE = "ai-dock-compact-mode";
+
+const compactModes: { id: CompactMode; title: string; description: string }[] = [
+  { id: "classic", title: "Padrão", description: "Ícone + status" },
+  { id: "percent", title: "Só %", description: "Percentual restante" },
+  { id: "ring", title: "Só círculo", description: "Anel de quota" },
+  { id: "ring-percent", title: "Círculo + %", description: "Anel com número" }
+];
 
 function errorMessage(error: unknown) {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
   return "Algo deu errado.";
+}
+
+function providerHeadroom(provider: ProviderUsage) {
+  if (!provider.connected || provider.windows.length === 0) return null;
+  return Math.max(0, Math.min(100, Math.min(...provider.windows.map((item) => item.remainingPercent))));
+}
+
+function CompactProviderMetric({ provider, mode }: { provider: ProviderUsage; mode: CompactMode }) {
+  const remaining = providerHeadroom(provider);
+  const rounded = remaining == null ? null : Math.round(remaining);
+  const title = rounded == null ? `${provider.name}: não conectado` : `${provider.name}: ${rounded}% restante`;
+
+  if (mode === "percent") {
+    return (
+      <span className="compact-metric compact-metric--percent" title={title}>
+        {rounded == null ? "--" : `${rounded}%`}
+      </span>
+    );
+  }
+
+  const degrees = remaining == null ? 0 : remaining * 3.6;
+  const ringClass = remaining == null ? "compact-ring compact-ring--empty" : "compact-ring";
+  return (
+    <span
+      className={ringClass}
+      title={title}
+      style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}
+    >
+      {mode === "ring-percent" ? (
+        <span className="compact-ring__value">{rounded == null ? "--" : rounded}</span>
+      ) : null}
+      <i className={`compact-provider-badge compact-provider-badge--${provider.id}`} />
+    </span>
+  );
 }
 
 export default function App() {
@@ -44,6 +94,10 @@ export default function App() {
   const [side, setSide] = useState<DockSide>(() =>
     localStorage.getItem(STORAGE_SIDE) === "left" ? "left" : "right"
   );
+  const [compactMode, setCompactMode] = useState<CompactMode>(() => {
+    const stored = localStorage.getItem(STORAGE_COMPACT_MODE) as CompactMode | null;
+    return compactModes.some((mode) => mode.id === stored) ? stored! : "classic";
+  });
   const [monitorIndex, setMonitorIndex] = useState(() => {
     const stored = Number(localStorage.getItem(STORAGE_MONITOR));
     return Number.isInteger(stored) && stored >= 0 ? stored : 0;
@@ -57,6 +111,11 @@ export default function App() {
   const [setupStarting, setSetupStarting] = useState(false);
   const [setupNote, setSetupNote] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
+
+  const compactProviders = useMemo(
+    () => providers.filter((provider) => ["claude", "codex", "antigravity"].includes(provider.id)).slice(0, 3),
+    [providers]
+  );
 
   async function refreshProviders() {
     setLoading(true);
@@ -125,7 +184,7 @@ export default function App() {
     setSetupNote(null);
     try {
       await openProviderSetup();
-      setSetupNote("A autenticação oficial do Claude Code foi aberta. Conclua no navegador e depois clique em Verificar conexão.");
+      setSetupNote("Vai abrir uma janela de login do Claude Code somente desta vez. Termine o login e depois clique em Verificar conexão.");
     } catch (error) {
       setSetupError(errorMessage(error));
     } finally {
@@ -141,7 +200,7 @@ export default function App() {
       setSetupNote(
         latest.authenticated
           ? "Claude conectado. Atualizando os limites."
-          : "A autenticação ainda não foi detectada. Termine o processo na janela do Claude Code."
+          : "O login ainda não foi detectado. Termine a autenticação do Claude Code e tente novamente."
       );
     }
     await refreshProviders();
@@ -163,18 +222,33 @@ export default function App() {
     selectMonitor((monitorIndex + 1) % monitors.length);
   }
 
+  function selectCompactMode(mode: CompactMode) {
+    localStorage.setItem(STORAGE_COMPACT_MODE, mode);
+    setCompactMode(mode);
+  }
+
   if (!expanded) {
     return (
       <main className={`compact-shell compact-shell--${side}`}>
         <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
           <div className="dock-glow" />
-          <Sparkles size={19} />
-          <span className="dock-word">AI</span>
-          <span className="dock-statuses">
-            {providers.slice(0, 3).map((provider) => (
-              <i key={provider.id} className={`mini-dot mini-dot--${provider.connected ? "on" : "off"}`} />
-            ))}
-          </span>
+          {compactMode === "classic" ? (
+            <>
+              <Sparkles size={19} />
+              <span className="dock-word">AI</span>
+              <span className="dock-statuses">
+                {compactProviders.map((provider) => (
+                  <i key={provider.id} className={`mini-dot mini-dot--${provider.connected ? "on" : "off"}`} />
+                ))}
+              </span>
+            </>
+          ) : (
+            <span className="compact-metrics">
+              {compactProviders.map((provider) => (
+                <CompactProviderMetric key={provider.id} provider={provider} mode={compactMode} />
+              ))}
+            </span>
+          )}
           {side === "right" ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
         </button>
       </main>
@@ -231,6 +305,22 @@ export default function App() {
               </div>
 
               <div className="settings-group">
+                <div className="settings-label">Dock recolhido</div>
+                <div className="compact-mode-picker">
+                  {compactModes.map((mode) => (
+                    <button
+                      key={mode.id}
+                      className={compactMode === mode.id ? "is-selected" : ""}
+                      onClick={() => selectCompactMode(mode.id)}
+                    >
+                      {mode.title}
+                      <small>{mode.description}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="settings-group">
                 <div className="settings-label">Claude</div>
                 <div className="provider-connect-card">
                   <div className="provider-connect-head">
@@ -247,15 +337,15 @@ export default function App() {
                         {providerStatus?.version
                           ? providerStatus.version
                           : providerStatus?.installed
-                            ? "Aguardando autenticação"
-                            : "O Claude Desktop sozinho não fornece os limites ao AI Dock"}
+                            ? "Pronto para vincular sua conta"
+                            : "Claude Desktop sozinho não expõe a quota ao AI Dock"}
                       </small>
                     </span>
                     <span className={`provider-status-dot ${providerStatus?.authenticated ? "is-connected" : ""}`} />
                   </div>
 
                   <p className="provider-connect-copy">
-                    Claude Desktop e Claude Code usam sessões separadas. Para consultar os limites com segurança, o AI Dock usa o OAuth oficial do Claude Code.
+                    O Claude Desktop não fornece o percentual de uso diretamente para outros apps. Para ler os limites com OAuth oficial, conecte o Claude Code uma única vez.
                   </p>
 
                   {providerStatus?.installed ? (
@@ -271,7 +361,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="provider-connect-note">
-                      Instale o Claude Code oficial primeiro. Depois o botão de conexão aparecerá aqui.
+                      O AI Dock ainda não encontrou o Claude Code neste PC. O Claude Desktop pode continuar aberto normalmente.
                     </div>
                   )}
 
@@ -339,7 +429,7 @@ export default function App() {
               </div>
 
               <div className="settings-note">
-                Você também pode arrastar o AI Dock pelo cabeçalho. As preferências ficam salvas para a próxima abertura.
+                As preferências ficam salvas. O dock continua fixo na tela escolhida e pode ser arrastado pelo cabeçalho quando estiver aberto.
               </div>
             </section>
           </div>

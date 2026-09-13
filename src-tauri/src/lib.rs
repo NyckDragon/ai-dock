@@ -19,6 +19,14 @@ pub fn run() {
                 let _ = window.set_always_on_top(true);
                 let _ = window.set_decorations(false);
                 let _ = window.set_resizable(false);
+                let _ = window.set_skip_taskbar(true);
+
+                let keep_topmost = window.clone();
+                window.on_window_event(move |event| {
+                    if matches!(event, tauri::WindowEvent::Focused(false)) {
+                        let _ = keep_topmost.set_always_on_top(true);
+                    }
+                });
             }
             Ok(())
         })

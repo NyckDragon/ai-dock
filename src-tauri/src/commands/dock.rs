@@ -73,12 +73,15 @@ pub fn set_dock_state(
     };
     let y = monitor_pos.y + ((monitor_size.height as i32 - height as i32) / 2).max(margin);
 
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    window.set_skip_taskbar(true).map_err(|e| e.to_string())?;
     window
         .set_size(PhysicalSize::new(width, height))
         .map_err(|e| e.to_string())?;
     window
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
+    window.show().map_err(|e| e.to_string())?;
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
 
     Ok(())

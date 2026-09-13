@@ -27,7 +27,7 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
         name: "Claude",
         connected: false,
         windows: [],
-        error: "Claude Code não conectado."
+        error: "Claude ainda não conectado."
       },
       {
         id: "codex",
@@ -38,6 +38,18 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
           { id: "session", label: "Sessão · 5h", remainingPercent: 60 },
           { id: "weekly", label: "Semanal", remainingPercent: 79 }
         ]
+      },
+      {
+        id: "antigravity",
+        name: "Antigravity",
+        connected: true,
+        plan: "Google AI Pro",
+        windows: [
+          { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 82 },
+          { id: "gemini-weekly", label: "Gemini · semanal", remainingPercent: 68 },
+          { id: "third-party-session", label: "Claude + GPT · 5h", remainingPercent: 54 },
+          { id: "third-party-weekly", label: "Claude + GPT · semanal", remainingPercent: 74 }
+        ]
       }
     ];
   }
@@ -46,7 +58,7 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
 
 export async function fetchProviderSetupStatus(): Promise<ProviderSetupStatus> {
   if (!isTauri()) {
-    return { installed: true, authenticated: false, version: "2.1.x" };
+    return { installed: true, authenticated: false, version: "Claude Code" };
   }
   return invoke<ProviderSetupStatus>("provider_setup_status");
 }
