@@ -58,9 +58,16 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
 
 export async function fetchProviderSetupStatus(): Promise<ProviderSetupStatus> {
   if (!isTauri()) {
-    return { installed: true, authenticated: false, version: "Claude Code" };
+    return { installed: false, authenticated: false, version: null, npmAvailable: true };
   }
   return invoke<ProviderSetupStatus>("provider_setup_status");
+}
+
+export async function installProviderCli(): Promise<ProviderSetupStatus> {
+  if (!isTauri()) {
+    return { installed: true, authenticated: false, version: "Claude Code", npmAvailable: true };
+  }
+  return invoke<ProviderSetupStatus>("install_provider_cli");
 }
 
 export async function openProviderSetup(): Promise<void> {
