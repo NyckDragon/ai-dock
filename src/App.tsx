@@ -23,6 +23,7 @@ import {
   fetchMonitors,
   fetchProviderSetupStatus,
   fetchUsage,
+  installProviderCli,
   openProviderSetup,
   scanPrompts,
   setDock
@@ -189,13 +190,29 @@ export default function App() {
     await refreshPrompts(path);
   }
 
+  async function installClaude() {
+    setSetupStarting(true);
+    setSetupError(null);
+    setSetupNote("Instalando Claude Code em segundo plano...");
+    try {
+      const latest = await installProviderCli();
+      setProviderStatus(latest);
+      setSetupNote("Claude Code instalado. Agora clique em Conectar Claude para autorizar sua conta uma vez.");
+    } catch (error) {
+      setSetupError(errorMessage(error));
+      setSetupNote(null);
+    } finally {
+      setSetupStarting(false);
+    }
+  }
+
   async function connectClaude() {
     setSetupStarting(true);
     setSetupError(null);
     setSetupNote(null);
     try {
       await openProviderSetup();
-      setSetupNote("Vai abrir uma janela de login do Claude Code somente desta vez. Termine o login e depois clique em Verificar conexão.");
+      setSetupNote("O Claude foi aberto para autenticação. Entre com a mesma conta do Claude Desktop e, quando terminar, volte aqui e clique em Verificar conexão.");
     } catch (error) {
       setSetupError(errorMessage(error));
     } finally {
@@ -211,7 +228,7 @@ export default function App() {
       setSetupNote(
         latest.authenticated
           ? "Claude conectado. Atualizando os limites."
-          : "O login ainda não foi detectado. Termine a autenticação do Claude Code e tente novamente."
+          : "A autenticação ainda não foi detectada. Termine o login na janela do Claude e tente novamente."
       );
     }
     await refreshProviders();
@@ -344,40 +361,49 @@ export default function App() {
                         {providerStatus?.authenticated
                           ? "Claude conectado"
                           : providerStatus?.installed
-                            ? "Claude Code encontrado"
-                            : "Claude Code não instalado"}
+                            ? "Claude Code pronto"
+                            : "Claude ainda não vinculado"}
                       </strong>
                       <small>
                         {providerStatus?.version
                           ? providerStatus.version
                           : providerStatus?.installed
-                            ? "Pronto para vincular sua conta"
-                            : "Claude Desktop sozinho não expõe a quota ao AI Dock"}
+                            ? "Só falta autorizar sua conta"
+                            : providerStatus?.npmAvailable
+                              ? "Pode ser instalado pelo próprio AI Dock"
+                              : "Node/npm não encontrado neste PC"}
                       </small>
                     </span>
                     <span className={`provider-status-dot ${providerStatus?.authenticated ? "is-connected" : ""}`} />
                   </div>
 
                   <p className="provider-connect-copy">
-                    O Claude Desktop não fornece o percentual de uso diretamente para outros apps. Para ler os limites com OAuth oficial, conecte o Claude Code uma única vez.
+                    O Claude Desktop não expõe a quota da assinatura para outros apps. O AI Dock usa a autenticação oficial do Claude Code apenas para consultar os limites da mesma conta.
                   </p>
 
-                  {providerStatus?.installed ? (
-                    <div className="provider-connect-actions">
-                      {!providerStatus.authenticated && (
-                        <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
-                          {setupStarting ? "Abrindo..." : "Conectar Claude"}
-                        </button>
-                      )}
+                  <div className="provider-connect-actions">
+                    {!providerStatus?.installed && providerStatus?.npmAvailable && (
+                      <button className="provider-primary-button" onClick={installClaude} disabled={setupStarting}>
+                        {setupStarting ? "Instalando..." : "Instalar Claude Code"}
+                      </button>
+                    )}
+                    {providerStatus?.installed && !providerStatus.authenticated && (
+                      <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
+                        {setupStarting ? "Abrindo..." : "Conectar Claude"}
+                      </button>
+                    )}
+                    {providerStatus?.installed && (
                       <button className="provider-secondary-button" onClick={verifyClaude}>
                         {providerStatus.authenticated ? "Atualizar conexão" : "Verificar conexão"}
                       </button>
-                    </div>
-                  ) : (
+                    )}
+                  </div>
+
+                  {!providerStatus?.installed && providerStatus && !providerStatus.npmAvailable ? (
                     <div className="provider-connect-note">
-                      O AI Dock ainda não encontrou o Claude Code neste PC. O Claude Desktop pode continuar aberto normalmente.
+                      Para eu automatizar a instalação do Claude Code neste PC, primeiro precisamos instalar Node.js/npm. Não precisa fazer nada no terminal agora.
                     </div>
-                  )}
+                  ) : null}
 
                   {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
                   {setupError ? <div className="provider-connect-error">{setupError}</div> : null}
