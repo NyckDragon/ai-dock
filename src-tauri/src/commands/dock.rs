@@ -61,7 +61,7 @@ pub fn set_dock_state(
     let monitor_size = selected_monitor.size();
 
     let logical_width = if expanded { 372.0 } else { 58.0 };
-    let logical_height = if expanded { 650.0 } else { 210.0 };
+    let logical_height = if expanded { 650.0 } else { 318.0 };
     let width = (logical_width * scale) as u32;
     let height = (logical_height * scale) as u32;
     let margin = (10.0 * scale) as i32;

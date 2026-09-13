@@ -1,5 +1,5 @@
 export type DockSide = "left" | "right";
-export type CompactMode = "classic" | "percent" | "ring" | "ring-percent";
+export type CompactMode = "classic" | "percent" | "ring" | "square";
 
 export type MonitorInfo = {
   index: number;
@@ -30,6 +30,7 @@ export type ProviderSetupStatus = {
   authenticated: boolean;
   version?: string | null;
   npmAvailable: boolean;
+  npmManaged?: boolean;
 };
 
 export type PromptItem = {
