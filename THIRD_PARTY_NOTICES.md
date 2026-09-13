@@ -12,9 +12,4 @@ Copyright (c) 2025 Peter Steinberger.
 Repository: https://github.com/steipete/CodexBar
 License: MIT
 
-## UsageDeck
-Repository: https://github.com/CallMeLewis/UsageDeck
-Used as a reference for the Windows Antigravity PTY quota-reading strategy.
-See the upstream repository for its license and copyright notices.
-
 These projects are not affiliated with or responsible for AI Dock.
