@@ -25,7 +25,13 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_decorations(false);
                 let _ = window.set_resizable(false);
-                let _ = commands::dock::place_dock(&window, "right", false, None, Some(236.0));
+                if commands::dock::place_dock(&window, "right", false, None, Some(236.0)).is_err() {
+                    let _ = window.center();
+                }
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_always_on_top(true);
+                let _ = window.set_focus();
 
                 let keep_topmost = window.clone();
                 window.on_window_event(move |event| {
