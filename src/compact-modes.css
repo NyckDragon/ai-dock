@@ -4,12 +4,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 7px;
 }
 
 .compact-metric {
   min-width: 38px;
-  min-height: 38px;
+  min-height: 28px;
   display: grid;
   place-items: center;
   color: #dfe2e8;
@@ -18,10 +18,14 @@
   letter-spacing: -.02em;
 }
 
-.compact-metric--percent {
+.compact-metric--percent,
+.compact-ring--square {
   width: 42px;
   height: 30px;
   border-radius: 10px;
+}
+
+.compact-metric--percent {
   border: 1px solid rgba(255,255,255,.09);
   background: rgba(255,255,255,.035);
 }
@@ -29,8 +33,8 @@
 .compact-ring {
   --ring-value: 0deg;
   --ring-color: #7ee2ad;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   position: relative;
   display: grid;
@@ -39,8 +43,12 @@
   background: transparent;
 }
 
-/* Progress lives only in the border. The center stays visually identical
-   to the percentage tile instead of looking like a filled gauge. */
+.compact-ring--square {
+  width: 42px;
+  height: 30px;
+  border-radius: 10px;
+}
+
 .compact-ring::before {
   content: "";
   position: absolute;
@@ -49,48 +57,33 @@
   background: conic-gradient(var(--ring-color) var(--ring-value), rgba(255,255,255,.10) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ring-color) 22%, transparent));
 }
 
 .compact-ring::after {
   content: "";
   position: absolute;
-  inset: 5px;
+  inset: 4px;
   z-index: -1;
   border-radius: inherit;
   background: rgba(255,255,255,.035);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.045);
 }
 
 .compact-ring--good { --ring-color: #71df9c; }
 .compact-ring--warning { --ring-color: #e5bc52; }
 .compact-ring--danger { --ring-color: #ef6f72; }
-.compact-ring--empty {
-  --ring-color: #555b66;
-  opacity: .58;
-}
+.compact-ring--empty { --ring-color: #555b66; opacity: .58; }
 
 .compact-ring__value {
   position: relative;
   z-index: 1;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   color: #f0f2f5;
-  letter-spacing: -.04em;
 }
-
 .compact-ring__value small {
   font-size: 6px;
   margin-left: 1px;
   color: #969ca7;
-}
-
-.compact-ring--only::after {
-  inset: 7px;
-}
-
-.compact-ring--only .compact-ring__value {
-  display: none;
 }
 
 .compact-mode-picker {
@@ -119,4 +112,19 @@
   margin-top: 3px;
   color: #646a75;
   font-size: 7px;
+}
+.compact-toggle {
+  margin-top: 8px;
+  width: 100%;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.065);
+  background: rgba(255,255,255,.026);
+  color: #9ba0aa;
+  font-size: 8px;
+  cursor: pointer;
+}
+.compact-toggle.is-selected {
+  color: #d8d2ff;
+  border-color: rgba(145,119,255,.28);
 }
