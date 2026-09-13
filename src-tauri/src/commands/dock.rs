@@ -20,8 +20,7 @@ fn boot_log(message: &str) {
     if let Some(dir) = dirs::data_local_dir() {
         let folder = dir.join("AI Dock");
         let _ = std::fs::create_dir_all(&folder);
-        let line = format!("{message}\n");
-        let _ = std::fs::write(folder.join("boot.log"), line);
+        let _ = std::fs::write(folder.join("boot.log"), format!("{message}\n"));
     }
 }
 
@@ -49,8 +48,8 @@ pub fn place_dock(
         560.0_f64.min(work_h - 28.0).max(380.0)
     } else {
         compact_height
-            .unwrap_or(236.0)
-            .clamp(210.0, (work_h - 28.0).max(210.0))
+            .unwrap_or(300.0)
+            .clamp(280.0, (work_h - 28.0).max(280.0))
     };
 
     let width = (logical_width * scale).round() as u32;
