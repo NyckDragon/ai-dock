@@ -10,23 +10,33 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
+  Terminal,
   X
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import "./provider-connect.css";
 import { PromptLibrary } from "./components/PromptLibrary";
 import { UsageCard } from "./components/UsageCard";
 import {
   chooseObsidianFolder,
   fetchMonitors,
+  fetchProviderSetupStatus,
   fetchUsage,
+  openProviderSetup,
   scanPrompts,
   setDock
 } from "./lib/tauri";
-import type { DockSide, MonitorInfo, PromptItem, ProviderUsage } from "./types";
+import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUsage } from "./types";
 
 const STORAGE_SIDE = "ai-dock-side";
 const STORAGE_MONITOR = "ai-dock-monitor-index";
 const STORAGE_OBSIDIAN = "ai-dock-obsidian-path";
+
+function errorMessage(error: unknown) {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  return "Algo deu errado.";
+}
 
 export default function App() {
   const [expanded, setExpanded] = useState(false);
@@ -43,6 +53,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [obsidianPath, setObsidianPath] = useState<string | null>(() => localStorage.getItem(STORAGE_OBSIDIAN));
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
+  const [providerStatus, setProviderStatus] = useState<ProviderSetupStatus | null>(null);
+  const [setupStarting, setSetupStarting] = useState(false);
+  const [setupNote, setSetupNote] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   async function refreshProviders() {
     setLoading(true);
@@ -50,6 +64,14 @@ export default function App() {
       setProviders(await fetchUsage());
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshProviderStatus() {
+    try {
+      setProviderStatus(await fetchProviderSetupStatus());
+    } catch {
+      setProviderStatus(null);
     }
   }
 
@@ -86,6 +108,7 @@ export default function App() {
     void refreshProviders();
     void refreshPrompts(obsidianPath);
     void refreshMonitorsList();
+    void refreshProviderStatus();
   }, []);
 
   async function chooseObsidian() {
@@ -94,6 +117,34 @@ export default function App() {
     localStorage.setItem(STORAGE_OBSIDIAN, path);
     setObsidianPath(path);
     await refreshPrompts(path);
+  }
+
+  async function connectClaude() {
+    setSetupStarting(true);
+    setSetupError(null);
+    setSetupNote(null);
+    try {
+      await openProviderSetup();
+      setSetupNote("A autenticação oficial do Claude Code foi aberta. Conclua no navegador e depois clique em Verificar conexão.");
+    } catch (error) {
+      setSetupError(errorMessage(error));
+    } finally {
+      setSetupStarting(false);
+    }
+  }
+
+  async function verifyClaude() {
+    setSetupError(null);
+    const latest = await fetchProviderSetupStatus().catch(() => null);
+    if (latest) {
+      setProviderStatus(latest);
+      setSetupNote(
+        latest.authenticated
+          ? "Claude conectado. Atualizando os limites."
+          : "A autenticação ainda não foi detectada. Termine o processo na janela do Claude Code."
+      );
+    }
+    await refreshProviders();
   }
 
   function toggleSide() {
@@ -180,6 +231,56 @@ export default function App() {
               </div>
 
               <div className="settings-group">
+                <div className="settings-label">Claude</div>
+                <div className="provider-connect-card">
+                  <div className="provider-connect-head">
+                    <span className="monitor-option__icon provider-connect-icon"><Terminal size={15} /></span>
+                    <span className="monitor-option__copy">
+                      <strong>
+                        {providerStatus?.authenticated
+                          ? "Claude conectado"
+                          : providerStatus?.installed
+                            ? "Claude Code encontrado"
+                            : "Claude Code não instalado"}
+                      </strong>
+                      <small>
+                        {providerStatus?.version
+                          ? providerStatus.version
+                          : providerStatus?.installed
+                            ? "Aguardando autenticação"
+                            : "O Claude Desktop sozinho não fornece os limites ao AI Dock"}
+                      </small>
+                    </span>
+                    <span className={`provider-status-dot ${providerStatus?.authenticated ? "is-connected" : ""}`} />
+                  </div>
+
+                  <p className="provider-connect-copy">
+                    Claude Desktop e Claude Code usam sessões separadas. Para consultar os limites com segurança, o AI Dock usa o OAuth oficial do Claude Code.
+                  </p>
+
+                  {providerStatus?.installed ? (
+                    <div className="provider-connect-actions">
+                      {!providerStatus.authenticated && (
+                        <button className="provider-primary-button" onClick={connectClaude} disabled={setupStarting}>
+                          {setupStarting ? "Abrindo..." : "Conectar Claude"}
+                        </button>
+                      )}
+                      <button className="provider-secondary-button" onClick={verifyClaude}>
+                        {providerStatus.authenticated ? "Atualizar conexão" : "Verificar conexão"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="provider-connect-note">
+                      Instale o Claude Code oficial primeiro. Depois o botão de conexão aparecerá aqui.
+                    </div>
+                  )}
+
+                  {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
+                  {setupError ? <div className="provider-connect-error">{setupError}</div> : null}
+                </div>
+              </div>
+
+              <div className="settings-group">
                 <div className="settings-label">Tela do dock</div>
                 <div className="monitor-list">
                   {monitors.length === 0 ? (
@@ -238,7 +339,7 @@ export default function App() {
               </div>
 
               <div className="settings-note">
-                Você também pode arrastar o AI Dock pelo cabeçalho. A tela selecionada fica salva para a próxima abertura.
+                Você também pode arrastar o AI Dock pelo cabeçalho. As preferências ficam salvas para a próxima abertura.
               </div>
             </section>
           </div>
