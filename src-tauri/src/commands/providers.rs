@@ -1,7 +1,10 @@
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::Serialize;
 use serde_json::Value;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, process::Command};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +24,14 @@ pub struct ProviderUsage {
     plan: Option<String>,
     windows: Vec<UsageWindow>,
     error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeConnectionStatus {
+    installed: bool,
+    authenticated: bool,
+    version: Option<String>,
 }
 
 fn disconnected(id: &str, name: &str, error: impl Into<String>) -> ProviderUsage {
@@ -134,29 +145,36 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
 }
 
 fn claude_credentials_path() -> Option<PathBuf> {
-    env::var_os("CLAUDE_CONFIG_DIR")
+    env::var_os("CLAUDE_SECURESTORAGE_CONFIG_DIR")
+        .or_else(|| env::var_os("CLAUDE_CONFIG_DIR"))
         .map(PathBuf::from)
         .or_else(|| home_dir().map(|p| p.join(".claude")))
         .map(|p| p.join(".credentials.json"))
 }
 
-async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
-    let file_token = claude_credentials_path()
-        .and_then(|path| fs::read_to_string(path).ok())
-        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-        .and_then(|json| {
-            json.get("claudeAiOauth")
-                .and_then(|oauth| oauth.get("accessToken"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        });
+fn claude_oauth_token() -> Option<String> {
+    env::var("CLAUDE_CODE_OAUTH_TOKEN")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .or_else(|| {
+            claude_credentials_path()
+                .and_then(|path| fs::read_to_string(path).ok())
+                .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+                .and_then(|json| {
+                    json.get("claudeAiOauth")
+                        .and_then(|oauth| oauth.get("accessToken"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+        })
+}
 
-    let access_token = env::var("CLAUDE_CODE_OAUTH_TOKEN").ok().filter(|v| !v.trim().is_empty()).or(file_token);
-    let Some(access_token) = access_token else {
+async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
+    let Some(access_token) = claude_oauth_token() else {
         return disconnected(
             "claude",
             "Claude",
-            "Claude Code não conectado. O AI Dock usa a sessão do Claude Code; execute `claude login` para vincular.",
+            "Claude Code não conectado. Abra Configurações → Claude e clique em Conectar.",
         );
     };
 
@@ -175,7 +193,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
     };
 
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        return disconnected("claude", "Claude", "Sessão do Claude Code expirou. Execute `claude login` novamente.");
+        return disconnected("claude", "Claude", "Sessão do Claude Code expirou. Reconecte em Configurações → Claude.");
     }
     if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
         return disconnected("claude", "Claude", "A Anthropic limitou temporariamente a consulta de uso. Tente atualizar depois.");
@@ -217,6 +235,75 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         windows,
         error: None,
     }
+}
+
+fn claude_executable() -> Option<PathBuf> {
+    if let Some(home) = home_dir() {
+        let native = home.join(".local").join("bin").join("claude.exe");
+        if native.is_file() {
+            return Some(native);
+        }
+    }
+
+    if let Some(appdata) = env::var_os("APPDATA") {
+        let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
+        if npm.is_file() {
+            return Some(npm);
+        }
+    }
+
+    let output = Command::new("where.exe").arg("claude").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(PathBuf::from)
+        .next()
+}
+
+fn claude_version(executable: &PathBuf) -> Option<String> {
+    let command_line = format!("\"{}\" --version", executable.display());
+    let output = Command::new("cmd.exe")
+        .args(["/C", &command_line])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+#[tauri::command]
+pub fn get_claude_connection_status() -> ClaudeConnectionStatus {
+    let executable = claude_executable();
+    ClaudeConnectionStatus {
+        installed: executable.is_some(),
+        authenticated: claude_oauth_token().is_some(),
+        version: executable.as_ref().and_then(claude_version),
+    }
+}
+
+#[tauri::command]
+pub fn start_claude_login() -> Result<(), String> {
+    let executable = claude_executable().ok_or_else(|| {
+        "Claude Code não está instalado. Instale o Claude Code oficial e tente novamente.".to_string()
+    })?;
+
+    let command_line = format!("\"{}\" auth login --claudeai", executable.display());
+    let mut command = Command::new("cmd.exe");
+    command.args(["/C", &command_line]);
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(0x00000010);
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| "Não foi possível abrir o login do Claude Code.".to_string())
 }
 
 fn format_unix(timestamp: i64) -> String {
