@@ -80,6 +80,10 @@ Tauri 2 · React + TypeScript + Vite · Rust
 
 Notas de terceiros: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Projetos próximos
+
+Mesmo problema, outros apps: [CodexBar](https://github.com/steipete/CodexBar), [UsageDeck](https://github.com/CallMeLewis/UsageDeck). O AI Dock não inclui código deles.
+
 ## Changelog
 
 Ver [CHANGELOG.md](CHANGELOG.md).
