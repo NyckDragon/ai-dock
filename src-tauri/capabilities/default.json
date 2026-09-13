@@ -9,7 +9,6 @@
     "core:window:allow-set-position",
     "core:window:allow-set-always-on-top",
     "core:window:allow-close",
-    "core:app:allow-exit",
     "dialog:allow-open"
   ]
 }
