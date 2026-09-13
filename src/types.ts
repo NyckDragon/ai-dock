@@ -29,6 +29,7 @@ export type ProviderSetupStatus = {
   installed: boolean;
   authenticated: boolean;
   version?: string | null;
+  npmAvailable: boolean;
 };
 
 export type PromptItem = {
