@@ -37,12 +37,8 @@ fn normalize_session_key(raw: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-pub(crate) fn stored_session_key() -> Option<String> {
+fn stored_session_key() -> Option<String> {
     credential_entry().ok()?.get_password().ok().filter(|value| !value.trim().is_empty())
-}
-
-pub(crate) fn has_session_key() -> bool {
-    stored_session_key().is_some()
 }
 
 fn cookie_header(session_key: &str) -> String {
@@ -139,22 +135,15 @@ async fn usage_with_key(client: &reqwest::Client, session_key: &str) -> Result<P
     })
 }
 
-pub(crate) async fn usage(client: &reqwest::Client) -> ProviderUsage {
+async fn stored_usage() -> ProviderUsage {
     let Some(session_key) = stored_session_key() else {
         return disconnected(
             "claude",
             "Claude",
-            "Claude ainda não vinculado. Em Configurações → Claude, conecte sua sessão Web uma vez.",
+            "Claude Web ainda não conectado. Cole o sessionKey em Configurações → Claude.",
         );
     };
 
-    usage_with_key(client, &session_key)
-        .await
-        .unwrap_or_else(|error| disconnected("claude", "Claude", error))
-}
-
-#[tauri::command]
-pub async fn claude_web_usage() -> ProviderUsage {
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
@@ -162,12 +151,15 @@ pub async fn claude_web_usage() -> ProviderUsage {
         Ok(client) => client,
         Err(_) => return disconnected("claude", "Claude", "Não foi possível iniciar a conexão com o Claude Web."),
     };
-    usage(&client).await
+
+    usage_with_key(&client, &session_key)
+        .await
+        .unwrap_or_else(|error| disconnected("claude", "Claude", error))
 }
 
 #[tauri::command]
-pub fn claude_web_status() -> bool {
-    has_session_key()
+pub async fn claude_web_status() -> ProviderUsage {
+    stored_usage().await
 }
 
 #[tauri::command]
