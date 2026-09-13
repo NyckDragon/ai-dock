@@ -7,7 +7,15 @@ Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **laun
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
-> Sem ícone na barra de tarefas. Sempre no topo. Recolhe para um pill ou abre o painel de uso e prompts. Encerrar fica no cabeçalho (botão de liga) e em Configurações.
+> Sem ícone na barra de tarefas. Sempre no topo. Recolhe para um pill ou abre o painel de uso e prompts. Encerrar fica no cabeçalho e em Configurações.
+
+## Download
+
+Enquanto o repo for privado, o instalador sai no artifact da Action [Windows Build](../../actions/workflows/windows-build.yml).
+
+Quando existir uma tag `v0.2.3`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
+
+O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na primeira abertura.
 
 ## O que faz
 
@@ -24,36 +32,28 @@ Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **laun
 | **Antigravity** | Language server local do app instalado | Conta Google na web |
 | **Claude** | `sessionKey` do claude.ai (Configurações) **ou** OAuth do Claude Code | Sessão interna do Claude Desktop, sozinha |
 
-Para o Claude Web: abra claude.ai logado → F12 → Application → Cookies → `sessionKey` → cole **só no AI Dock**. O valor fica no Gerenciador de Credenciais do Windows.
+Para o Claude Web: abra claude.ai logado → F12 → Application → Cookies → `sessionKey` → cole **só no AI Dock**. O valor fica no Gerenciador de Credenciais do Windows. Nunca cole isso numa issue.
 
 O dock **não renova** cookie nem token. Se o % sumir, cole um sessionKey novo.
 
 ## Requisitos
 
 - Windows 11
-- [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (já vem no Windows 11 atualizado)
-- Para **desenvolver**: Node.js 22+, Rust stable, requisitos do [Tauri 2 no Windows](https://v2.tauri.app/start/prerequisites/)
+- [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
+- Para desenvolver: Node.js 22+, Rust stable, [pré-requisitos do Tauri 2](https://v2.tauri.app/start/prerequisites/)
 
-## Instalar / rodar
-
-O workflow [Windows Build](.github/workflows/windows-build.yml) gera o instalador NSIS e um exe portátil a cada push na `main`. Baixe o artifact da Action mais recente enquanto não houver GitHub Release.
-
-Desenvolvimento:
+## Rodar no Windows
 
 ```bash
 npm install
 npm run tauri:dev
 ```
 
-Instalador local:
-
 ```bash
 npm run tauri:build
 ```
 
 ## Prompts do Obsidian
-
-Selecione o Vault ou uma subpasta. Arquivos `.md` com frontmatter opcional:
 
 ```md
 ---
@@ -75,15 +75,25 @@ Tauri 2 · React + TypeScript + Vite · Rust
 ## Segurança
 
 - Credenciais de Claude Code e Codex são **só lidas** no disco.
-- O `sessionKey` do Claude Web é validado contra o claude.ai e guardado no Credential Manager. Nunca vai para o GitHub.
+- O `sessionKey` do Claude Web vai para o Credential Manager. Nunca para o GitHub.
 - O AI Dock não extrai cookie do Chrome/Edge sozinho.
 
-Notas de terceiros: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[SECURITY.md](SECURITY.md) · [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Abrir o repositório
+
+Antes de tornar público, no GitHub: **Settings → General → About**
+
+- Description: `Windows 11 dock for Claude, Codex and Antigravity usage plus Obsidian prompts`
+- Topics: `tauri` `rust` `react` `windows-11` `claude` `obsidian` `ai-usage`
+- Homepage: deixe vazio até existir site
+
+Depois: Settings → Change repository visibility → Public.
 
 ## Projetos próximos
 
-Mesmo problema, outros apps: [CodexBar](https://github.com/steipete/CodexBar), [UsageDeck](https://github.com/CallMeLewis/UsageDeck). O AI Dock não inclui código deles.
+[CodexBar](https://github.com/steipete/CodexBar), [UsageDeck](https://github.com/CallMeLewis/UsageDeck). O AI Dock não inclui código deles.
 
 ## Changelog
 
-Ver [CHANGELOG.md](CHANGELOG.md).
+[CHANGELOG.md](CHANGELOG.md)
