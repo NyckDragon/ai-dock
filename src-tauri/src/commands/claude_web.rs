@@ -1,15 +1,65 @@
 use keyring::Entry;
 use reqwest::header::{ACCEPT, USER_AGENT};
 use serde_json::Value;
+use std::{fs, path::PathBuf};
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 
-const KEYRING_SERVICE: &str = "AI Dock";
+const KEYRING_SERVICE: &str = "app.aidock.desktop";
 const KEYRING_ACCOUNT: &str = "claude-web-session";
 
 fn credential_entry() -> Result<Entry, String> {
     Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
         .map_err(|_| "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string())
+}
+
+fn session_file() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|root| root.join("AI Dock").join("claude-web-session"))
+}
+
+fn read_session_file() -> Option<String> {
+    let path = session_file()?;
+    let value = fs::read_to_string(path).ok()?;
+    let value = value.trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+fn write_session_file(session_key: &str) -> Result<(), String> {
+    let path = session_file().ok_or_else(|| "Não achei a pasta AppData para salvar a sessão.".to_string())?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|_| "Não consegui criar a pasta da sessão do Claude.".to_string())?;
+    }
+    fs::write(path, session_key).map_err(|_| "Não consegui gravar a sessão do Claude.".to_string())
+}
+
+fn delete_session_file() {
+    if let Some(path) = session_file() {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn persist_session(session_key: &str) -> Result<(), String> {
+    let keyring_ok = credential_entry()
+        .and_then(|entry| {
+            entry
+                .set_password(session_key)
+                .map_err(|_| "Não consegui salvar no Gerenciador de Credenciais.".to_string())
+        })
+        .is_ok();
+    let file_ok = write_session_file(session_key).is_ok();
+    if keyring_ok || file_ok {
+        Ok(())
+    } else {
+        Err("O Claude conectou, mas a sessão não pôde ser salva neste PC.".to_string())
+    }
+}
+
+fn stored_session_key() -> Option<String> {
+    credential_entry()
+        .ok()
+        .and_then(|entry| entry.get_password().ok())
+        .filter(|value| !value.trim().is_empty())
+        .or_else(read_session_file)
 }
 
 fn normalize_session_key(raw: &str) -> Result<String, String> {
@@ -37,10 +87,6 @@ fn normalize_session_key(raw: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-fn stored_session_key() -> Option<String> {
-    credential_entry().ok()?.get_password().ok().filter(|value| !value.trim().is_empty())
-}
-
 pub fn has_stored_session() -> bool {
     stored_session_key().is_some()
 }
@@ -54,7 +100,7 @@ async fn fetch_json(client: &reqwest::Client, url: &str, session_key: &str) -> R
         .get(url)
         .header("Cookie", cookie_header(session_key))
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "Mozilla/5.0 AI-Dock/0.2.3")
+        .header(USER_AGENT, "Mozilla/5.0 AI-Dock/0.2.5")
         .header("Origin", "https://claude.ai")
         .header("Referer", "https://claude.ai/settings/usage")
         .send()
@@ -183,17 +229,18 @@ pub async fn set_claude_web_session(session_key: String) -> Result<ProviderUsage
         .map_err(|_| "Não foi possível iniciar a conexão com o Claude.".to_string())?;
 
     let snapshot = usage_with_key(&client, &session_key).await?;
-    credential_entry()?
-        .set_password(&session_key)
-        .map_err(|_| "O Claude conectou, mas não consegui salvar a sessão no Gerenciador de Credenciais do Windows.".to_string())?;
+    persist_session(&session_key)?;
     Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn clear_claude_web_session() -> Result<(), String> {
-    let entry = credential_entry()?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(_) => Err("Não foi possível remover a sessão do Claude do Gerenciador de Credenciais do Windows.".to_string()),
+    delete_session_file();
+    match credential_entry() {
+        Ok(entry) => match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(_) => Ok(()),
+        },
+        Err(_) => Ok(()),
     }
 }
