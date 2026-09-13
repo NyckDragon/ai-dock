@@ -1,4 +1,5 @@
 use tauri::Manager;
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 
 mod commands;
 
@@ -27,10 +28,8 @@ pub fn run() {
                 let _ = window.set_resizable(false);
                 let _ = window.set_skip_taskbar(false);
                 let _ = window.center();
-                let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_always_on_top(true);
-                let _ = window.set_focus();
 
                 let keep_topmost = window.clone();
                 window.on_window_event(move |event| {
@@ -41,6 +40,28 @@ pub fn run() {
                         let _ = keep_topmost.set_always_on_top(true);
                     }
                 });
+            }
+
+            if let Some(icon) = app.default_window_icon().cloned() {
+                let handle = app.handle().clone();
+                let _ = TrayIconBuilder::new()
+                    .icon(icon)
+                    .tooltip("AI Dock")
+                    .on_tray_icon_event(move |_tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            ..
+                        } = event
+                        {
+                            if let Some(window) = handle.get_webview_window("main") {
+                                let _ = window.unminimize();
+                                let _ = window.show();
+                                let _ = window.set_always_on_top(true);
+                                let _ = window.set_focus();
+                            }
+                        }
+                    })
+                    .build(app);
             }
             Ok(())
         })

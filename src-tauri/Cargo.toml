@@ -1,6 +1,6 @@
 [package]
 name = "ai-dock"
-version = "0.2.4"
+version = "0.2.6"
 description = "Windows 11 AI usage monitor and Obsidian prompt launcher"
 authors = ["Nycolas Monteiro"]
 edition = "2021"
@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
