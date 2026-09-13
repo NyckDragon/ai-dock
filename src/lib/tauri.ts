@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DockSide, MonitorInfo, PromptItem, ProviderUsage } from "../types";
+import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUsage } from "../types";
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -25,12 +25,9 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
       {
         id: "claude",
         name: "Claude",
-        connected: true,
-        plan: "Max",
-        windows: [
-          { id: "session", label: "Sessão · 5h", remainingPercent: 30 },
-          { id: "weekly", label: "Semanal", remainingPercent: 58 }
-        ]
+        connected: false,
+        windows: [],
+        error: "Claude Code não conectado."
       },
       {
         id: "codex",
@@ -45,6 +42,18 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
     ];
   }
   return invoke<ProviderUsage[]>("get_provider_usage");
+}
+
+export async function fetchProviderSetupStatus(): Promise<ProviderSetupStatus> {
+  if (!isTauri()) {
+    return { installed: true, authenticated: false, version: "2.1.x" };
+  }
+  return invoke<ProviderSetupStatus>("provider_setup_status");
+}
+
+export async function openProviderSetup(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("open_provider_setup");
 }
 
 export async function chooseObsidianFolder(): Promise<string | null> {
