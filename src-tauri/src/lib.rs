@@ -12,6 +12,7 @@ pub fn run() {
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
             commands::providers::provider_setup_status,
+            commands::providers::install_provider_cli,
             commands::providers::open_provider_setup,
         ])
         .setup(|app| {
