@@ -1,10 +1,24 @@
+html:has(.compact-shell),
+body:has(.compact-shell),
+#root:has(.compact-shell) {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+.compact-shell {
+  height: auto !important;
+  min-height: 0 !important;
+  align-items: flex-start !important;
+}
+
 .dock-pill {
   height: auto !important;
-  min-height: 196px;
+  min-height: 0;
   padding: 12px 0 10px;
   gap: 7px;
   box-shadow: none !important;
-  overflow: visible;
+  overflow: visible !important;
   justify-content: flex-start;
 }
 .dock-pill:hover {
@@ -74,18 +88,15 @@
   border-radius: 50%;
 }
 .compact-gauge--circle .compact-gauge__face { border-radius: 50%; }
-
 .compact-gauge--good { --ring-color: #71df9c; }
 .compact-gauge--warning { --ring-color: #e5bc52; }
 .compact-gauge--danger { --ring-color: #ef6f72; }
 .compact-gauge--empty { --ring-color: #555b66; opacity: .62; }
-
 .compact-gauge__face small {
   display: inline;
   font-size: 7px;
   margin: 0;
   color: #969ca7;
-  line-height: 1;
 }
 
 .compact-mode-picker {
@@ -103,7 +114,6 @@
   font-size: 9px;
   cursor: pointer;
 }
-.compact-mode-picker button:hover { background: rgba(255,255,255,.05); }
 .compact-mode-picker button.is-selected {
   color: #d8d2ff;
   background: rgba(125,96,255,.095);
@@ -125,8 +135,4 @@
   color: #9ba0aa;
   font-size: 8px;
   cursor: pointer;
-}
-.compact-toggle.is-selected {
-  color: #d8d2ff;
-  border-color: rgba(145,119,255,.28);
 }
