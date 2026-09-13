@@ -1,7 +1,8 @@
 .dock-pill {
-  height: calc(100% - 4px);
-  padding: 10px 0 8px;
-  gap: 6px;
+  height: auto !important;
+  min-height: 196px;
+  padding: 12px 0 10px;
+  gap: 7px;
   box-shadow: none !important;
   overflow: visible;
   justify-content: flex-start;
@@ -10,9 +11,7 @@
   transform: none;
   box-shadow: none !important;
 }
-.dock-glow {
-  display: none !important;
-}
+.dock-glow { display: none !important; }
 .dock-spark {
   width: 22px;
   height: 22px;
@@ -74,10 +73,7 @@
   height: 34px;
   border-radius: 50%;
 }
-
-.compact-gauge--circle .compact-gauge__face {
-  border-radius: 50%;
-}
+.compact-gauge--circle .compact-gauge__face { border-radius: 50%; }
 
 .compact-gauge--good { --ring-color: #71df9c; }
 .compact-gauge--warning { --ring-color: #e5bc52; }
