@@ -22,18 +22,13 @@
         "transparent": true,
         "alwaysOnTop": true,
         "resizable": false,
-        "skipTaskbar": false,
+        "skipTaskbar": true,
         "shadow": false,
         "visible": true
       }
     ],
     "security": {
       "csp": null
-    },
-    "trayIcon": {
-      "id": "main",
-      "iconPath": "icons/icon.ico",
-      "tooltip": "AI Dock"
     }
   },
   "bundle": {
