@@ -5,6 +5,23 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-19
+
+### Added
+
+- Logos reais dos providers no dock compacto.
+- Peek no hover com quota, reset, plano e estado de conexão sem abrir o painel completo.
+- Activity Monitor local para Codex e Antigravity.
+- Codex Desktop lê turns ativos do SQLite local; CLI/extensão usa fallback por rollout recente.
+- Antigravity detecta atividade por transcript local recente e marca a leitura como estimada.
+- Estado visual no ring: arco em movimento quando está trabalhando e pulso âmbar quando espera ação.
+
+### Changed
+
+- Antigravity continua separado em Gemini e Claude + GPT no compacto.
+- O dock pode ampliar temporariamente a janela transparente para o peek sem alterar o painel expandido.
+- Versões frontend, Rust e bundle alinhadas em 0.3.0.
+
 ## [0.2.3] - 2026-09-13
 
 ### Added
