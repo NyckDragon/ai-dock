@@ -6,7 +6,7 @@ use std::{env, fs, path::PathBuf, process::Command};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
-use super::{antigravity, claude_web};
+use super::{antigravity, claude_web, cursor};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -420,15 +420,17 @@ pub async fn get_provider_usage() -> Vec<ProviderUsage> {
             return vec![
                 disconnected("claude", "Claude", "Não foi possível iniciar o cliente HTTP."),
                 disconnected("codex", "Codex", "Não foi possível iniciar o cliente HTTP."),
+                disconnected("cursor", "Cursor", "Não foi possível iniciar o cliente HTTP."),
                 disconnected("antigravity", "Antigravity", "Não foi possível iniciar o cliente HTTP."),
             ];
         }
     };
 
-    let (claude, codex, antigravity) = tokio::join!(
+    let (claude, codex, cursor, antigravity) = tokio::join!(
         resolve_claude(&client),
         codex_usage(&client),
+        cursor::usage(&client),
         antigravity::usage(),
     );
-    vec![claude, codex, antigravity]
+    vec![claude, codex, cursor, antigravity]
 }
