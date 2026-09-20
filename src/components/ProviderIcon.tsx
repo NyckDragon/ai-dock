@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 const ICONS: Record<string, string> = {
   claude: "/provider-icons/claude.svg",
   codex: "/provider-icons/codex.svg",
+  cursor: "/provider-icons/cursor.svg",
   antigravity: "/provider-icons/antigravity.svg",
   "antigravity-gemini": "/provider-icons/gemini.svg",
   "antigravity-gpt": "/provider-icons/antigravity.svg"
