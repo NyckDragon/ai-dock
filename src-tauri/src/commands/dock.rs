@@ -30,6 +30,7 @@ pub fn place_dock(
     expanded: bool,
     monitor_index: Option<usize>,
     compact_height: Option<f64>,
+    peek: bool,
 ) -> Result<(), String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     let selected_monitor = monitor_index
@@ -46,9 +47,14 @@ pub fn place_dock(
     let monitor_size = selected_monitor.size();
     let work_h = monitor_size.height as f64 / scale;
 
-    let logical_width = if expanded { 360.0 } else { 58.0 };
+    let logical_width = if expanded { 360.0 } else if peek { 338.0 } else { 58.0 };
     let logical_height = if expanded {
         560.0_f64.min(work_h - 28.0).max(380.0)
+    } else if peek {
+        compact_height
+            .unwrap_or(320.0)
+            .max(320.0)
+            .clamp(260.0, (work_h - 28.0).max(260.0))
     } else {
         compact_height.unwrap_or(320.0).clamp(220.0, (work_h - 28.0).max(220.0))
     };
@@ -119,6 +125,7 @@ pub fn set_dock_state(
     expanded: bool,
     monitor_index: Option<usize>,
     compact_height: Option<f64>,
+    peek: bool,
 ) -> Result<(), String> {
     place_dock(
         &main_window(&app)?,
@@ -126,6 +133,7 @@ pub fn set_dock_state(
         expanded,
         monitor_index,
         compact_height,
+        peek,
     )
 }
 
