@@ -5,6 +5,29 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-09-20
+
+### Added
+
+- Cursor como provider de quota, reutilizando a sessão já autenticada no editor.
+- Leitura de uso do Cursor via `https://cursor.com/api/usage-summary`.
+- Activity Monitor direto do Cursor via `composerHeaders` em `state.vscdb`.
+- Detecção de várias tarefas simultâneas do Cursor.
+- Estados `working`, `waiting` e `idle` para Cursor.
+- Logo real do Cursor no dock e nos cards.
+- Peek mostra contagem quando existem múltiplas tarefas ativas.
+
+### Security
+
+- SQLite do Cursor é aberto em modo somente leitura.
+- Credenciais do Cursor existem apenas em memória durante a consulta e não são persistidas, exibidas nem registradas pelo AI Dock.
+- Fallback `immutable=1` é usado apenas quando necessário para leitura segura do banco local.
+
+### Validation
+
+- Windows Build passou com TypeScript, Vite, Rust, rusqlite, Tauri, NSIS e Portable EXE.
+- Smoke test com uma instalação real do Cursor permanece separado do CI e deve confirmar quota e activity no PC do usuário.
+
 ## [0.3.0] - 2026-09-19
 
 ### Added
