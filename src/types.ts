@@ -41,3 +41,22 @@ export type PromptItem = {
   favorite: boolean;
   content: string;
 };
+
+
+export type ActivityState = "working" | "waiting" | "idle";
+export type ActivityConfidence = "direct" | "inferred";
+
+export type ActivitySession = {
+  id: string;
+  title: string;
+  detail: string;
+  state: ActivityState;
+  since: number;
+};
+
+export type ProviderActivity = {
+  providerId: string;
+  state: ActivityState;
+  confidence: ActivityConfidence;
+  sessions: ActivitySession[];
+};

@@ -14,6 +14,7 @@ pub fn run() {
             commands::dock::quit_app,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
+            commands::activity::get_provider_activity,
             commands::providers::provider_setup_status,
             commands::providers::install_provider_cli,
             commands::cli::uninstall_provider_cli,

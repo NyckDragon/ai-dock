@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DockSide, MonitorInfo, PromptItem, ProviderSetupStatus, ProviderUsage } from "../types";
+import type { DockSide, MonitorInfo, PromptItem, ProviderActivity, ProviderSetupStatus, ProviderUsage } from "../types";
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -14,11 +14,12 @@ export async function setDock(
   side: DockSide,
   expanded: boolean,
   monitorIndex: number,
-  compactHeight = 320
+  compactHeight = 320,
+  peek = false
 ) {
   if (!isTauri()) return;
   const height = expanded ? 560 : Math.max(compactHeight, measurePillHeight());
-  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight: height });
+  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight: height, peek });
 }
 
 export async function raiseDock() {
@@ -47,6 +48,11 @@ export async function fetchMonitors(): Promise<MonitorInfo[]> {
 export async function fetchUsage(): Promise<ProviderUsage[]> {
   if (!isTauri()) return [];
   return invoke<ProviderUsage[]>("get_provider_usage");
+}
+
+export async function fetchActivity(): Promise<ProviderActivity[]> {
+  if (!isTauri()) return [];
+  return invoke<ProviderActivity[]>("get_provider_activity");
 }
 
 export async function fetchClaudeWebStatus(): Promise<ProviderUsage> {

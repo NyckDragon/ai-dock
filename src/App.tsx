@@ -16,12 +16,16 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import "./provider-connect.css";
 import "./compact-modes.css";
+import "./v03.css";
 import { PromptLibrary } from "./components/PromptLibrary";
+import { ProviderIcon } from "./components/ProviderIcon";
+import { ProviderPeek } from "./components/ProviderPeek";
 import { UsageCard } from "./components/UsageCard";
 import {
   chooseObsidianFolder,
   clearClaudeWebSession,
   fetchClaudeWebStatus,
+  fetchActivity,
   fetchMonitors,
   fetchProviderSetupStatus,
   fetchUsage,
@@ -39,6 +43,7 @@ import type {
   DockSide,
   MonitorInfo,
   PromptItem,
+  ProviderActivity,
   ProviderSetupStatus,
   ProviderUsage
 } from "./types";
@@ -105,21 +110,29 @@ function compactWindowHeight(mode: CompactMode, count: number) {
 function CompactProviderMetric({
   provider,
   mode,
-  showSign
+  showSign,
+  activity,
+  onPeek
 }: {
   provider: ProviderUsage;
   mode: CompactMode;
   showSign: boolean;
+  activity?: ProviderActivity;
+  onPeek: () => void;
 }) {
   const remaining = providerHeadroom(provider);
   const rounded = remaining == null ? null : Math.round(remaining);
-  const label = rounded == null ? "--" : showSign ? `${rounded}%` : `${rounded}`;
-  const title = rounded == null ? `${provider.name}: não conectado` : `${provider.name}: ${rounded}% restante`;
+  const label = rounded == null ? "--" : showSign ? String(rounded) + "%" : String(rounded);
+  const title = rounded == null
+    ? provider.name + ": não conectado"
+    : provider.name + ": " + rounded + "% restante";
+  const activityState = activity?.state || "idle";
 
   if (mode === "percent") {
     return (
-      <span className="compact-metric compact-metric--percent" title={title}>
-        {label}
+      <span className="compact-provider-slot" onMouseEnter={onPeek} title={title}>
+        <ProviderIcon providerId={provider.id} size={15} title={provider.name} />
+        <span className="compact-metric compact-metric--percent">{label}</span>
       </span>
     );
   }
@@ -128,17 +141,27 @@ function CompactProviderMetric({
   const tone = quotaTone(remaining);
 
   return (
-    <span
-      className={`compact-gauge compact-gauge--${tone}${mode === "ring" ? " compact-gauge--circle" : ""}`}
-      title={title}
-      style={{ "--ring-value": `${degrees}deg` } as React.CSSProperties}
-    >
-      <span className="compact-gauge__face">
-        {rounded == null ? "--" : rounded}
-        {rounded == null || !showSign ? null : <small>%</small>}
+    <span className="compact-provider-slot" onMouseEnter={onPeek} title={title}>
+      <span
+        className={"compact-gauge compact-gauge--" + tone + (mode === "ring" ? " compact-gauge--circle" : "")}
+        data-activity={activityState}
+        style={{ "--ring-value": String(degrees) + "deg" } as React.CSSProperties}
+      >
+        <span className="compact-gauge__face">
+          <ProviderIcon
+            providerId={provider.id}
+            size={mode === "ring" ? 16 : 14}
+            title={provider.name}
+          />
+        </span>
       </span>
+      <span className="compact-provider-slot__value">{label}</span>
     </span>
   );
+}
+
+function activityProviderId(providerId: string) {
+  return providerId.startsWith("antigravity-") ? "antigravity" : providerId;
 }
 
 export default function App() {
@@ -165,22 +188,33 @@ export default function App() {
   const [webBusy, setWebBusy] = useState(false);
   const [webNote, setWebNote] = useState<string | null>(null);
   const [webError, setWebError] = useState<string | null>(null);
+  const [activities, setActivities] = useState<ProviderActivity[]>([]);
+  const [peekProviderId, setPeekProviderId] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   const compactProviders = useMemo(() => compactSlots(providers), [providers]);
   const windowHeight = compactWindowHeight(compactMode, compactProviders.length);
+  const peekProvider = useMemo(
+    () => compactProviders.find((provider) => provider.id === peekProviderId) || null,
+    [compactProviders, peekProviderId]
+  );
+  const activityFor = (providerId: string) =>
+    activities.find((activity) => activity.providerId === activityProviderId(providerId));
 
   async function refreshProviders() {
     setLoading(true);
     try {
-      setProviders(await fetchUsage());
+      const next = await fetchUsage();
+      setProviders(next);
+      setLastUpdatedAt(Date.now());
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    void setDock(side, expanded, monitorIndex, windowHeight);
-  }, [expanded, side, monitorIndex, compactMode, windowHeight]);
+    void setDock(side, expanded, monitorIndex, windowHeight, Boolean(peekProviderId));
+  }, [expanded, side, monitorIndex, compactMode, windowHeight, peekProviderId]);
 
   useEffect(() => {
     const tick = window.setInterval(() => {
@@ -193,6 +227,26 @@ export default function App() {
       window.clearInterval(tick);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      fetchActivity()
+        .then((next) => {
+          if (alive) setActivities(next);
+        })
+        .catch(() => {
+          if (alive) setActivities([]);
+        });
+    };
+
+    refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -242,25 +296,60 @@ export default function App() {
 
   if (!expanded) {
     return (
-      <main className={`compact-shell compact-shell--${side}`}>
-        <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
-          <Sparkles size={16} />
-          <span className="dock-word">AI</span>
-          {compactMode === "classic" ? (
-            <span className="dock-statuses">
-              {compactProviders.map((provider) => (
-                <i key={provider.id} className={`mini-dot mini-dot--${provider.connected && provider.windows.length ? "on" : "off"}`} />
-              ))}
-            </span>
-          ) : (
-            <span className="compact-metrics">
-              {compactProviders.map((provider) => (
-                <CompactProviderMetric key={provider.id} provider={provider} mode={compactMode} showSign={showSign} />
-              ))}
-            </span>
-          )}
-          {side === "right" ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
-        </button>
+      <main
+        className={"compact-shell compact-shell--" + side}
+        onMouseLeave={() => setPeekProviderId(null)}
+      >
+        <div className="compact-stage">
+          <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
+            <Sparkles size={16} />
+            <span className="dock-word">AI</span>
+
+            {compactMode === "classic" ? (
+              <span className="compact-provider-icons">
+                {compactProviders.map((provider) => (
+                  <span
+                    key={provider.id}
+                    className="compact-provider-icon"
+                    onMouseEnter={() => setPeekProviderId(provider.id)}
+                    title={provider.name}
+                  >
+                    <ProviderIcon providerId={provider.id} size={17} title={provider.name} />
+                    <i
+                      className={
+                        "mini-dot mini-dot--" +
+                        (provider.connected && provider.windows.length ? "on" : "off")
+                      }
+                    />
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="compact-metrics">
+                {compactProviders.map((provider) => (
+                  <CompactProviderMetric
+                    key={provider.id}
+                    provider={provider}
+                    mode={compactMode}
+                    showSign={showSign}
+                    activity={activityFor(provider.id)}
+                    onPeek={() => setPeekProviderId(provider.id)}
+                  />
+                ))}
+              </span>
+            )}
+
+            {side === "right" ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
+          </button>
+
+          {peekProvider ? (
+            <ProviderPeek
+              provider={peekProvider}
+              activity={activityFor(peekProvider.id)}
+              updatedAt={lastUpdatedAt}
+            />
+          ) : null}
+        </div>
       </main>
     );
   }
@@ -444,7 +533,13 @@ export default function App() {
                 <Bot size={17} className="muted-icon" />
               </div>
               <div className="usage-stack">
-                {providers.map((provider) => <UsageCard provider={provider} key={provider.id} />)}
+                {providers.map((provider) => (
+                  <UsageCard
+                    provider={provider}
+                    activity={activityFor(provider.id)}
+                    key={provider.id}
+                  />
+                ))}
               </div>
             </section>
             <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={async () => {
