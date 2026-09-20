@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/v0.4-cursor
     tags:
       - "v*"
   workflow_dispatch:
