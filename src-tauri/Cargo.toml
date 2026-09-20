@@ -25,3 +25,5 @@ regex = "1"
 portable-pty = "0.9"
 keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+rusqlite = { version = "0.32", features = ["bundled"] }
