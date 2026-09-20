@@ -49,6 +49,15 @@ export function ProviderPeek({
   updatedAt: number | null;
 }) {
   const showActivity = activity && activity.state !== "idle";
+  const activityCount = activity?.sessions.length || 0;
+  const waitingCount = activity?.sessions.filter((session) => session.state === "waiting").length || 0;
+  const activityTitle = activity?.state === "waiting"
+    ? waitingCount > 1
+      ? waitingCount + " esperando você"
+      : "Esperando você"
+    : activityCount > 1
+      ? activityCount + " trabalhando"
+      : "Trabalhando";
 
   return (
     <aside className="provider-peek" role="status">
@@ -90,7 +99,7 @@ export function ProviderPeek({
         <div className={"provider-peek__activity provider-peek__activity--" + activity.state}>
           <div className="provider-peek__activity-title">
             <i />
-            <strong>{activity.state === "waiting" ? "Esperando você" : "Trabalhando"}</strong>
+            <strong>{activityTitle}</strong>
             {activity.confidence === "inferred" ? <small>estimado</small> : null}
           </div>
           {activity.sessions.slice(0, 3).map((session) => (

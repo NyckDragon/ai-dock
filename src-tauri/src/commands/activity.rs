@@ -1,3 +1,4 @@
+use super::cursor;
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
 use std::{
@@ -230,6 +231,116 @@ fn codex_activity() -> ProviderActivity {
     codex_desktop_activity().unwrap_or_else(codex_rollout_activity)
 }
 
+fn cursor_timestamp_ms(value: Option<&serde_json::Value>) -> Option<u64> {
+    let raw = value.and_then(|value| {
+        value
+            .as_f64()
+            .or_else(|| value.as_i64().map(|number| number as f64))
+    })?;
+    if raw <= 0.0 {
+        return None;
+    }
+    Some(if raw > 10_000_000_000.0 {
+        raw as u64
+    } else {
+        (raw * 1000.0) as u64
+    })
+}
+
+fn cursor_activity() -> ProviderActivity {
+    let Some(conn) = cursor::open_store() else {
+        return idle("cursor", "direct");
+    };
+
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT value FROM composerHeaders WHERE isArchived = 0 ORDER BY recency DESC LIMIT 40",
+    ) else {
+        return idle("cursor", "direct");
+    };
+
+    let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) else {
+        return idle("cursor", "direct");
+    };
+
+    let mut sessions = Vec::new();
+    for json in rows.flatten() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) else {
+            continue;
+        };
+
+        let Some(composer_id) = value.get("composerId").and_then(|value| value.as_str()) else {
+            continue;
+        };
+
+        let blocked = value
+            .get("hasBlockingPendingActions")
+            .and_then(|value| value.as_bool())
+            == Some(true)
+            || value
+                .get("hasPendingPlan")
+                .and_then(|value| value.as_bool())
+                == Some(true);
+
+        let running_since = cursor_timestamp_ms(value.get("unfinishedRunAt"));
+        if !blocked && running_since.is_none() {
+            continue;
+        }
+
+        let since = running_since
+            .or_else(|| cursor_timestamp_ms(value.get("lastUpdatedAt")))
+            .or_else(|| cursor_timestamp_ms(value.get("createdAt")))
+            .unwrap_or_else(now_ms);
+
+        let title = value
+            .get("name")
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("Conversa do Cursor")
+            .chars()
+            .take(64)
+            .collect::<String>();
+
+        let detail = if blocked {
+            "Precisa da sua ação".to_string()
+        } else {
+            value
+                .get("subtitle")
+                .and_then(|value| value.as_str())
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| value.chars().take(80).collect::<String>())
+                .unwrap_or_else(|| "Executando tarefa".into())
+        };
+
+        sessions.push(ActivitySession {
+            id: composer_id.to_string(),
+            title,
+            detail,
+            state: if blocked { "waiting".into() } else { "working".into() },
+            since,
+        });
+    }
+
+    sessions.sort_by_key(|session| std::cmp::Reverse(session.since));
+    sessions.truncate(8);
+
+    if sessions.is_empty() {
+        return idle("cursor", "direct");
+    }
+
+    let state = if sessions.iter().any(|session| session.state == "waiting") {
+        "waiting"
+    } else {
+        "working"
+    };
+
+    ProviderActivity {
+        provider_id: "cursor".into(),
+        state: state.into(),
+        confidence: "direct".into(),
+        sessions,
+    }
+}
+
 fn antigravity_state_roots() -> Vec<PathBuf> {
     let Some(home) = dirs::home_dir() else { return vec![] };
     let Ok(entries) = fs::read_dir(home.join(".gemini")) else { return vec![] };
@@ -283,7 +394,9 @@ fn antigravity_activity() -> ProviderActivity {
 
 #[tauri::command]
 pub async fn get_provider_activity() -> Vec<ProviderActivity> {
-    tauri::async_runtime::spawn_blocking(|| vec![codex_activity(), antigravity_activity()])
-        .await
-        .unwrap_or_default()
+    tauri::async_runtime::spawn_blocking(|| {
+        vec![codex_activity(), cursor_activity(), antigravity_activity()]
+    })
+    .await
+    .unwrap_or_default()
 }

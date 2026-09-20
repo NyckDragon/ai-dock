@@ -2,6 +2,7 @@
 pub mod antigravity;
 pub mod activity;
 pub mod claude_web;
+pub mod cursor;
 pub mod cli;
 pub mod dock;
 pub mod obsidian;
