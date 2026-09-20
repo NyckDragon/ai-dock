@@ -5,6 +5,7 @@ The SVG files in this directory come from the npm package `@lobehub/icons-static
 
 - claude.svg -> icons/claude.svg
 - codex.svg -> icons/openai.svg
+- cursor.svg -> icons/cursor.svg
 - antigravity.svg -> icons/antigravity.svg
 - gemini.svg -> icons/gemini.svg
 
