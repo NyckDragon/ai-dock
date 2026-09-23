@@ -13,7 +13,7 @@ import {
   Sparkles,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./provider-connect.css";
 import "./compact-modes.css";
 import "./v03.css";
@@ -190,7 +190,11 @@ export default function App() {
   const [webError, setWebError] = useState<string | null>(null);
   const [activities, setActivities] = useState<ProviderActivity[]>([]);
   const [peekProviderId, setPeekProviderId] = useState<string | null>(null);
+  const [peekPhase, setPeekPhase] = useState<"closed" | "opening" | "open" | "closing">("closed");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const peekNativeOpenRef = useRef(false);
+  const peekTargetRef = useRef<string | null>(null);
+  const peekCloseTimerRef = useRef<number | null>(null);
 
   const compactProviders = useMemo(() => compactSlots(providers), [providers]);
   const windowHeight = compactWindowHeight(compactMode, compactProviders.length);
@@ -213,8 +217,14 @@ export default function App() {
   }
 
   useEffect(() => {
-    void setDock(side, expanded, monitorIndex, windowHeight, Boolean(peekProviderId));
-  }, [expanded, side, monitorIndex, compactMode, windowHeight, peekProviderId]);
+    if (expanded) {
+      peekNativeOpenRef.current = false;
+      peekTargetRef.current = null;
+      setPeekProviderId(null);
+      setPeekPhase("closed");
+    }
+    void setDock(side, expanded, monitorIndex, windowHeight, false);
+  }, [expanded, side, monitorIndex, compactMode, windowHeight]);
 
   useEffect(() => {
     const tick = window.setInterval(() => {
@@ -294,14 +304,88 @@ export default function App() {
     }
   }
 
+  function clearPeekCloseTimer() {
+    if (peekCloseTimerRef.current != null) {
+      window.clearTimeout(peekCloseTimerRef.current);
+      peekCloseTimerRef.current = null;
+    }
+  }
+
+  async function openPeek(providerId: string) {
+    if (expanded) return;
+
+    clearPeekCloseTimer();
+    peekTargetRef.current = providerId;
+
+    if (peekNativeOpenRef.current) {
+      setPeekProviderId(providerId);
+      setPeekPhase("open");
+      return;
+    }
+
+    peekNativeOpenRef.current = true;
+    setPeekPhase("opening");
+
+    try {
+      await setDock(side, false, monitorIndex, windowHeight, true);
+
+      const target = peekTargetRef.current;
+      if (!target) {
+        peekNativeOpenRef.current = false;
+        await setDock(side, false, monitorIndex, windowHeight, false);
+        setPeekPhase("closed");
+        return;
+      }
+
+      setPeekProviderId(target);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => setPeekPhase("open"));
+      });
+    } catch {
+      peekNativeOpenRef.current = false;
+      peekTargetRef.current = null;
+      setPeekProviderId(null);
+      setPeekPhase("closed");
+    }
+  }
+
+  function closePeek() {
+    clearPeekCloseTimer();
+    peekTargetRef.current = null;
+
+    if (!peekNativeOpenRef.current) {
+      setPeekProviderId(null);
+      setPeekPhase("closed");
+      return;
+    }
+
+    setPeekPhase("closing");
+    peekCloseTimerRef.current = window.setTimeout(() => {
+      setPeekProviderId(null);
+      void setDock(side, false, monitorIndex, windowHeight, false).finally(() => {
+        peekNativeOpenRef.current = false;
+        setPeekPhase("closed");
+      });
+    }, 170);
+  }
+
+  function openExpandedPanel() {
+    clearPeekCloseTimer();
+    peekTargetRef.current = null;
+    peekNativeOpenRef.current = false;
+    setPeekProviderId(null);
+    setPeekPhase("closed");
+    setExpanded(true);
+  }
+
   if (!expanded) {
     return (
       <main
         className={"compact-shell compact-shell--" + side}
-        onMouseLeave={() => setPeekProviderId(null)}
+        onMouseLeave={closePeek}
       >
         <div className="compact-stage">
-          <button className="dock-pill" onClick={() => setExpanded(true)} title="Abrir AI Dock">
+          <button className="dock-pill" onClick={openExpandedPanel} title="Abrir AI Dock">
             <Sparkles size={16} />
             <span className="dock-word">AI</span>
 
@@ -311,7 +395,7 @@ export default function App() {
                   <span
                     key={provider.id}
                     className="compact-provider-icon"
-                    onMouseEnter={() => setPeekProviderId(provider.id)}
+                    onMouseEnter={() => void openPeek(provider.id)}
                     title={provider.name}
                   >
                     <ProviderIcon providerId={provider.id} size={17} title={provider.name} />
@@ -333,7 +417,7 @@ export default function App() {
                     mode={compactMode}
                     showSign={showSign}
                     activity={activityFor(provider.id)}
-                    onPeek={() => setPeekProviderId(provider.id)}
+                    onPeek={() => void openPeek(provider.id)}
                   />
                 ))}
               </span>
@@ -343,11 +427,17 @@ export default function App() {
           </button>
 
           {peekProvider ? (
-            <ProviderPeek
-              provider={peekProvider}
-              activity={activityFor(peekProvider.id)}
-              updatedAt={lastUpdatedAt}
-            />
+            <div
+              className={"provider-peek-wrap provider-peek-wrap--" + peekPhase}
+              key={peekProvider.id}
+              onMouseEnter={clearPeekCloseTimer}
+            >
+              <ProviderPeek
+                provider={peekProvider}
+                activity={activityFor(peekProvider.id)}
+                updatedAt={lastUpdatedAt}
+              />
+            </div>
           ) : null}
         </div>
       </main>

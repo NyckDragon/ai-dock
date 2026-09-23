@@ -5,6 +5,22 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-09-20
+
+### Fixed
+
+- Remove duplicação do tray: o ícone agora é criado somente pelo backend Rust.
+- AI Dock passa a permitir apenas uma instância; abrir o executável novamente traz a instância existente para frente.
+- Janela principal deixa de aparecer na taskbar e permanece acessível pelo tray.
+- Hover/peek agora expande a janela nativa antes de renderizar o card, evitando flash, clipping e efeito de clone no primeiro hover.
+- Fechamento do peek anima antes de encolher a janela.
+- Troca entre providers mantém a janela aberta, evitando resize repetido.
+
+### Changed
+
+- Slots e rings do modo compacto ganharam transições de hover mais suaves.
+- Peek ganhou animação de entrada/saída com opacity, scale, slide e blur leve.
+
 ## [0.4.0] - 2026-09-20
 
 ### Added
