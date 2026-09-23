@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - fix/v0.4.1-dock-stability
     tags:
       - "v*"
   workflow_dispatch:
