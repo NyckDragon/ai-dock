@@ -6,9 +6,9 @@ export function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
-/** The window closest to running out, which is the one that actually limits you. */
+/** The window closest to running out, which is the one that actually limits you. Stale readings count. */
 export function limitingWindow(provider: ProviderUsage): UsageWindow | null {
-  if (!provider.connected || provider.windows.length === 0) return null;
+  if (provider.windows.length === 0) return null;
   return provider.windows.reduce((lowest, item) =>
     item.remainingPercent < lowest.remainingPercent ? item : lowest
   );
@@ -26,18 +26,26 @@ export function quotaTone(remaining: number | null): QuotaTone {
   return "danger";
 }
 
-/** Turns a remaining percentage into what the user chose to see. */
-export function shownPercent(remaining: number, display: PercentDisplay) {
-  return Math.round(display === "used" ? 100 - clampPercent(remaining) : clampPercent(remaining));
+/** Whether a provider shows consumed or remaining quota under the chosen display. */
+export function displayKind(display: PercentDisplay, providerId: string): "used" | "remaining" {
+  if (display !== "native") return display;
+  // claude.ai reports utilization, so Claude reads "% usado" like on the site.
+  return baseProviderId(providerId) === "claude" ? "used" : "remaining";
 }
 
-export function displayWord(display: PercentDisplay) {
-  return display === "used" ? "usado" : "restante";
+/** Turns a remaining percentage into what the user chose to see for this provider. */
+export function shownPercent(remaining: number, display: PercentDisplay, providerId: string) {
+  const value = clampPercent(remaining);
+  return Math.round(displayKind(display, providerId) === "used" ? 100 - value : value);
 }
 
-export function percentLabel(remaining: number | null, display: PercentDisplay, showSign = true) {
+export function displayWord(display: PercentDisplay, providerId: string) {
+  return displayKind(display, providerId) === "used" ? "usado" : "restante";
+}
+
+export function percentLabel(remaining: number | null, display: PercentDisplay, providerId: string, showSign = true) {
   if (remaining == null) return "--";
-  const value = shownPercent(remaining, display);
+  const value = shownPercent(remaining, display, providerId);
   return showSign ? value + "%" : String(value);
 }
 

@@ -69,11 +69,11 @@ export function Onboarding({
         ) : (
           <>
             <p className="hint">
-              O Claude Desktop não informa a quota. Para ver o uso do Claude, cole o <strong>sessionKey</strong> do
-              claude.ai uma vez; ele fica no Gerenciador de Credenciais do Windows.
+              O Claude Desktop não informa a quota. Entre uma vez na sua conta do claude.ai numa janela do AI Dock;
+              depois ele renova a sessão sozinho.
             </p>
             <button type="button" className="button button--primary button--block" onClick={onOpenConnections}>
-              Conectar o Claude agora
+              Entrar com claude.ai
             </button>
             <p className="hint">Se preferir, pule e faça isso depois.</p>
           </>

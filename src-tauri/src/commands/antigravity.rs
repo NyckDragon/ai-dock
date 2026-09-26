@@ -519,3 +519,163 @@ fn extract_plan(document: &Value) -> Option<String> {
         .and_then(Value::as_str)
         .map(|value| value.trim_start_matches("Google AI ").to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn by_id<'a>(windows: &'a [UsageWindow], id: &str) -> &'a UsageWindow {
+        windows
+            .iter()
+            .find(|window| window.id == id)
+            .unwrap_or_else(|| panic!("missing usage window {id}"))
+    }
+
+    fn assert_percent(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn parses_grouped_session_and_weekly_windows() {
+        let document = json!({
+            "groups": [
+                {
+                    "displayName": "Gemini",
+                    "buckets": [
+                        {
+                            "bucketId": "session",
+                            "displayName": "5-hour",
+                            "remainingFraction": 0.75,
+                            "resetTime": "2026-09-23T12:00:00Z"
+                        },
+                        {
+                            "bucketId": "weekly",
+                            "displayName": "week",
+                            "remaining": {
+                                "remainingFraction": 0.40,
+                                "resetTime": "2026-09-29T12:00:00Z"
+                            }
+                        },
+                        {
+                            "bucketId": "disabled-weekly",
+                            "displayName": "week",
+                            "remainingFraction": 0.05,
+                            "disabled": true
+                        }
+                    ]
+                },
+                {
+                    "displayName": "Claude + GPT",
+                    "buckets": [
+                        {
+                            "bucketId": "session",
+                            "displayName": "session",
+                            "remainingFraction": 0.55
+                        },
+                        {
+                            "bucketId": "weekly",
+                            "displayName": "weekly",
+                            "remainingFraction": 0.20
+                        }
+                    ]
+                }
+            ]
+        });
+
+        let windows = parse_quota_summary(&document);
+
+        assert_eq!(
+            windows.iter().map(|window| window.id.as_str()).collect::<Vec<_>>(),
+            vec![
+                "gemini-session",
+                "gemini-weekly",
+                "claude-gpt-session",
+                "claude-gpt-weekly"
+            ]
+        );
+        assert_percent(by_id(&windows, "gemini-session").remaining_percent, 75.0);
+        assert_percent(by_id(&windows, "gemini-weekly").remaining_percent, 40.0);
+        assert_eq!(
+            by_id(&windows, "gemini-weekly").reset_at.as_deref(),
+            Some("2026-09-29T12:00:00Z")
+        );
+        assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 55.0);
+        assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 20.0);
+    }
+
+    #[test]
+    fn grouped_duplicate_window_keeps_the_most_conservative_remaining_value() {
+        let document = json!({
+            "groups": [{
+                "displayName": "Gemini",
+                "buckets": [
+                    {
+                        "bucketId": "session-a",
+                        "displayName": "session",
+                        "remainingFraction": 0.80
+                    },
+                    {
+                        "bucketId": "session-b",
+                        "displayName": "5-hour",
+                        "remainingFraction": 0.35,
+                        "resetTime": "2026-09-23T13:00:00Z"
+                    }
+                ]
+            }]
+        });
+
+        let windows = parse_quota_summary(&document);
+
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].id, "gemini-session");
+        assert_percent(windows[0].remaining_percent, 35.0);
+        assert_eq!(
+            windows[0].reset_at.as_deref(),
+            Some("2026-09-23T13:00:00Z")
+        );
+    }
+
+    #[test]
+    fn legacy_model_quotas_ignore_non_chat_models_and_keep_lowest_family_value() {
+        let document = json!({
+            "clientModelConfigs": [
+                {
+                    "label": "Gemini 2.5 Pro",
+                    "quotaInfo": {"remainingFraction": 0.90}
+                },
+                {
+                    "label": "Gemini 2.5 Flash",
+                    "quotaInfo": {
+                        "remainingFraction": 0.40,
+                        "resetTime": "2026-09-23T14:00:00Z"
+                    }
+                },
+                {
+                    "label": "Gemini Image",
+                    "quotaInfo": {"remainingFraction": 0.05}
+                },
+                {
+                    "label": "Claude Sonnet",
+                    "quotaInfo": {"remainingFraction": 0.60}
+                },
+                {
+                    "label": "GPT",
+                    "quotaInfo": {"remainingFraction": 0.30}
+                }
+            ]
+        });
+
+        let windows = parse_legacy_model_quotas(&document);
+
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].id, "gemini-session");
+        assert_percent(windows[0].remaining_percent, 40.0);
+        assert_eq!(windows[1].id, "claude-gpt-session");
+        assert_percent(windows[1].remaining_percent, 30.0);
+    }
+}
+

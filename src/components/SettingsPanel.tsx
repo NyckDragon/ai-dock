@@ -165,10 +165,15 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
           value={settings.display}
           onChange={(display) => update({ display })}
           options={[
-            { value: "remaining", label: "Quanto resta" },
-            { value: "used", label: "Quanto já usei" }
+            { value: "native", label: "Como no app" },
+            { value: "remaining", label: "Restante" },
+            { value: "used", label: "Usado" }
           ]}
         />
+        <p className="hint">
+          "Como no app" segue cada produto: o Claude mostra quanto você já usou, como no claude.ai; os outros mostram
+          quanto resta.
+        </p>
         {settings.compactMode !== "classic" ? (
           <Switch
             label="Símbolo % no dock"

@@ -21,19 +21,20 @@ function slotLabel(provider: ProviderUsage, remaining: number | null, display: P
       ? provider.connected
         ? "sem dados de quota"
         : "não conectado"
-      : shownPercent(remaining, display) + "% " + displayWord(display);
+      : shownPercent(remaining, display, provider.id) + "% " + displayWord(display, provider.id);
   const state =
     activity?.state === "waiting" ? ", esperando você" : activity?.state === "working" ? ", trabalhando" : "";
-  return provider.name + ": " + quota + state;
+  const stale = provider.stale && remaining != null ? " (última leitura, não atualizou)" : "";
+  return provider.name + ": " + quota + stale + state;
 }
 
 function PillSlot({ provider, mode, showSign, display, activity, interactive, onHover, onOpen }: SlotProps) {
   const remaining = providerHeadroom(provider);
   const tone = quotaTone(remaining);
-  const label = percentLabel(remaining, display, showSign);
+  const label = percentLabel(remaining, display, provider.id, showSign);
   const activityState = activity?.state || "idle";
   const aria = slotLabel(provider, remaining, display, activity);
-  const degrees = remaining == null ? 0 : shownPercent(remaining, display) * 3.6;
+  const degrees = remaining == null ? 0 : shownPercent(remaining, display, provider.id) * 3.6;
 
   let body;
   if (mode === "classic") {
@@ -78,6 +79,7 @@ function PillSlot({ provider, mode, showSign, display, activity, interactive, on
       type="button"
       className={"pill-slot pill-slot--" + mode}
       data-slot={provider.id}
+      data-stale={provider.stale ? "true" : undefined}
       aria-label={aria}
       title={aria}
       onMouseEnter={() => onHover?.(provider.id)}

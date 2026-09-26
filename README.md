@@ -2,7 +2,7 @@
 
 Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **launcher de prompts do Obsidian**.
 
-[![Version](https://img.shields.io/badge/version-0.5.0-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requisitos)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
@@ -13,7 +13,7 @@ Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **laun
 
 Enquanto o repo for privado, o instalador sai no artifact da Action [Windows Build](../../actions/workflows/windows-build.yml).
 
-Quando existir uma tag `v0.5.0`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
+Quando existir uma tag `v0.6.0`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
 
 O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na primeira abertura.
 
@@ -36,11 +36,23 @@ O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na p
 | **Codex** | `~/.codex/auth.json` (ou `CODEX_HOME`) e a API de uso da sessão | — |
 | **Cursor** | sessão local do editor em `%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb` + `cursor.com/api/usage-summary` | senha da conta / navegador |
 | **Antigravity** | Language server local do app instalado | Conta Google na web |
-| **Claude** | `sessionKey` do claude.ai (Configurações) **ou** OAuth do Claude Code | Sessão interna do Claude Desktop, sozinha |
+| **Claude** | OAuth local do Claude Code **ou** a sessão do claude.ai em que você entra dentro do AI Dock (ou um Cookie colado à mão) | Cookies do Chrome/Edge / sessão interna do Claude Desktop |
 
-Para o Claude Web: abra claude.ai logado → F12 → Application → Cookies → `sessionKey` → cole **só no AI Dock**. O valor fica no Gerenciador de Credenciais do Windows. Nunca cole isso numa issue.
+### Claude Web
 
-O dock **não renova** cookie nem token. Se o % sumir, cole um sessionKey novo.
+Em **Configurações → Conexões → Entrar com claude.ai**, o AI Dock abre a página de login do claude.ai numa janela própria. Entre na sua conta; a janela fecha sozinha e o Claude aparece no dock. Se o Google recusar o login nessa janela, entre com e-mail.
+
+Depois disso o AI Dock **renova a sessão sozinho**:
+
+- guarda os cookies novos que o claude.ai devolve nas consultas;
+- quando a sessão para de funcionar, abre o claude.ai escondido por alguns segundos (no máximo a cada 20 min) para o próprio site renovar a sessão e o Cloudflare;
+- só pede login de novo, com uma notificação, se o claude.ai realmente te deslogar.
+
+Um desafio do Cloudflare não é tratado como sessão expirada: a última leitura continua visível como **desatualizada** e o AI Dock tenta de novo depois de um cooldown.
+
+Alternativa manual: DevTools do claude.ai → Application → Cookies → copie a tabela inteira (ou o cabeçalho `Cookie`) e cole em **Colar o cookie manualmente**. O AI Dock guarda só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id`, no Gerenciador de Credenciais do Windows. Nunca cole isso numa issue.
+
+O AI Dock **não lê cookies do Chrome, do Edge nem de outro navegador**.
 
 ## Monitor de atividade
 
@@ -93,8 +105,10 @@ Tauri 2 · React + TypeScript + Vite · Rust
 
 - Credenciais de Claude Code e Codex são **só lidas** no disco.
 - A sessão local do Cursor é lida apenas em memória para consultar uso; o SQLite é aberto em modo somente leitura.
-- O `sessionKey` do Claude Web vai para o Credential Manager. Nunca para o GitHub.
-- O AI Dock não extrai cookie do Chrome/Edge sozinho.
+- O Cookie do Claude Web fica no Gerenciador de Credenciais do Windows; o fallback em texto no AppData de versões antigas é migrado e apagado.
+- A janela de login do claude.ai não tem acesso aos comandos do AI Dock.
+- O AI Dock não lê cookies do Chrome/Edge.
+- Cache local só com metadados de quota, nunca credenciais.
 
 [SECURITY.md](SECURITY.md) · [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 

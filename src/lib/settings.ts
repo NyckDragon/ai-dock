@@ -13,7 +13,8 @@ const LEGACY = {
 };
 
 export const PROVIDER_IDS = ["claude", "codex", "cursor", "antigravity"];
-export const REFRESH_CHOICES = [2, 5, 10, 15];
+export const REFRESH_CHOICES = [1, 2, 5, 10, 15];
+const SETTINGS_VERSION = 2;
 export const GLOBAL_SHORTCUT = "CommandOrControl+Alt+Space";
 export const GLOBAL_SHORTCUT_LABEL = "Ctrl + Alt + Espaço";
 
@@ -23,7 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   verticalOffset: 0,
   compactMode: "ring",
   showSign: true,
-  display: "remaining",
+  display: "native",
   theme: "system",
   autoHide: false,
   closeOnBlur: true,
@@ -37,7 +38,8 @@ export const DEFAULT_SETTINGS: Settings = {
   providerOrder: PROVIDER_IDS,
   hiddenProviders: [],
   obsidianPath: null,
-  onboarded: false
+  onboarded: false,
+  settingsVersion: SETTINGS_VERSION
 };
 
 const COMPACT_MODES: CompactMode[] = ["classic", "percent", "ring", "square"];
@@ -63,6 +65,10 @@ function legacySettings(): Partial<Settings> | null {
 
 function normalize(value: Partial<Settings>): Settings {
   const merged = { ...DEFAULT_SETTINGS, ...value };
+  // v2: Claude shows "% usado" like claude.ai. v0.5.0 only offered remaining/used and
+  // defaulted to remaining, so that default moves to the per-product one.
+  if ((value.settingsVersion || 1) < 2 && merged.display === "remaining") merged.display = "native";
+  merged.settingsVersion = SETTINGS_VERSION;
   const known = merged.providerOrder.filter((id) => PROVIDER_IDS.includes(id));
   return {
     ...merged,
@@ -76,7 +82,11 @@ function normalize(value: Partial<Settings>): Settings {
 
 export function loadSettings(): Settings {
   const stored = readJson<Partial<Settings> | null>(STORAGE_SETTINGS, null);
-  if (stored) return normalize(stored);
+  if (stored) {
+    const settings = normalize(stored);
+    if (stored.settingsVersion !== settings.settingsVersion) writeJson(STORAGE_SETTINGS, settings);
+    return settings;
+  }
 
   const legacy = legacySettings();
   const settings = normalize(legacy || {});
