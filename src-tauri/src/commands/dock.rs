@@ -17,6 +17,9 @@ fn main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
 }
 
 fn boot_log(message: &str) {
+    if !cfg!(debug_assertions) {
+        return;
+    }
     if let Some(dir) = dirs::data_local_dir() {
         let folder = dir.join("AI Dock");
         let _ = std::fs::create_dir_all(&folder);
@@ -24,13 +27,20 @@ fn boot_log(message: &str) {
     }
 }
 
+/// Places the dock window on the chosen edge.
+///
+/// `height` is the window height the UI needs right now. `anchor_height` is the
+/// height of the visible pill: the window top is derived from it, so opening the
+/// peek grows the window downward and the pill never moves on screen.
+#[allow(clippy::too_many_arguments)]
 pub fn place_dock(
     window: &tauri::WebviewWindow,
     side: &str,
-    expanded: bool,
+    mode: &str,
     monitor_index: Option<usize>,
-    compact_height: Option<f64>,
-    peek: bool,
+    height: Option<f64>,
+    anchor_height: Option<f64>,
+    vertical_offset: Option<f64>,
 ) -> Result<(), String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     let selected_monitor = monitor_index
@@ -46,17 +56,24 @@ pub fn place_dock(
     let monitor_pos = selected_monitor.position();
     let monitor_size = selected_monitor.size();
     let work_h = monitor_size.height as f64 / scale;
+    let max_h = (work_h - 28.0).max(160.0);
 
-    let logical_width = if expanded { 360.0 } else if peek { 338.0 } else { 58.0 };
+    let expanded = mode == "expanded";
+    let logical_width = match mode {
+        "expanded" => 360.0,
+        "peek" => 338.0,
+        "hidden" => 12.0,
+        _ => 58.0,
+    };
     let logical_height = if expanded {
-        560.0_f64.min(work_h - 28.0).max(380.0)
-    } else if peek {
-        compact_height
-            .unwrap_or(320.0)
-            .max(320.0)
-            .clamp(260.0, (work_h - 28.0).max(260.0))
+        560.0_f64.min(max_h)
     } else {
-        compact_height.unwrap_or(320.0).clamp(220.0, (work_h - 28.0).max(220.0))
+        height.unwrap_or(320.0).clamp(120.0, max_h)
+    };
+    let anchor = if expanded {
+        logical_height
+    } else {
+        anchor_height.unwrap_or(logical_height).clamp(80.0, logical_height)
     };
 
     window
@@ -65,15 +82,26 @@ pub fn place_dock(
 
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let margin = (10.0 * scale).round() as i32;
+    // The auto-hide strip touches the screen edge so the mouse can hit it by throwing it there.
+    let edge_gap = if mode == "hidden" { 0 } else { margin };
     let x = if side == "left" {
-        monitor_pos.x + margin
+        monitor_pos.x + edge_gap
     } else {
-        monitor_pos.x + monitor_size.width as i32 - size.width as i32 - margin
+        monitor_pos.x + monitor_size.width as i32 - size.width as i32 - edge_gap
     };
-    let y = monitor_pos.y + ((monitor_size.height as i32 - size.height as i32) / 2).max(margin);
+
+    let offset = vertical_offset.unwrap_or(0.0).clamp(-45.0, 45.0) / 100.0;
+    let center = monitor_size.height as f64 / 2.0 + offset * monitor_size.height as f64;
+    let anchor_px = anchor * scale;
+    let top_limit = margin;
+    let bottom_limit = monitor_size.height as i32 - margin - size.height as i32;
+    let relative_y = ((center - anchor_px / 2.0).round() as i32)
+        .min(bottom_limit)
+        .max(top_limit);
+    let y = monitor_pos.y + relative_y;
 
     boot_log(&format!(
-        "place_dock side={side} expanded={expanded} scale={scale} pos={x},{y} logical={logical_width}x{logical_height} outer={}x{}",
+        "place_dock side={side} mode={mode} scale={scale} pos={x},{y} logical={logical_width}x{logical_height} anchor={anchor} outer={}x{}",
         size.width, size.height
     ));
 
@@ -109,31 +137,75 @@ pub fn get_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
         .collect())
 }
 
+/// True while a full-screen app, game or presentation owns the screen.
+#[cfg(target_os = "windows")]
+fn fullscreen_app_active() -> bool {
+    use windows_sys::Win32::UI::Shell::{
+        SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
+    };
+
+    let mut state = 0;
+    // SAFETY: the API only writes one i32 into the pointer we pass.
+    let result = unsafe { SHQueryUserNotificationState(&mut state) };
+    result >= 0 && matches!(state, QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fullscreen_app_active() -> bool {
+    false
+}
+
+/// Keeps the dock on top. Returns true when it was hidden for a full-screen app.
 #[tauri::command]
-pub fn raise_dock(app: AppHandle) -> Result<(), String> {
+pub fn raise_dock(app: AppHandle, hide_on_fullscreen: Option<bool>) -> Result<bool, String> {
     let window = main_window(&app)?;
+    if hide_on_fullscreen.unwrap_or(false) && fullscreen_app_active() {
+        let _ = window.hide();
+        return Ok(true);
+    }
     let _ = window.unminimize();
     let _ = window.show();
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(false)
+}
+
+#[tauri::command]
+pub fn focus_dock(app: AppHandle) -> Result<(), String> {
+    let window = main_window(&app)?;
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_always_on_top(true);
+    window.set_focus().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_tray_tooltip(app: AppHandle, text: String) -> Result<(), String> {
+    let Some(tray) = app.tray_by_id("main") else {
+        return Ok(());
+    };
+    // Windows truncates tray tooltips at 127 characters.
+    let text: String = text.chars().take(120).collect();
+    tray.set_tooltip(Some(text)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_dock_state(
     app: AppHandle,
     side: String,
-    expanded: bool,
+    mode: String,
     monitor_index: Option<usize>,
-    compact_height: Option<f64>,
-    peek: bool,
+    height: Option<f64>,
+    anchor_height: Option<f64>,
+    vertical_offset: Option<f64>,
 ) -> Result<(), String> {
     place_dock(
         &main_window(&app)?,
         &side,
-        expanded,
+        &mode,
         monitor_index,
-        compact_height,
-        peek,
+        height,
+        anchor_height,
+        vertical_offset,
     )
 }
 

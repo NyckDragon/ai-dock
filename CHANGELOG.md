@@ -5,6 +5,63 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-09-26
+
+### Added
+
+- Atualização automática do uso (2, 5, 10 ou 15 min). Se um provider limitar a consulta, o intervalo dobra até 4x e volta ao normal sozinho.
+- "Atualizado há X min" no cabeçalho e no peek, com aviso quando o dado fica velho.
+- Indicador de ritmo por janela de uso: "No ritmo", "X% acima do ritmo" ou "Esgota em 2h 10min".
+- Mini-gráfico das últimas 24h da janela que mais limita cada provider.
+- Notificações do Windows: quota passando de 80% e 95% de uso, limite renovado e agente esperando você.
+- Atalho global `Ctrl + Alt + Espaço` que abre a busca de prompts de qualquer app. Depois de copiar, o foco volta para o app anterior.
+- Opção "Colar direto no app anterior".
+- Variáveis em prompts: `{{nome}}` e `{{nome|padrão}}` pedem os valores antes de copiar.
+- Biblioteca de prompts com filtros (Favoritos, Recentes, categorias), prévia do texto, contador, "Mostrar mais", navegação por teclado e ordenação pelos mais usados.
+- A pasta do Obsidian é relida ao abrir o painel e a cada 3 min com ele aberto.
+- Menu na bandeja (Abrir painel, Atualizar uso, Configurações, Encerrar) e tooltip com a quota de cada provider.
+- Iniciar com o Windows.
+- Ocultar automaticamente: o dock vira uma faixa fina na borda e aparece no hover. A faixa usa a cor da pior quota e pulsa quando um agente espera você.
+- Esconder o dock durante jogos, vídeos e apresentações em tela cheia.
+- Ajuste da altura do dock na borda.
+- Mostrar, ocultar e reordenar providers.
+- Mostrar o percentual como "quanto resta" ou "quanto já usei".
+- Tema claro, escuro ou do sistema.
+- Introdução de 3 passos na primeira execução.
+- Esc recolhe o painel, e clicar fora também (configurável).
+- Clicar num provider no dock ou no peek abre o painel já nele.
+
+### Changed
+
+- Novo sistema visual com tokens de cor, fonte Segoe UI Variable, números tabulares e texto de no mínimo 11px.
+- Barras e números usam a cor da quota (verde, âmbar, vermelho) em todo lugar, não só no anel do dock.
+- Reset sempre relativo ("Reseta em 2h 10min"), com a data exata no tooltip.
+- Modo padrão do dock para instalações novas: Círculo (anel + %). No modo Clássico o ponto agora mostra a cor da quota.
+- O indicador de "trabalhando" contorna a borda do ícone em vez de girar a forma.
+- O peek abre alinhado ao ícone sob o mouse, rola quando o conteúdo é grande e o pill não se mexe mais ao abrir.
+- O cabeçalho do painel ficou com 3 botões. Encerrar foi para Configurações → Geral e para a bandeja.
+- Configurações em abas: Aparência (com prévia ao vivo do dock), Posição, Geral e Conexões.
+- Passo a passo para obter o sessionKey do Claude.
+- A consulta de atividade cai de 3s para 8s quando nada está rodando e o painel está fechado.
+- Textos da interface todos em português ("Sob demanda", "Ilimitado").
+
+### Fixed
+
+- "Validando…" não aparecia e dava para enviar o sessionKey várias vezes.
+- Mensagens antigas de erro e de sucesso ficavam na tela ao mesmo tempo.
+- O peek dizia "Atualizado agora" mesmo com dados antigos.
+- A busca de prompts cortava em 30 resultados sem avisar.
+- O peek podia cortar o conteúdo de providers com muitas janelas.
+
+### Security
+
+- CSP definida para o app empacotado.
+- O `boot.log` só é gravado em builds de desenvolvimento.
+
+### Removed
+
+- Código morto: o provider Antigravity v1, `DockFit.tsx` e CSS sem uso.
+
 ## [0.4.1] - 2026-09-20
 
 ### Fixed

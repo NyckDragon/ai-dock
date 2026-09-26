@@ -1,441 +1,394 @@
-import {
-  Bot,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  FolderOpen,
-  Monitor as MonitorIcon,
-  PanelLeftClose,
-  PanelRightClose,
-  Power,
-  RefreshCw,
-  Settings2,
-  Sparkles,
-  X
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import "./provider-connect.css";
-import "./compact-modes.css";
-import "./v03.css";
+import { getVersion } from "@tauri-apps/api/app";
+import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
+import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DockPill } from "./components/DockPill";
+import { Onboarding } from "./components/Onboarding";
 import { PromptLibrary } from "./components/PromptLibrary";
-import { ProviderIcon } from "./components/ProviderIcon";
 import { ProviderPeek } from "./components/ProviderPeek";
-import { UsageCard } from "./components/UsageCard";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
+import { useActivity } from "./hooks/useActivity";
+import { useDockWindow } from "./hooks/useDockWindow";
+import { useNotifications, notify } from "./hooks/useNotifications";
+import { useNow } from "./hooks/useNow";
+import { usePrompts } from "./hooks/usePrompts";
+import { useProviders } from "./hooks/useProviders";
+import { formatAge } from "./lib/format";
+import {
+  arrangeProviders,
+  baseProviderId,
+  compactSlots,
+  providerHeadroom,
+  quotaTone,
+  shownPercent,
+  type QuotaTone
+} from "./lib/quota";
+import { GLOBAL_SHORTCUT, GLOBAL_SHORTCUT_LABEL, loadSettings, saveSettings } from "./lib/settings";
 import {
   chooseObsidianFolder,
-  clearClaudeWebSession,
-  fetchClaudeWebStatus,
-  fetchActivity,
   fetchMonitors,
-  fetchProviderSetupStatus,
-  fetchUsage,
-  installProviderCli,
-  openProviderSetup,
+  focusDock,
+  isTauri,
+  onTrayAction,
   quitApp,
   raiseDock,
-  saveClaudeWebSession,
-  scanPrompts,
-  setDock,
-  uninstallProviderCli
+  rememberForeground,
+  returnFocus,
+  setTrayTooltip
 } from "./lib/tauri";
-import type {
-  CompactMode,
-  DockSide,
-  MonitorInfo,
-  PromptItem,
-  ProviderActivity,
-  ProviderSetupStatus,
-  ProviderUsage
-} from "./types";
+import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
 
-const STORAGE_SIDE = "ai-dock-side";
-const STORAGE_MONITOR = "ai-dock-monitor-index";
-const STORAGE_OBSIDIAN = "ai-dock-obsidian-path";
-const STORAGE_COMPACT_MODE = "ai-dock-compact-mode";
-const STORAGE_COMPACT_SIGN = "ai-dock-compact-sign";
-
-const compactModes: { id: CompactMode; title: string; description: string }[] = [
-  { id: "classic", title: "Padrão", description: "Ícone + AI + pontos" },
-  { id: "percent", title: "Números", description: "AI + percentual" },
-  { id: "ring", title: "Círculo", description: "AI + anel" },
-  { id: "square", title: "Quadrado", description: "AI + borda do retângulo" }
-];
-
-function readCompactMode(): CompactMode {
-  const stored = localStorage.getItem(STORAGE_COMPACT_MODE);
-  if (stored === "ring-percent") return "ring";
-  return compactModes.some((mode) => mode.id === stored) ? (stored as CompactMode) : "classic";
-}
-
-function errorMessage(error: unknown) {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
-  return "Algo deu errado.";
-}
-
-function providerHeadroom(provider: ProviderUsage) {
-  if (!provider.connected || provider.windows.length === 0) return null;
-  return Math.max(0, Math.min(100, Math.min(...provider.windows.map((item) => item.remainingPercent))));
-}
-
-function quotaTone(remaining: number | null) {
-  if (remaining == null) return "empty";
-  if (remaining > 60) return "good";
-  if (remaining > 25) return "warning";
-  return "danger";
-}
-
-function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
-  const slots: ProviderUsage[] = [];
-  for (const provider of providers) {
-    if (provider.id !== "antigravity") {
-      slots.push(provider);
-      continue;
-    }
-    const gemini = provider.windows.filter((item) => item.id.startsWith("gemini"));
-    const other = provider.windows.filter((item) => item.id.startsWith("claude-gpt") || item.id.startsWith("third-party"));
-    slots.push({ ...provider, id: "antigravity-gemini", name: "Gemini", windows: gemini });
-    slots.push({ ...provider, id: "antigravity-gpt", name: "Claude + GPT", windows: other });
-  }
-  return slots;
-}
-
-function compactWindowHeight(mode: CompactMode, count: number) {
-  const n = Math.max(count, 4);
-  if (mode === "classic") return 220;
-  if (mode === "ring") return 92 + n * 42;
-  return 92 + n * 36;
-}
-
-function CompactProviderMetric({
-  provider,
-  mode,
-  showSign,
-  activity,
-  onPeek
-}: {
-  provider: ProviderUsage;
-  mode: CompactMode;
-  showSign: boolean;
-  activity?: ProviderActivity;
-  onPeek: () => void;
-}) {
-  const remaining = providerHeadroom(provider);
-  const rounded = remaining == null ? null : Math.round(remaining);
-  const label = rounded == null ? "--" : showSign ? String(rounded) + "%" : String(rounded);
-  const title = rounded == null
-    ? provider.name + ": não conectado"
-    : provider.name + ": " + rounded + "% restante";
-  const activityState = activity?.state || "idle";
-
-  if (mode === "percent") {
-    return (
-      <span className="compact-provider-slot" onMouseEnter={onPeek} title={title}>
-        <ProviderIcon providerId={provider.id} size={15} title={provider.name} />
-        <span className="compact-metric compact-metric--percent">{label}</span>
-      </span>
-    );
-  }
-
-  const degrees = remaining == null ? 0 : remaining * 3.6;
-  const tone = quotaTone(remaining);
-
-  return (
-    <span className="compact-provider-slot" onMouseEnter={onPeek} title={title}>
-      <span
-        className={"compact-gauge compact-gauge--" + tone + (mode === "ring" ? " compact-gauge--circle" : "")}
-        data-activity={activityState}
-        style={{ "--ring-value": String(degrees) + "deg" } as React.CSSProperties}
-      >
-        <span className="compact-gauge__face">
-          <ProviderIcon
-            providerId={provider.id}
-            size={mode === "ring" ? 16 : 14}
-            title={provider.name}
-          />
-        </span>
-      </span>
-      <span className="compact-provider-slot__value">{label}</span>
-    </span>
-  );
-}
-
-function activityProviderId(providerId: string) {
-  return providerId.startsWith("antigravity-") ? "antigravity" : providerId;
-}
+const TONE_RANK: Record<QuotaTone, number> = { empty: 0, good: 1, warning: 2, danger: 3 };
 
 export default function App() {
-  const [expanded, setExpanded] = useState(false);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [expanded, setExpanded] = useState(() => !settings.onboarded);
+  const [showOnboarding, setShowOnboarding] = useState(() => !settings.onboarded);
+  const [view, setView] = useState<PanelView>("usage");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [side, setSide] = useState<DockSide>(() => (localStorage.getItem(STORAGE_SIDE) === "left" ? "left" : "right"));
-  const [compactMode, setCompactMode] = useState<CompactMode>(readCompactMode);
-  const [showSign, setShowSign] = useState(() => localStorage.getItem(STORAGE_COMPACT_SIGN) !== "off");
-  const [monitorIndex, setMonitorIndex] = useState(() => {
-    const stored = Number(localStorage.getItem(STORAGE_MONITOR));
-    return Number.isInteger(stored) && stored >= 0 ? stored : 0;
-  });
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("appearance");
+  const [focusProvider, setFocusProvider] = useState<string | null>(null);
+  const [promptFocusKey, setPromptFocusKey] = useState(0);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
-  const [providers, setProviders] = useState<ProviderUsage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [obsidianPath, setObsidianPath] = useState<string | null>(() => localStorage.getItem(STORAGE_OBSIDIAN));
-  const [prompts, setPrompts] = useState<PromptItem[]>([]);
-  const [providerStatus, setProviderStatus] = useState<ProviderSetupStatus | null>(null);
-  const [setupStarting, setSetupStarting] = useState(false);
-  const [setupNote, setSetupNote] = useState<string | null>(null);
-  const [setupError, setSetupError] = useState<string | null>(null);
-  const [webConnected, setWebConnected] = useState(false);
-  const [sessionKey, setSessionKey] = useState("");
-  const [webBusy, setWebBusy] = useState(false);
-  const [webNote, setWebNote] = useState<string | null>(null);
-  const [webError, setWebError] = useState<string | null>(null);
-  const [activities, setActivities] = useState<ProviderActivity[]>([]);
-  const [peekProviderId, setPeekProviderId] = useState<string | null>(null);
-  const [peekPhase, setPeekPhase] = useState<"closed" | "opening" | "open" | "closing">("closed");
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
-  const peekNativeOpenRef = useRef(false);
-  const peekTargetRef = useRef<string | null>(null);
-  const peekCloseTimerRef = useRef<number | null>(null);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
+  const [peekTop, setPeekTop] = useState(8);
+  const now = useNow(30000);
 
-  const compactProviders = useMemo(() => compactSlots(providers), [providers]);
-  const windowHeight = compactWindowHeight(compactMode, compactProviders.length);
-  const peekProvider = useMemo(
-    () => compactProviders.find((provider) => provider.id === peekProviderId) || null,
-    [compactProviders, peekProviderId]
+  const update = useCallback((patch: Partial<Settings>) => {
+    setSettings((current) => {
+      const next = { ...current, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const { providers, loading, lastUpdatedAt, failed, history, refresh } = useProviders(settings.refreshMinutes);
+  const activities = useActivity(expanded);
+  const promptState = usePrompts(settings.obsidianPath, expanded);
+  useNotifications(providers, activities, settings);
+  const dock = useDockWindow(settings, expanded);
+
+  const visibleProviders = useMemo(
+    () => arrangeProviders(providers, settings),
+    [providers, settings.providerOrder, settings.hiddenProviders]
   );
-  const activityFor = (providerId: string) =>
-    activities.find((activity) => activity.providerId === activityProviderId(providerId));
+  const slots = useMemo(() => compactSlots(visibleProviders), [visibleProviders]);
+  const activityFor = (id: string) => activities.find((activity) => activity.providerId === baseProviderId(id));
 
-  async function refreshProviders() {
-    setLoading(true);
+  // Dialogs (native folder picker, confirm) blur the window; they must not close the panel.
+  const dialogDepthRef = useRef(0);
+  const withDialog = useCallback(async <T,>(run: () => Promise<T> | T): Promise<T> => {
+    dialogDepthRef.current += 1;
     try {
-      const next = await fetchUsage();
-      setProviders(next);
-      setLastUpdatedAt(Date.now());
+      return await run();
     } finally {
-      setLoading(false);
+      window.setTimeout(() => {
+        dialogDepthRef.current -= 1;
+      }, 400);
     }
-  }
+  }, []);
 
+  // Theme ------------------------------------------------------------------
   useEffect(() => {
-    if (expanded) {
-      peekNativeOpenRef.current = false;
-      peekTargetRef.current = null;
-      setPeekProviderId(null);
-      setPeekPhase("closed");
-    }
-    void setDock(side, expanded, monitorIndex, windowHeight, false);
-  }, [expanded, side, monitorIndex, compactMode, windowHeight]);
+    document.documentElement.dataset.theme = settings.theme;
+  }, [settings.theme]);
 
+  // One-time reads ---------------------------------------------------------
   useEffect(() => {
-    const tick = window.setInterval(() => {
-      void raiseDock();
-    }, 2500);
-    const onFocus = () => void raiseDock();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+    fetchMonitors().then(setMonitors).catch(() => setMonitors([]));
+    if (!isTauri()) return;
+    autostartEnabled().then(setAutostart).catch(() => setAutostart(null));
+    getVersion().then(setVersion).catch(() => setVersion(null));
+  }, []);
+
+  // Panel actions ----------------------------------------------------------
+  // True while the panel was opened by the global shortcut: copying then hands focus back.
+  const paletteModeRef = useRef(false);
+
+  const openPanel = useCallback(
+    (slotId?: string) => {
+      paletteModeRef.current = false;
+      dock.resetPeek();
+      setSettingsOpen(false);
+      if (slotId) {
+        setView("usage");
+        setFocusProvider(baseProviderId(slotId));
+      }
+      setExpanded(true);
+    },
+    [dock.resetPeek]
+  );
+
+  const collapse = useCallback(() => {
+    setExpanded(false);
+    setSettingsOpen(false);
+  }, []);
+
+  const openSettings = useCallback(
+    (tab?: SettingsTab) => {
+      dock.resetPeek();
+      if (tab) setSettingsTab(tab);
+      setSettingsOpen(true);
+      setExpanded(true);
+    },
+    [dock.resetPeek]
+  );
+
+  const finishOnboarding = useCallback(() => {
+    update({ onboarded: true });
+    setShowOnboarding(false);
+  }, [update]);
+
+  const chooseFolder = useCallback(async () => {
+    const path = await withDialog(() => chooseObsidianFolder());
+    if (path) update({ obsidianPath: path });
+  }, [update, withDialog]);
+
+  // Keep on top, hide for full-screen apps ---------------------------------
+  const hideOnFullscreenRef = useRef(settings.hideOnFullscreen);
+  hideOnFullscreenRef.current = settings.hideOnFullscreen;
+  useEffect(() => {
+    const raise = () => void raiseDock(hideOnFullscreenRef.current).catch(() => undefined);
+    const tick = window.setInterval(raise, 2500);
+    window.addEventListener("focus", raise);
+    document.addEventListener("visibilitychange", raise);
     return () => {
       window.clearInterval(tick);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", raise);
+      document.removeEventListener("visibilitychange", raise);
     };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    const refresh = () => {
-      fetchActivity()
-        .then((next) => {
-          if (alive) setActivities(next);
-        })
-        .catch(() => {
-          if (alive) setActivities([]);
-        });
-    };
+  // Esc and click-outside close the panel ----------------------------------
+  const blurStateRef = useRef({ expanded, settingsOpen, showOnboarding, closeOnBlur: settings.closeOnBlur });
+  blurStateRef.current = { expanded, settingsOpen, showOnboarding, closeOnBlur: settings.closeOnBlur };
 
-    refresh();
-    const timer = window.setInterval(refresh, 3000);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !blurStateRef.current.expanded) return;
+      if (blurStateRef.current.showOnboarding) return;
+      if (blurStateRef.current.settingsOpen) setSettingsOpen(false);
+      else collapse();
+    };
+    let timer: number | null = null;
+    const onBlur = () => {
+      const state = blurStateRef.current;
+      // Settings stay open on blur: people leave to copy the sessionKey from the browser.
+      if (!state.expanded || !state.closeOnBlur || state.settingsOpen || state.showOnboarding) return;
+      timer = window.setTimeout(() => {
+        if (!document.hasFocus() && dialogDepthRef.current === 0) collapse();
+      }, 150);
+    };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("blur", onBlur);
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [collapse]);
+
+  // Global shortcut: prompt palette from anywhere -------------------------
+  const paletteRef = useRef<() => void>(() => undefined);
+  paletteRef.current = () => {
+    if (expanded && view === "prompts" && !settingsOpen && !showOnboarding) {
+      collapse();
+      return;
+    }
+    paletteModeRef.current = true;
+    dock.resetPeek();
+    setSettingsOpen(false);
+    setView("prompts");
+    setExpanded(true);
+    setPromptFocusKey((key) => key + 1);
+    void rememberForeground()
+      .catch(() => undefined)
+      .then(() => focusDock())
+      .catch(() => undefined);
+  };
+
+  const onPromptCopied = () => {
+    if (!paletteModeRef.current && !settings.autoPaste) return;
+    paletteModeRef.current = false;
+    collapse();
+    void returnFocus(settings.autoPaste).catch(() => undefined);
+  };
+
+  const onShellEnter = () => {
+    dock.onShellEnter();
+    // The app under the pointer still has focus here; remember it for paste-back.
+    void rememberForeground().catch(() => undefined);
+  };
+
+  useEffect(() => {
+    if (!isTauri() || !settings.globalShortcut) {
+      setShortcutError(null);
+      return;
+    }
+    let registered = false;
+    register(GLOBAL_SHORTCUT, (event) => {
+      if (event.state === "Pressed") paletteRef.current();
+    })
+      .then(() => {
+        registered = true;
+        setShortcutError(null);
+      })
+      .catch(() =>
+        setShortcutError("Não foi possível registrar " + GLOBAL_SHORTCUT_LABEL + ". Outro app pode estar usando esse atalho.")
+      );
+    return () => {
+      if (registered) void unregister(GLOBAL_SHORTCUT).catch(() => undefined);
+    };
+  }, [settings.globalShortcut]);
+
+  // Tray -------------------------------------------------------------------
+  const trayRef = useRef<(action: string) => void>(() => undefined);
+  trayRef.current = (action) => {
+    if (action === "refresh") void refresh();
+    else if (action === "settings") openSettings();
+    else openPanel();
+  };
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let alive = true;
+    void onTrayAction((action) => trayRef.current(action)).then((fn) => {
+      if (alive) unlisten = fn;
+      else fn();
+    });
     return () => {
       alive = false;
-      window.clearInterval(timer);
+      unlisten?.();
     };
   }, []);
 
   useEffect(() => {
-    void refreshProviders();
-    if (obsidianPath) {
-      scanPrompts(obsidianPath).then(setPrompts).catch(() => setPrompts([]));
-    }
-    fetchMonitors().then(setMonitors).catch(() => setMonitors([]));
-    fetchProviderSetupStatus().then(setProviderStatus).catch(() => setProviderStatus(null));
-    fetchClaudeWebStatus()
-      .then((snapshot) => {
-        setWebConnected(Boolean(snapshot.connected));
-        if (snapshot.connected) setWebNote("Sessão do claude.ai salva neste PC.");
-        else if (snapshot.error) setWebError(snapshot.error);
+    const parts = visibleProviders
+      .map((provider) => {
+        const remaining = providerHeadroom(provider);
+        return remaining == null ? null : provider.name + " " + shownPercent(remaining, settings.display) + "%";
       })
-      .catch(() => setWebConnected(false));
+      .filter(Boolean);
+    const suffix = settings.display === "used" ? " usado" : "";
+    void setTrayTooltip(parts.length ? "AI Dock · " + parts.join(" · ") + suffix : "AI Dock").catch(() => undefined);
+  }, [visibleProviders, settings.display]);
+
+  // Autostart --------------------------------------------------------------
+  const toggleAutostart = useCallback(async (next: boolean) => {
+    try {
+      if (next) await enableAutostart();
+      else await disableAutostart();
+      setAutostart(await autostartEnabled());
+    } catch {
+      setAutostart(null);
+    }
   }, []);
 
-  async function installClaude() {
-    if (!window.confirm("Instalar o Claude Code CLI (terminal), não o Claude Desktop?")) return;
-    setSetupStarting(true);
-    setSetupError(null);
-    try {
-      setProviderStatus(await installProviderCli());
-      setSetupNote("Claude Code CLI instalado.");
-    } catch (error) {
-      setSetupError(errorMessage(error));
-    } finally {
-      setSetupStarting(false);
-    }
-  }
+  // Scroll to the provider picked in the dock -----------------------------
+  const cardRefs = useRef(new Map<string, HTMLElement>());
+  useEffect(() => {
+    if (!expanded || !focusProvider || settingsOpen || view !== "usage") return;
+    const frame = window.requestAnimationFrame(() =>
+      cardRefs.current.get(focusProvider)?.scrollIntoView({ block: "start", behavior: "smooth" })
+    );
+    const clear = window.setTimeout(() => setFocusProvider(null), 1600);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(clear);
+    };
+  }, [expanded, focusProvider, settingsOpen, view]);
 
-  async function removeClaudeCli() {
-    if (!window.confirm("Desinstalar o Claude Code CLI instalado via npm? O Claude Desktop permanece.")) return;
-    setSetupStarting(true);
-    setSetupError(null);
-    try {
-      setProviderStatus(await uninstallProviderCli());
-      setSetupNote("Claude Code CLI desinstalado.");
-    } catch (error) {
-      setSetupError(errorMessage(error));
-    } finally {
-      setSetupStarting(false);
-    }
-  }
+  // Peek placement: centered on the hovered slot, kept inside the window ---
+  const stageRef = useRef<HTMLDivElement>(null);
+  const peekRef = useRef<HTMLElement>(null);
+  const peekProvider = slots.find((slot) => slot.id === dock.peekId) || null;
 
-  function clearPeekCloseTimer() {
-    if (peekCloseTimerRef.current != null) {
-      window.clearTimeout(peekCloseTimerRef.current);
-      peekCloseTimerRef.current = null;
-    }
-  }
+  useLayoutEffect(() => {
+    if (!peekProvider) return;
+    const position = () => {
+      const slot = stageRef.current?.querySelector<HTMLElement>('[data-slot="' + peekProvider.id + '"]');
+      const card = peekRef.current;
+      if (!slot || !card) return;
+      const rect = slot.getBoundingClientRect();
+      const height = card.offsetHeight;
+      const max = Math.max(8, window.innerHeight - height - 8);
+      setPeekTop(Math.round(Math.min(max, Math.max(8, rect.top + rect.height / 2 - height / 2))));
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    if (peekRef.current) observer.observe(peekRef.current);
+    window.addEventListener("resize", position);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+    };
+  }, [peekProvider, dock.peekPhase]);
 
-  async function openPeek(providerId: string) {
-    if (expanded) return;
-
-    clearPeekCloseTimer();
-    peekTargetRef.current = providerId;
-
-    if (peekNativeOpenRef.current) {
-      setPeekProviderId(providerId);
-      setPeekPhase("open");
-      return;
-    }
-
-    peekNativeOpenRef.current = true;
-    setPeekPhase("opening");
-
-    try {
-      await setDock(side, false, monitorIndex, windowHeight, true);
-
-      const target = peekTargetRef.current;
-      if (!target) {
-        peekNativeOpenRef.current = false;
-        await setDock(side, false, monitorIndex, windowHeight, false);
-        setPeekPhase("closed");
-        return;
-      }
-
-      setPeekProviderId(target);
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => setPeekPhase("open"));
-      });
-    } catch {
-      peekNativeOpenRef.current = false;
-      peekTargetRef.current = null;
-      setPeekProviderId(null);
-      setPeekPhase("closed");
-    }
-  }
-
-  function closePeek() {
-    clearPeekCloseTimer();
-    peekTargetRef.current = null;
-
-    if (!peekNativeOpenRef.current) {
-      setPeekProviderId(null);
-      setPeekPhase("closed");
-      return;
-    }
-
-    setPeekPhase("closing");
-    peekCloseTimerRef.current = window.setTimeout(() => {
-      setPeekProviderId(null);
-      void setDock(side, false, monitorIndex, windowHeight, false).finally(() => {
-        peekNativeOpenRef.current = false;
-        setPeekPhase("closed");
-      });
-    }, 170);
-  }
-
-  function openExpandedPanel() {
-    clearPeekCloseTimer();
-    peekTargetRef.current = null;
-    peekNativeOpenRef.current = false;
-    setPeekProviderId(null);
-    setPeekPhase("closed");
-    setExpanded(true);
-  }
-
+  // Compact dock -----------------------------------------------------------
   if (!expanded) {
+    if (dock.hidden) {
+      let worst: QuotaTone = "empty";
+      for (const slot of slots) {
+        const tone = quotaTone(providerHeadroom(slot));
+        if (TONE_RANK[tone] > TONE_RANK[worst]) worst = tone;
+      }
+      const attention = activities.some((activity) => activity.state === "waiting")
+        ? "waiting"
+        : activities.some((activity) => activity.state === "working")
+          ? "working"
+          : "idle";
+      return (
+        <main
+          className={"compact-shell compact-shell--" + settings.side + " is-hidden"}
+          onMouseEnter={onShellEnter}
+          aria-label="AI Dock oculto. Passe o mouse para mostrar."
+        >
+          <div
+            className={"dock-handle dock-handle--" + worst}
+            data-activity={attention}
+            style={{ height: Math.round(dock.anchorHeight * 0.45) }}
+          />
+        </main>
+      );
+    }
+
     return (
       <main
-        className={"compact-shell compact-shell--" + side}
-        onMouseLeave={closePeek}
+        className={"compact-shell compact-shell--" + settings.side}
+        onMouseEnter={onShellEnter}
+        onMouseLeave={dock.onShellLeave}
       >
-        <div className="compact-stage">
-          <button className="dock-pill" onClick={openExpandedPanel} title="Abrir AI Dock">
-            <Sparkles size={16} />
-            <span className="dock-word">AI</span>
-
-            {compactMode === "classic" ? (
-              <span className="compact-provider-icons">
-                {compactProviders.map((provider) => (
-                  <span
-                    key={provider.id}
-                    className="compact-provider-icon"
-                    onMouseEnter={() => void openPeek(provider.id)}
-                    title={provider.name}
-                  >
-                    <ProviderIcon providerId={provider.id} size={17} title={provider.name} />
-                    <i
-                      className={
-                        "mini-dot mini-dot--" +
-                        (provider.connected && provider.windows.length ? "on" : "off")
-                      }
-                    />
-                  </span>
-                ))}
-              </span>
-            ) : (
-              <span className="compact-metrics">
-                {compactProviders.map((provider) => (
-                  <CompactProviderMetric
-                    key={provider.id}
-                    provider={provider}
-                    mode={compactMode}
-                    showSign={showSign}
-                    activity={activityFor(provider.id)}
-                    onPeek={() => void openPeek(provider.id)}
-                  />
-                ))}
-              </span>
-            )}
-
-            {side === "right" ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
-          </button>
+        <div className="compact-stage" ref={stageRef}>
+          <DockPill
+            pillRef={dock.pillRef}
+            slots={slots}
+            mode={settings.compactMode}
+            showSign={settings.showSign}
+            display={settings.display}
+            activities={activities}
+            side={settings.side}
+            loading={loading}
+            onOpen={openPanel}
+            onHoverSlot={(id) => void dock.openPeek(id)}
+          />
 
           {peekProvider ? (
             <div
-              className={"provider-peek-wrap provider-peek-wrap--" + peekPhase}
-              key={peekProvider.id}
-              onMouseEnter={clearPeekCloseTimer}
+              className={"peek-wrap peek-wrap--" + dock.peekPhase}
+              style={{ top: peekTop }}
+              onMouseEnter={dock.clearCloseTimer}
             >
               <ProviderPeek
+                ref={peekRef}
                 provider={peekProvider}
                 activity={activityFor(peekProvider.id)}
                 updatedAt={lastUpdatedAt}
+                display={settings.display}
+                now={now}
+                onOpen={() => openPanel(peekProvider.id)}
               />
             </div>
           ) : null}
@@ -444,203 +397,174 @@ export default function App() {
     );
   }
 
+  // Expanded panel ---------------------------------------------------------
+  const stale = lastUpdatedAt != null && now - lastUpdatedAt > settings.refreshMinutes * 2 * 60000;
+  const status = loading
+    ? "Atualizando…"
+    : failed
+      ? "Falha ao atualizar"
+      : lastUpdatedAt
+        ? "Atualizado " + formatAge(lastUpdatedAt, now)
+        : "Aguardando leitura";
+  const CollapseIcon = settings.side === "right" ? ChevronRight : ChevronLeft;
+
   return (
-    <main className={`app-shell app-shell--${side}`}>
+    <main className={"app-shell app-shell--" + settings.side}>
       <div className="dock-panel">
         <header className="app-header" data-tauri-drag-region>
           <div className="brand" data-tauri-drag-region>
-            <span className="brand-mark"><Sparkles size={16} /></span>
-            <div>
+            <span className="brand-mark" aria-hidden="true">
+              <Sparkles size={16} />
+            </span>
+            <div data-tauri-drag-region>
               <div className="brand-name">AI Dock</div>
-              <div className="brand-subtitle">Usage + Prompt Launcher</div>
+              <div className={"brand-status" + (stale || failed ? " is-stale" : "")} aria-live="polite">
+                {stale || failed ? <AlertTriangle size={11} aria-hidden="true" /> : null}
+                {status}
+              </div>
             </div>
           </div>
           <div className="header-actions">
-            <button className={`icon-button ${loading ? "is-spinning" : ""}`} onClick={() => void refreshProviders()} title="Atualizar uso">
+            <button
+              type="button"
+              className={"icon-button" + (loading ? " is-spinning" : "")}
+              onClick={() => void refresh()}
+              aria-label="Atualizar uso agora"
+              title="Atualizar uso agora"
+            >
               <RefreshCw size={15} />
             </button>
-            {monitors.length > 1 && (
-              <button className="icon-button" onClick={() => setMonitorIndex((index) => (index + 1) % monitors.length)} title="Próxima tela">
-                <MonitorIcon size={15} />
-              </button>
-            )}
-            <button className="icon-button" onClick={() => {
-              const next = side === "right" ? "left" : "right";
-              localStorage.setItem(STORAGE_SIDE, next);
-              setSide(next);
-            }} title="Trocar lado">
-              {side === "right" ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
-            </button>
-            <button className={`icon-button ${settingsOpen ? "is-active" : ""}`} onClick={() => setSettingsOpen((open) => !open)} title="Configurações">
+            <button
+              type="button"
+              className={"icon-button" + (settingsOpen ? " is-active" : "")}
+              onClick={() => (settingsOpen ? setSettingsOpen(false) : openSettings())}
+              aria-label="Configurações"
+              aria-pressed={settingsOpen}
+              title="Configurações"
+            >
               <Settings2 size={16} />
             </button>
-            <button className="icon-button" onClick={() => void quitApp()} title="Encerrar AI Dock">
-              <Power size={15} />
-            </button>
-            <button className="collapse-button" onClick={() => setExpanded(false)} title="Recolher">
-              {side === "right" ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+            <button type="button" className="icon-button" onClick={collapse} aria-label="Recolher (Esc)" title="Recolher (Esc)">
+              <CollapseIcon size={17} />
             </button>
           </div>
         </header>
 
         {settingsOpen ? (
-          <div className="panel-scroll settings-scroll">
-            <section className="settings-page">
-              <div className="settings-title-row">
-                <div>
-                  <span className="eyebrow">PREFERÊNCIAS</span>
-                  <h2>Configurações</h2>
-                </div>
-                <button className="icon-button" onClick={() => setSettingsOpen(false)} title="Fechar">
-                  <X size={15} />
-                </button>
-              </div>
-
-              <div className="settings-group">
-                <div className="settings-label">Dock recolhido</div>
-                <div className="compact-mode-picker">
-                  {compactModes.map((mode) => (
-                    <button
-                      key={mode.id}
-                      className={compactMode === mode.id ? "is-selected" : ""}
-                      onClick={() => {
-                        localStorage.setItem(STORAGE_COMPACT_MODE, mode.id);
-                        setCompactMode(mode.id);
-                      }}
-                    >
-                      {mode.title}
-                      <small>{mode.description}</small>
-                    </button>
-                  ))}
-                </div>
-                {compactMode !== "classic" && (
-                  <button
-                    className={`compact-toggle ${showSign ? "is-selected" : ""}`}
-                    onClick={() => {
-                      const next = !showSign;
-                      localStorage.setItem(STORAGE_COMPACT_SIGN, next ? "on" : "off");
-                      setShowSign(next);
-                    }}
-                  >
-                    {showSign ? "Ocultar o sinal de %" : "Mostrar o sinal de %"}
-                  </button>
-                )}
-              </div>
-
-              <div className="settings-group">
-                <div className="settings-label">Claude</div>
-                <div className="provider-connect-card">
-                  <div className="provider-connect-head">
-                    <span className="monitor-option__icon provider-connect-icon"><Sparkles size={15} /></span>
-                    <span className="monitor-option__copy">
-                      <strong>{webConnected ? "Claude Web conectado" : "Conectar pelo claude.ai"}</strong>
-                      <small>O Claude Desktop aberto não entrega quota. Precisa do sessionKey.</small>
-                    </span>
-                    <span className={`provider-status-dot ${webConnected ? "is-connected" : ""}`} />
-                  </div>
-                  <p className="provider-connect-copy">claude.ai → F12 → Application → Cookies → sessionKey.</p>
-                  {!webConnected && (
-                    <input className="provider-session-input" type="password" autoComplete="off" spellCheck={false} placeholder="sessionKey" value={sessionKey} onChange={(event) => setSessionKey(event.target.value)} />
-                  )}
-                  <div className="provider-connect-actions">
-                    {!webConnected && (
-                      <button className="provider-primary-button" onClick={() => void saveClaudeWebSession(sessionKey).then(() => { setWebConnected(true); setSessionKey(""); setWebNote("Claude Web conectado."); void refreshProviders(); }).catch((error) => { setWebConnected(false); setWebError(errorMessage(error)); })} disabled={webBusy || sessionKey.trim().length < 20}>
-                        {webBusy ? "Validando..." : "Salvar e testar"}
-                      </button>
-                    )}
-                    {webConnected && (
-                      <button className="provider-secondary-button" onClick={() => void clearClaudeWebSession().then(() => { setWebConnected(false); void refreshProviders(); })}>Remover sessão</button>
-                    )}
-                  </div>
-                  {webNote ? <div className="provider-connect-note">{webNote}</div> : null}
-                  {webError ? <div className="provider-connect-error">{webError}</div> : null}
-                  <details className="provider-advanced">
-                    <summary>Avançado: Claude Code CLI (terminal)</summary>
-                    <p className="provider-connect-copy">Instala o CLI, não o Claude Desktop da Store.</p>
-                    <div className="provider-connect-actions">
-                      {!providerStatus?.installed && providerStatus?.npmAvailable && (
-                        <button className="provider-primary-button" onClick={() => void installClaude()} disabled={setupStarting}>Instalar CLI</button>
-                      )}
-                      {providerStatus?.installed && (
-                        <button className="provider-danger-button" onClick={() => void removeClaudeCli()} disabled={setupStarting}>Desinstalar CLI</button>
-                      )}
-                      {providerStatus?.installed && (
-                        <button className="provider-secondary-button" onClick={() => void openProviderSetup()}>Abrir CLI</button>
-                      )}
-                    </div>
-                    {setupNote ? <div className="provider-connect-note">{setupNote}</div> : null}
-                    {setupError ? <div className="provider-connect-error">{setupError}</div> : null}
-                  </details>
-                </div>
-              </div>
-
-              <div className="settings-group">
-                <div className="settings-label">Tela do dock</div>
-                <div className="monitor-list">
-                  {monitors.map((monitor) => (
-                    <button key={monitor.index} className={`monitor-option ${monitor.index === monitorIndex ? "is-selected" : ""}`} onClick={() => { localStorage.setItem(STORAGE_MONITOR, String(monitor.index)); setMonitorIndex(monitor.index); }}>
-                      <span className="monitor-option__icon"><MonitorIcon size={15} /></span>
-                      <span className="monitor-option__copy">
-                        <strong>Tela {monitor.index + 1}</strong>
-                        <small>{monitor.name} · {monitor.width} × {monitor.height}</small>
-                      </span>
-                      {monitor.index === monitorIndex && <Check size={15} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="settings-group">
-                <div className="settings-label">Obsidian</div>
-                <button className="obsidian-setting" onClick={async () => {
-                  const path = await chooseObsidianFolder();
-                  if (!path) return;
-                  localStorage.setItem(STORAGE_OBSIDIAN, path);
-                  setObsidianPath(path);
-                  setPrompts(await scanPrompts(path).catch(() => []));
-                }}>
-                  <span className="monitor-option__icon"><FolderOpen size={15} /></span>
-                  <span className="monitor-option__copy">
-                    <strong>{obsidianPath ? "Pasta conectada" : "Conectar pasta"}</strong>
-                    <small>{obsidianPath || "Vault ou pasta de prompts"}</small>
-                  </span>
-                </button>
-              </div>
-
-              <div className="settings-group">
-                <button className="provider-danger-button" onClick={() => void quitApp()}>Encerrar AI Dock</button>
-              </div>
-            </section>
-          </div>
+          <>
+            <div className="subheader">
+              <h2>Configurações</h2>
+              <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Fechar configurações">
+                <X size={15} />
+              </button>
+            </div>
+            <SettingsPanel
+              tab={settingsTab}
+              onTab={setSettingsTab}
+              settings={settings}
+              update={update}
+              providers={providers}
+              activities={activities}
+              monitors={monitors}
+              autostart={autostart}
+              onAutostart={(next) => void toggleAutostart(next)}
+              shortcutError={shortcutError}
+              version={version}
+              onChooseFolder={() => void chooseFolder()}
+              onProvidersChanged={() => void refresh()}
+              onTestNotification={() => void notify("AI Dock", "As notificações estão funcionando.")}
+              onReplayOnboarding={() => {
+                setSettingsOpen(false);
+                setShowOnboarding(true);
+              }}
+              onQuit={() => void quitApp()}
+              withDialog={withDialog}
+            />
+          </>
         ) : (
-          <div className="panel-scroll">
-            <section className="usage-section">
-              <div className="section-heading section-heading--usage">
-                <div>
-                  <span className="eyebrow">USO</span>
-                  <h2>Suas IAs</h2>
+          <>
+            <div className="view-tabs" role="tablist" aria-label="Conteúdo do painel">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "usage"}
+                className={view === "usage" ? "is-selected" : ""}
+                onClick={() => setView("usage")}
+              >
+                Uso
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "prompts"}
+                className={view === "prompts" ? "is-selected" : ""}
+                onClick={() => {
+                  setView("prompts");
+                  setPromptFocusKey((key) => key + 1);
+                }}
+              >
+                Prompts
+                {promptState.prompts.length ? <small>{promptState.prompts.length}</small> : null}
+              </button>
+            </div>
+
+            <div className="panel-scroll" role="tabpanel">
+              {view === "usage" ? (
+                <div className="usage-stack">
+                  {visibleProviders.length === 0 && loading
+                    ? [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
+                    : visibleProviders.map((provider) => (
+                        <UsageCard
+                          key={provider.id}
+                          ref={(node) => {
+                            if (node) cardRefs.current.set(provider.id, node);
+                            else cardRefs.current.delete(provider.id);
+                          }}
+                          provider={provider}
+                          activity={activityFor(provider.id)}
+                          display={settings.display}
+                          history={history}
+                          now={now}
+                          highlighted={focusProvider === provider.id}
+                          onConnect={provider.id === "claude" ? () => openSettings("connections") : undefined}
+                        />
+                      ))}
+                  {visibleProviders.length === 0 && !loading ? (
+                    <button type="button" className="empty-state" onClick={() => openSettings("connections")}>
+                      <span>Nenhum provider visível</span>
+                      <small>Escolha quais mostrar em Configurações → Conexões.</small>
+                    </button>
+                  ) : null}
                 </div>
-                <Bot size={17} className="muted-icon" />
-              </div>
-              <div className="usage-stack">
-                {providers.map((provider) => (
-                  <UsageCard
-                    provider={provider}
-                    activity={activityFor(provider.id)}
-                    key={provider.id}
-                  />
-                ))}
-              </div>
-            </section>
-            <PromptLibrary prompts={prompts} obsidianPath={obsidianPath} onChooseFolder={async () => {
-              const path = await chooseObsidianFolder();
-              if (!path) return;
-              localStorage.setItem(STORAGE_OBSIDIAN, path);
-              setObsidianPath(path);
-              setPrompts(await scanPrompts(path).catch(() => []));
-            }} />
-          </div>
+              ) : (
+                <PromptLibrary
+                  prompts={promptState.prompts}
+                  obsidianPath={settings.obsidianPath}
+                  scanning={promptState.scanning}
+                  error={promptState.error}
+                  focusKey={promptFocusKey}
+                  onChooseFolder={() => void chooseFolder()}
+                  onRescan={() => void promptState.rescan()}
+                  onCopied={onPromptCopied}
+                />
+              )}
+            </div>
+          </>
         )}
+
+        {showOnboarding ? (
+          <Onboarding
+            providers={providers}
+            loading={loading}
+            settings={settings}
+            update={update}
+            onOpenConnections={() => {
+              finishOnboarding();
+              openSettings("connections");
+            }}
+            onFinish={finishOnboarding}
+          />
+        ) : null}
       </div>
     </main>
   );

@@ -2,29 +2,32 @@
 
 Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **launcher de prompts do Obsidian**.
 
-[![Version](https://img.shields.io/badge/version-0.4.1-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requisitos)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
-> Sem ícone na barra de tarefas. Sempre no topo. Recolhe para um pill ou abre o painel de uso e prompts. Encerrar fica no cabeçalho e em Configurações.
+> Sem ícone na barra de tarefas. Sempre no topo. Recolhe para um pill ou abre o painel de uso e prompts. Encerrar fica na bandeja e em Configurações → Geral.
 
 ## Download
 
 Enquanto o repo for privado, o instalador sai no artifact da Action [Windows Build](../../actions/workflows/windows-build.yml).
 
-Quando existir uma tag `v0.4.1`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
+Quando existir uma tag `v0.5.0`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
 
 O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na primeira abertura.
 
 ## O que faz
 
-- Fica fixo na **direita ou esquerda**, na tela que você escolher.
-- Modo compacto: ícone, só %, anel de quota ou anel + %.
-- Painel expandido com as janelas de uso de cada provider.
-- Peek no hover com quota, reset, plano e activity sem abrir o painel completo.
-- Activity Monitor para Codex, Cursor e Antigravity.
-- Copia prompts Markdown do Vault do Obsidian num clique.
+- Fica fixo na **direita ou esquerda**, na tela e na altura que você escolher, e pode se **ocultar sozinho** numa faixa fina na borda.
+- Dock recolhido em 4 visuais: Círculo, Quadrado, Números ou Clássico, sempre com a cor da quota.
+- Painel com as janelas de uso de cada provider, **reset em contagem regressiva**, **ritmo de uso** ("Esgota em 2h 10min") e mini-gráfico das últimas 24h.
+- Peek no hover com quota, reset, plano e atividade, alinhado ao ícone.
+- Monitor de atividade para Codex, Cursor e Antigravity, com **notificação quando um agente espera você**.
+- Notificações de quota baixa (80% e 95% de uso) e de limite renovado.
+- Atualiza sozinho a cada 2, 5, 10 ou 15 min.
+- Biblioteca de prompts do Obsidian com busca, filtros, recentes, variáveis `{{assim}}` e atalho global **Ctrl + Alt + Espaço**. Pode colar direto no app em que você estava.
+- Tema claro, escuro ou do sistema; menu na bandeja; iniciar com o Windows; esconde em tela cheia.
 
 ## Providers
 
@@ -39,7 +42,7 @@ Para o Claude Web: abra claude.ai logado → F12 → Application → Cookies →
 
 O dock **não renova** cookie nem token. Se o % sumir, cole um sessionKey novo.
 
-## Activity Monitor
+## Monitor de atividade
 
 - **Codex Desktop:** lê turns ativos do SQLite local em modo somente leitura.
 - **Codex CLI/extensão:** fallback por rollout recente.
@@ -77,8 +80,10 @@ tags:
 favorite: true
 ---
 
-Crie uma campanha editorial...
+Crie uma campanha editorial para {{marca}} com tom {{tom|sofisticado}}...
 ```
+
+`{{nome}}` vira um campo para preencher antes de copiar. `{{nome|padrão}}` já vem preenchido com o padrão.
 
 ## Stack
 

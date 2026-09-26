@@ -1,30 +1,65 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DockSide, MonitorInfo, PromptItem, ProviderActivity, ProviderSetupStatus, ProviderUsage } from "../types";
+import type {
+  DockMode,
+  DockSide,
+  MonitorInfo,
+  PromptItem,
+  ProviderActivity,
+  ProviderSetupStatus,
+  ProviderUsage
+} from "../types";
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
-function measurePillHeight() {
-  const pill = document.querySelector(".dock-pill");
-  if (!(pill instanceof HTMLElement)) return 320;
-  return Math.ceil(pill.getBoundingClientRect().height) + 20;
+export type DockPlacement = {
+  side: DockSide;
+  mode: DockMode;
+  monitorIndex: number;
+  /** Logical height of the native window. */
+  height: number;
+  /** Logical height of the visible pill; the window top is anchored to it. */
+  anchorHeight: number;
+  verticalOffset: number;
+};
+
+export async function setDock(placement: DockPlacement) {
+  if (!isTauri()) return;
+  await invoke("set_dock_state", { ...placement });
 }
 
-export async function setDock(
-  side: DockSide,
-  expanded: boolean,
-  monitorIndex: number,
-  compactHeight = 320,
-  peek = false
-) {
-  if (!isTauri()) return;
-  const height = expanded ? 560 : Math.max(compactHeight, measurePillHeight());
-  await invoke("set_dock_state", { side, expanded, monitorIndex, compactHeight: height, peek });
+/** Keeps the dock on top. Resolves true when it was hidden for a full-screen app. */
+export async function raiseDock(hideOnFullscreen: boolean): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>("raise_dock", { hideOnFullscreen });
 }
 
-export async function raiseDock() {
+export async function focusDock() {
   if (!isTauri()) return;
-  await invoke("raise_dock");
+  await invoke("focus_dock");
+}
+
+/** Remembers the app in front, so focus can go back to it after a prompt is copied. */
+export async function rememberForeground() {
+  if (!isTauri()) return;
+  await invoke("remember_foreground");
+}
+
+/** Gives focus back to the remembered app and, when asked, pastes the clipboard into it. */
+export async function returnFocus(paste: boolean): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>("return_focus", { paste });
+}
+
+export async function setTrayTooltip(text: string) {
+  if (!isTauri()) return;
+  await invoke("set_tray_tooltip", { text });
+}
+
+export async function onTrayAction(handler: (action: string) => void): Promise<UnlistenFn> {
+  if (!isTauri()) return () => undefined;
+  return listen<string>("tray-action", (event) => handler(event.payload));
 }
 
 export async function quitApp() {
