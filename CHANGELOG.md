@@ -21,9 +21,14 @@ Inclui o trabalho do branch `fix/v0.4.2-auto-refresh`, que nunca tinha chegado a
 - Hover num provider com dado de mais de 1 min atualiza em segundo plano (do 0.4.2).
 - Opção de atualizar a cada 1 min.
 - Percentual "Como no app": o Claude mostra **% usado**, como no claude.ai, e os outros **% restante**. Passa a ser o padrão (do 0.4.2).
-- Testes: 23 de frontend (cookie do Claude, exibição, ritmo, variáveis de prompt, snapshots, versão) e 22 em Rust (Claude Web, Cloudflare, rotação de cookie, Antigravity, Obsidian, helpers).
+- Testes: 23 de frontend (cookie do Claude, exibição, ritmo, variáveis de prompt, snapshots, versão) e 25 em Rust (Claude Web, Cloudflare, rotação de cookie, Antigravity, Obsidian, helpers).
 - CI roda os testes antes do build, valida PRs para o `main` e publica releases num job separado (do 0.4.2).
 - Template de pull request (do 0.4.2).
+
+### Fixed
+
+- Antigravity: o grupo em uso (ex.: Claude + GPT) mostrava números antigos, porque o language server devolve o resumo de quota em cache. O dock agora pede `forceRefresh`, como o CodexBar, e volta ao pedido antigo se o servidor recusar.
+- Antigravity: `remainingFraction` também é lido no formato oneof `{ case, value }` do protobuf.
 
 ### Changed
 

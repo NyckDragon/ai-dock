@@ -256,28 +256,65 @@ fn local_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
+fn metadata_body() -> Value {
+    json!({
+        "metadata": {
+            "ideName": "antigravity",
+            "extensionName": "antigravity",
+            "ideVersion": "unknown",
+            "locale": "en"
+        }
+    })
+}
+
+/// Request bodies for a method, preferred first. The quota summary is cached by
+/// the language server and only the group in use goes stale, so it is asked to
+/// refresh (as CodexBar does); older servers that reject the field get the plain body.
+fn request_bodies(method: &str) -> Vec<Value> {
+    if method == "RetrieveUserQuotaSummary" {
+        let mut with_metadata = metadata_body();
+        with_metadata["forceRefresh"] = json!(true);
+        vec![with_metadata, json!({ "forceRefresh": true }), metadata_body()]
+    } else {
+        vec![metadata_body()]
+    }
+}
+
 async fn ls_call(scheme: &str, port: u16, csrf: &str, method: &str) -> Option<Value> {
     let url = format!("{scheme}://127.0.0.1:{port}/{LS_SERVICE}/{method}");
-    let mut request = local_client()
-        .post(url)
-        .header("Content-Type", "application/json")
-        .header("Connect-Protocol-Version", "1")
-        .json(&json!({
-            "metadata": {
-                "ideName": "antigravity",
-                "extensionName": "antigravity",
-                "ideVersion": "unknown",
-                "locale": "en"
-            }
-        }));
-    if !csrf.is_empty() {
-        request = request.header("X-Codeium-Csrf-Token", csrf);
+    for body in request_bodies(method) {
+        let mut request = local_client()
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("Connect-Protocol-Version", "1")
+            .json(&body);
+        if !csrf.is_empty() {
+            request = request.header("X-Codeium-Csrf-Token", csrf);
+        }
+        // A connection error means the port is wrong: no other body will help.
+        let response = request.send().await.ok()?;
+        if response.status().is_success() {
+            return response.json::<Value>().await.ok();
+        }
     }
-    let response = request.send().await.ok()?;
-    if !response.status().is_success() {
-        return None;
+    None
+}
+
+/// `remainingFraction` comes plain, nested under `remaining`, or as a protobuf
+/// oneof `{ "case": "remainingFraction", "value": 0.6 }`.
+fn remaining_fraction(bucket: &Value) -> Option<f64> {
+    if let Some(value) = bucket.get("remainingFraction").and_then(Value::as_f64) {
+        return Some(value);
     }
-    response.json::<Value>().await.ok()
+    let remaining = bucket.get("remaining")?;
+    if let Some(value) = remaining.get("remainingFraction").and_then(Value::as_f64) {
+        return Some(value);
+    }
+    let case = remaining.get("case").and_then(Value::as_str).unwrap_or_default();
+    if case.eq_ignore_ascii_case("remainingFraction") {
+        return remaining.get("value").and_then(Value::as_f64);
+    }
+    None
 }
 
 async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
@@ -385,11 +422,7 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
                 continue;
             };
 
-            let remaining = bucket
-                .get("remainingFraction")
-                .and_then(Value::as_f64)
-                .or_else(|| bucket.pointer("/remaining/remainingFraction").and_then(Value::as_f64));
-            let Some(remaining) = remaining else { continue };
+            let Some(remaining) = remaining_fraction(&bucket) else { continue };
             let reset_at = bucket
                 .get("resetTime")
                 .and_then(Value::as_str)
@@ -677,5 +710,57 @@ mod tests {
         assert_eq!(windows[1].id, "claude-gpt-session");
         assert_percent(windows[1].remaining_percent, 30.0);
     }
-}
 
+    #[test]
+    fn quota_summary_request_asks_for_a_fresh_reading_first() {
+        let bodies = request_bodies("RetrieveUserQuotaSummary");
+        assert_eq!(bodies[0]["forceRefresh"], json!(true));
+        assert_eq!(bodies[0]["metadata"]["ideName"], json!("antigravity"));
+        assert_eq!(bodies[1], json!({ "forceRefresh": true }));
+        assert!(bodies[2].get("forceRefresh").is_none());
+
+        let status = request_bodies("GetUserStatus");
+        assert_eq!(status.len(), 1);
+        assert!(status[0].get("forceRefresh").is_none());
+    }
+
+    #[test]
+    fn reads_remaining_fraction_in_every_shape() {
+        assert_eq!(remaining_fraction(&json!({ "remainingFraction": 0.63 })), Some(0.63));
+        assert_eq!(remaining_fraction(&json!({ "remaining": { "remainingFraction": 0.34 } })), Some(0.34));
+        assert_eq!(
+            remaining_fraction(&json!({ "remaining": { "case": "remainingFraction", "value": 0.5 } })),
+            Some(0.5)
+        );
+        assert_eq!(remaining_fraction(&json!({ "remaining": { "case": "other", "value": 0.5 } })), None);
+        assert_eq!(remaining_fraction(&json!({ "resetTime": "2026-09-27T00:00:00Z" })), None);
+    }
+
+    #[test]
+    fn parses_group_and_bucket_names_documented_by_codexbar() {
+        let document = json!({
+            "groups": [
+                {
+                    "displayName": "Gemini Models",
+                    "buckets": [
+                        { "bucketId": "gemini-weekly", "displayName": "Weekly Limit", "remaining": { "remainingFraction": 0.53 } },
+                        { "bucketId": "gemini-5h", "displayName": "Five Hour Limit", "remaining": { "remainingFraction": 0.0 } }
+                    ]
+                },
+                {
+                    "displayName": "Claude and GPT models",
+                    "buckets": [
+                        { "bucketId": "3p-weekly", "displayName": "Weekly Limit", "remaining": { "remainingFraction": 0.34 } },
+                        { "bucketId": "3p-5h", "displayName": "Five Hour Limit", "remaining": { "remainingFraction": 0.63 } }
+                    ]
+                }
+            ]
+        });
+
+        let windows = parse_quota_summary(&document);
+        assert_percent(by_id(&windows, "gemini-weekly").remaining_percent, 53.0);
+        assert_percent(by_id(&windows, "gemini-session").remaining_percent, 0.0);
+        assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 34.0);
+        assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 63.0);
+    }
+}
