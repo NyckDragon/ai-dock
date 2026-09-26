@@ -1,5 +1,10 @@
 export type DockSide = "left" | "right";
 export type CompactMode = "classic" | "percent" | "ring" | "square";
+export type ThemePreference = "system" | "dark" | "light";
+export type PercentDisplay = "remaining" | "used";
+export type DockMode = "compact" | "peek" | "hidden" | "expanded";
+export type SettingsTab = "appearance" | "position" | "general" | "connections";
+export type PanelView = "usage" | "prompts";
 
 export type MonitorInfo = {
   index: number;
@@ -17,7 +22,7 @@ export type UsageWindow = {
 };
 
 export type ProviderUsage = {
-  id: "claude" | "codex" | "antigravity" | string;
+  id: "claude" | "codex" | "cursor" | "antigravity" | string;
   name: string;
   connected: boolean;
   plan?: string | null;
@@ -42,7 +47,6 @@ export type PromptItem = {
   content: string;
 };
 
-
 export type ActivityState = "working" | "waiting" | "idle";
 export type ActivityConfidence = "direct" | "inferred";
 
@@ -59,4 +63,28 @@ export type ProviderActivity = {
   state: ActivityState;
   confidence: ActivityConfidence;
   sessions: ActivitySession[];
+};
+
+export type Settings = {
+  side: DockSide;
+  monitorIndex: number;
+  /** Percent of the screen height, -45..45. 0 keeps the dock centered. */
+  verticalOffset: number;
+  compactMode: CompactMode;
+  showSign: boolean;
+  display: PercentDisplay;
+  theme: ThemePreference;
+  autoHide: boolean;
+  closeOnBlur: boolean;
+  hideOnFullscreen: boolean;
+  refreshMinutes: number;
+  globalShortcut: boolean;
+  autoPaste: boolean;
+  notifyLowQuota: boolean;
+  notifyReset: boolean;
+  notifyWaiting: boolean;
+  providerOrder: string[];
+  hiddenProviders: string[];
+  obsidianPath: string | null;
+  onboarded: boolean;
 };

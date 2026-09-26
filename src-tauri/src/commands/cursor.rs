@@ -148,7 +148,7 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
                 let used_percent = (used / limit * 100.0).clamp(0.0, 100.0);
                 windows.push(UsageWindow {
                     id: "on-demand".into(),
-                    label: "On-demand".into(),
+                    label: "Sob demanda".into(),
                     remaining_percent: percent_remaining(used_percent),
                     reset_at: reset.clone(),
                 });
@@ -173,8 +173,8 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
         connected: true,
         plan: if unlimited {
             membership
-                .map(|plan| format!("{plan} · Unlimited"))
-                .or_else(|| Some("Unlimited".into()))
+                .map(|plan| format!("{plan} · Ilimitado"))
+                .or_else(|| Some("Ilimitado".into()))
         } else {
             membership
         },

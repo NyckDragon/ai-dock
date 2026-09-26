@@ -1,0 +1,132 @@
+/* Obsidian prompt library */
+
+.prompt-section { display: grid; gap: 10px; }
+
+.search-row { display: flex; align-items: center; gap: 6px; }
+.search-box {
+  flex: 1;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-3);
+  cursor: text;
+}
+.search-box:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-box input {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.search-box input::placeholder { color: var(--text-3); }
+.search-box input:focus-visible { box-shadow: none; }
+
+.chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.chip {
+  flex: 0 0 auto;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip:hover { background: var(--surface-1); color: var(--text); }
+.chip.is-selected { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-text); }
+
+.prompt-count {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt-list { display: grid; gap: 4px; }
+.prompt-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 9px 9px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  text-align: left;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.prompt-row.is-active,
+.prompt-row:hover { background: var(--surface-1); border-color: var(--border); }
+.prompt-row__content { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.prompt-row__title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+.favorite-star { flex: 0 0 auto; color: var(--warning); fill: currentColor; }
+.prompt-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.prompt-row__meta em {
+  padding: 0 6px;
+  border-radius: 99px;
+  font-style: normal;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.prompt-row__preview {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  opacity: .85;
+}
+.copy-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-3);
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.prompt-row:hover .copy-icon,
+.prompt-row.is-active .copy-icon { color: var(--text); background: var(--surface-2); }
+.copy-icon.is-copied { color: var(--good); background: var(--good-soft); }
+
+.no-results { padding: 20px 8px; text-align: center; font-size: var(--fs-xs); color: var(--text-3); }

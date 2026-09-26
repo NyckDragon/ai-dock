@@ -12,22 +12,23 @@ const ICONS: Record<string, string> = {
 export function ProviderIcon({
   providerId,
   size = 18,
-  title
+  brand = false
 }: {
   providerId: string;
   size?: number;
-  title?: string;
+  /** Paints the icon in the provider's brand color instead of the text color. */
+  brand?: boolean;
 }) {
   const normalized = providerId.toLowerCase();
   const source = ICONS[normalized];
+  const brandClass = brand ? " provider-icon--brand provider-brand--" + normalized.replace(/[^a-z0-9-]/g, "") : "";
 
   if (!source) {
     return (
       <span
-        className="provider-icon provider-icon--fallback"
+        className={"provider-icon provider-icon--fallback" + brandClass}
         style={{ width: size, height: size }}
-        title={title}
-        aria-label={title}
+        aria-hidden="true"
       >
         {providerId.slice(0, 1).toUpperCase()}
       </span>
@@ -36,14 +37,13 @@ export function ProviderIcon({
 
   return (
     <span
-      className={"provider-icon provider-icon--" + normalized.replace(/[^a-z0-9-]/g, "")}
+      className={"provider-icon" + brandClass}
       style={{
         width: size,
         height: size,
         "--provider-icon": "url('" + source + "')"
       } as CSSProperties}
-      title={title}
-      aria-label={title}
+      aria-hidden="true"
     />
   );
 }

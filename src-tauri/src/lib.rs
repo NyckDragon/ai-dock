@@ -1,25 +1,46 @@
-use tauri::Manager;
-use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager};
 
 mod commands;
+
+fn reveal(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_always_on_top(true);
+        let _ = window.set_focus();
+    }
+}
+
+/// Tells the UI what the tray asked for: "open", "refresh" or "settings".
+fn tray_action(app: &AppHandle, action: &str) {
+    reveal(app);
+    let _ = app.emit("tray-action", action.to_string());
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_always_on_top(true);
-                let _ = window.set_focus();
-            }
+            tray_action(app, "open");
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             commands::dock::get_monitors,
             commands::dock::set_dock_state,
             commands::dock::raise_dock,
+            commands::dock::focus_dock,
+            commands::dock::set_tray_tooltip,
             commands::dock::quit_app,
+            commands::focus::remember_foreground,
+            commands::focus::return_focus,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
             commands::activity::get_provider_activity,
@@ -51,27 +72,35 @@ pub fn run() {
                 });
             }
 
+            let open = MenuItem::with_id(app, "open", "Abrir painel", true, None::<&str>)?;
+            let refresh = MenuItem::with_id(app, "refresh", "Atualizar uso", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Configurações", true, None::<&str>)?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let quit = MenuItem::with_id(app, "quit", "Encerrar AI Dock", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &refresh, &settings, &separator, &quit])?;
+
+            let mut tray = TrayIconBuilder::with_id("main")
+                .tooltip("AI Dock")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "quit" => app.exit(0),
+                    action => tray_action(app, action),
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        tray_action(tray.app_handle(), "open");
+                    }
+                });
             if let Some(icon) = app.default_window_icon().cloned() {
-                let handle = app.handle().clone();
-                let _ = TrayIconBuilder::new()
-                    .icon(icon)
-                    .tooltip("AI Dock")
-                    .on_tray_icon_event(move |_tray, event| {
-                        if let TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            ..
-                        } = event
-                        {
-                            if let Some(window) = handle.get_webview_window("main") {
-                                let _ = window.unminimize();
-                                let _ = window.show();
-                                let _ = window.set_always_on_top(true);
-                                let _ = window.set_focus();
-                            }
-                        }
-                    })
-                    .build(app);
+                tray = tray.icon(icon);
             }
+            let _ = tray.build(app);
             Ok(())
         })
         .run(tauri::generate_context!())
