@@ -1,26 +1,33 @@
 import { forwardRef } from "react";
 import { formatAge } from "../lib/format";
-import type { PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
+import { t, tr, trLabel } from "../lib/i18n";
+import type { PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
 import { ProviderIcon } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
+import { StatusBadge } from "./StatusBadge";
 
 export const ProviderPeek = forwardRef<
   HTMLElement,
   {
     provider: ProviderUsage;
     activity?: ProviderActivity;
+    status?: ProviderStatus;
     updatedAt: number | null;
     display: PercentDisplay;
     now: number;
     onOpen: () => void;
   }
->(function ProviderPeek({ provider, activity, updatedAt, display, now, onOpen }, ref) {
+>(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen }, ref) {
   const status = provider.stale
-    ? "Última leitura " + (provider.updatedAt ? formatAge(provider.updatedAt, now) : "salva") + " · não atualizou"
+    ? (provider.updatedAt
+        ? t("Última leitura {age}", { age: formatAge(provider.updatedAt, now) })
+        : t("Última leitura salva")) +
+      " · " +
+      t("não atualizou")
     : updatedAt
-      ? "Atualizado " + formatAge(updatedAt, now)
-      : "Aguardando leitura";
+      ? t("Atualizado {age}", { age: formatAge(updatedAt, now) })
+      : t("Aguardando leitura");
 
   return (
     <aside ref={ref} className="provider-peek" onClick={onOpen} aria-label={provider.name}>
@@ -31,15 +38,17 @@ export const ProviderPeek = forwardRef<
             <strong>{provider.name}</strong>
             <small>
               {status}
-              {provider.plan ? " · " + provider.plan : ""}
+              {provider.plan ? " · " + trLabel(provider.plan) : ""}
             </small>
           </span>
         </span>
         <i className={"status-dot" + (provider.connected ? " status-dot--on" : "")} aria-hidden="true" />
       </div>
 
+      {incident ? <StatusBadge status={incident} /> : null}
+
       {provider.error ? (
-        <div className={"notice " + (provider.stale ? "notice--warning" : "notice--error")}>{provider.error}</div>
+        <div className={"notice " + (provider.stale ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
       ) : null}
 
       {provider.windows.length ? (
@@ -60,7 +69,7 @@ export const ProviderPeek = forwardRef<
           onOpen();
         }}
       >
-        Abrir no painel
+        {t("Abrir no painel")}
       </button>
     </aside>
   );

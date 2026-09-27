@@ -5,6 +5,35 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-09-27
+
+### Added
+
+- **Aba Custos:** tokens e custo estimado na API das sessões do Claude Code e do Codex CLI, lidos dos logs locais, por dia (Hoje, 7 e 30 dias), ferramenta, modelo e projeto. Preços da tabela pública do LiteLLM, baixada no máximo uma vez por dia e guardada em cache. Modelos sem preço contam só em tokens e aparecem com `+`.
+- **Status dos serviços:** incidentes das páginas de status oficiais do Claude, da OpenAI (Codex) e do Cursor aparecem no dock (ponto no ícone), no peek e no card, com botão "Ver status".
+- **Plano real do Claude:** Max 5x, Max 20x, Pro, Team, Enterprise ou Free, pelo claude.ai ou pelo login do Claude Code.
+- **Notificações novas:** instabilidade no serviço, provider que falhou 3 vezes seguidas e quando ele volta.
+- **Pausar notificações** por 30 min, 1h, 2h, 4h ou até amanhã, em Configurações → Geral ou por 1h no menu da bandeja.
+- **Histórico de 7 e 30 dias** no gráfico do card (Configurações → Aparência). O histórico guarda 30 dias: detalhe completo nas últimas 24h e um ponto por hora antes disso. Em períodos longos o gráfico agrupa os pontos e mantém os picos.
+- **Interface em inglês**, com opção Automático, Português ou English em Configurações → Aparência. Mensagens do backend e rótulos das janelas também são traduzidos. O menu da bandeja segue o idioma.
+- Testes de cobertura das traduções, dos custos e do histórico (38 de frontend, 38 em Rust).
+
+### Changed
+
+- README em inglês com versão em português, screenshots, tabela de providers, privacidade (todas as conexões de rede), projetos relacionados e aviso de não afiliação.
+- SECURITY.md lista as leituras e conexões novas e indica o reporte privado de vulnerabilidades do GitHub.
+- A release publicada pelo CI usa a seção da versão no CHANGELOG como notas.
+- Dependabot mensal e agrupado para npm, Cargo e GitHub Actions.
+- CI: PRs também rodam os testes em Rust no Linux; `package-lock.json` e `Cargo.lock` entram no repositório e o CI instala com `npm ci` e `cargo --locked`; todas as actions fixadas por commit (SHA).
+- O gráfico do card usa a mesma escala do número grande (usado ou restante).
+- LICENSE e Cargo.toml usam o nome de usuário do GitHub.
+
+## [0.6.1] - 2026-09-27
+
+### Fixed
+
+- O dock às vezes ficava coberto por outro app que também fica sempre no topo. O Tauri ignora o pedido de "sempre no topo" quando a opção já está ligada, então o dock nunca voltava para cima. Agora ele se reposiciona no topo da camada a cada 2,5 s pela API do Windows, sem mover a janela nem roubar o foco.
+
 ## [0.6.0] - 2026-09-26
 
 Inclui o trabalho do branch `fix/v0.4.2-auto-refresh`, que nunca tinha chegado ao `main`.

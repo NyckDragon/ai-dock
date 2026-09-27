@@ -27,7 +27,6 @@ Describe what changed and why.
 
 - [ ] CHANGELOG is updated.
 - [ ] README / SECURITY.md are updated when behavior or security changes.
-- [ ] Canonical Notion documentation is synchronized in the same cycle.
 
 ## Release notes
 

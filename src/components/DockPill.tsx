@@ -1,8 +1,11 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import type { CSSProperties, Ref } from "react";
+import { t } from "../lib/i18n";
 import { baseProviderId, displayWord, percentLabel, providerHeadroom, quotaTone, shownPercent } from "../lib/quota";
-import type { CompactMode, DockSide, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
+import type { CompactMode, DockSide, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
+import { statusFor } from "../hooks/useProviderStatus";
 import { ProviderIcon } from "./ProviderIcon";
+import { statusText } from "./StatusBadge";
 
 type SlotProps = {
   provider: ProviderUsage;
@@ -11,30 +14,39 @@ type SlotProps = {
   display: PercentDisplay;
   headline: HeadlineWindow;
   activity?: ProviderActivity;
+  status?: ProviderStatus;
   interactive: boolean;
   onHover?: (slotId: string) => void;
   onOpen?: (slotId: string) => void;
 };
 
-function slotLabel(provider: ProviderUsage, remaining: number | null, display: PercentDisplay, activity?: ProviderActivity) {
+function slotLabel(
+  provider: ProviderUsage,
+  remaining: number | null,
+  display: PercentDisplay,
+  activity?: ProviderActivity,
+  status?: ProviderStatus
+) {
   const quota =
     remaining == null
       ? provider.connected
-        ? "sem dados de quota"
-        : "não conectado"
+        ? t("sem dados de quota")
+        : t("não conectado")
       : shownPercent(remaining, display, provider.id) + "% " + displayWord(display, provider.id);
   const state =
-    activity?.state === "waiting" ? ", esperando você" : activity?.state === "working" ? ", trabalhando" : "";
-  const stale = provider.stale && remaining != null ? " (última leitura, não atualizou)" : "";
-  return provider.name + ": " + quota + stale + state;
+    activity?.state === "waiting" ? ", " + t("esperando você") : activity?.state === "working" ? ", " + t("trabalhando") : "";
+  const stale = provider.stale && remaining != null ? " (" + t("última leitura, não atualizou") + ")" : "";
+  const incident = status ? " · " + statusText(status) : "";
+  return provider.name + ": " + quota + stale + state + incident;
 }
 
-function PillSlot({ provider, mode, showSign, display, headline, activity, interactive, onHover, onOpen }: SlotProps) {
+function PillSlot({ provider, mode, showSign, display, headline, activity, status, interactive, onHover, onOpen }: SlotProps) {
   const remaining = providerHeadroom(provider, headline);
   const tone = quotaTone(remaining);
   const label = percentLabel(remaining, display, provider.id, showSign);
   const activityState = activity?.state || "idle";
-  const aria = slotLabel(provider, remaining, display, activity);
+  const aria = slotLabel(provider, remaining, display, activity, status);
+  const incident = status ? <i className={"slot-incident slot-incident--" + status.level} aria-hidden="true" /> : null;
   const degrees = remaining == null ? 0 : shownPercent(remaining, display, provider.id) * 3.6;
 
   let body;
@@ -72,7 +84,12 @@ function PillSlot({ provider, mode, showSign, display, headline, activity, inter
   }
 
   if (!interactive) {
-    return <span className={"pill-slot pill-slot--" + mode}>{body}</span>;
+    return (
+      <span className={"pill-slot pill-slot--" + mode}>
+        {body}
+        {incident}
+      </span>
+    );
   }
 
   return (
@@ -91,6 +108,7 @@ function PillSlot({ provider, mode, showSign, display, headline, activity, inter
       }}
     >
       {body}
+      {incident}
     </button>
   );
 }
@@ -102,6 +120,7 @@ export function DockPill({
   display,
   headline,
   activities,
+  statuses = [],
   side,
   loading,
   interactive = true,
@@ -115,6 +134,7 @@ export function DockPill({
   display: PercentDisplay;
   headline: HeadlineWindow;
   activities: ProviderActivity[];
+  statuses?: ProviderStatus[];
   side: DockSide;
   loading: boolean;
   interactive?: boolean;
@@ -139,8 +159,8 @@ export function DockPill({
         <button
           type="button"
           className="dock-pill__brand"
-          aria-label="Abrir painel do AI Dock"
-          title="Abrir painel"
+          aria-label={t("Abrir painel do AI Dock")}
+          title={t("Abrir painel")}
           onClick={(event) => {
             event.stopPropagation();
             onOpen?.();
@@ -168,6 +188,7 @@ export function DockPill({
                 display={display}
                 headline={headline}
                 activity={activityFor(provider.id)}
+                status={statusFor(statuses, baseProviderId(provider.id))}
                 interactive={interactive}
                 onHover={onHoverSlot}
                 onOpen={onOpen}
@@ -179,7 +200,7 @@ export function DockPill({
         <button
           type="button"
           className="dock-pill__chevron"
-          aria-label="Abrir painel"
+          aria-label={t("Abrir painel")}
           tabIndex={-1}
           onClick={(event) => {
             event.stopPropagation();

@@ -7,7 +7,9 @@ export type PercentDisplay = "native" | "remaining" | "used";
 export type HeadlineWindow = "session" | "limiting";
 export type DockMode = "compact" | "peek" | "hidden" | "expanded";
 export type SettingsTab = "appearance" | "position" | "general" | "connections";
-export type PanelView = "usage" | "prompts";
+export type PanelView = "usage" | "costs" | "prompts";
+export type Language = "auto" | "pt" | "en";
+export type HistoryRange = "24h" | "7d" | "30d";
 
 export type MonitorInfo = {
   index: number;
@@ -35,6 +37,33 @@ export type ProviderUsage = {
   stale?: boolean;
   updatedAt?: number | null;
   lastErrorAt?: number | null;
+};
+
+export type StatusLevel = "none" | "maintenance" | "minor" | "major" | "critical";
+
+export type ProviderStatus = {
+  providerId: string;
+  level: StatusLevel;
+  summary?: string | null;
+  url: string;
+};
+
+export type CostEntry = {
+  date: string;
+  provider: "claude" | "codex" | string;
+  model: string;
+  project: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+  costUsd: number | null;
+};
+
+export type CostReport = {
+  entries: CostEntry[];
+  prices: "online" | "cached" | "none";
+  files: number;
 };
 
 export type ProviderSetupStatus = {
@@ -91,6 +120,12 @@ export type Settings = {
   notifyLowQuota: boolean;
   notifyReset: boolean;
   notifyWaiting: boolean;
+  notifyIncidents: boolean;
+  notifyFailures: boolean;
+  /** Epoch ms until which notifications stay silent; null when active. */
+  notificationsPausedUntil: number | null;
+  language: Language;
+  historyRange: HistoryRange;
   providerOrder: string[];
   hiddenProviders: string[];
   obsidianPath: string | null;

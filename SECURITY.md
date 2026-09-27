@@ -9,6 +9,7 @@ AI Dock runs locally on Windows and reads provider data only from sources requir
 - **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb`, opened read-only
 - **Antigravity:** local process/language-server state
 - **Claude Web:** the claude.ai session the user signs in to inside AI Dock, or a Cookie the user pastes manually
+- **Costs tab:** the JSONL session logs Claude Code (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`) and the Codex CLI (`~/.codex/sessions`, `CODEX_HOME`) write locally. Only token counts, model names, timestamps and the project folder name are used; prompts and answers in those files are skipped and never stored or sent anywhere.
 
 ## Claude Web credential handling
 
@@ -64,7 +65,13 @@ Development builds write a small `boot.log` with dock placement diagnostics. Rel
 
 AI Dock does not operate its own backend for provider credentials.
 
-Requests go to the provider endpoints required by the supported integration. Local-only sources such as Cursor SQLite and Antigravity local state remain local.
+Requests go only to:
+
+- the provider endpoints required by each integration: `api.anthropic.com`, `claude.ai`, `chatgpt.com`, `cursor.com`;
+- the public status pages `status.claude.com`, `status.openai.com` and `status.cursor.com`, every 5 minutes, without credentials;
+- `raw.githubusercontent.com` for the LiteLLM price table, at most once a day, without credentials. The copy is cached in `%LOCALAPPDATA%\AI Dock\model-prices.json`.
+
+Local-only sources such as Cursor SQLite, Antigravity local state and the Claude Code/Codex logs remain local. There is no telemetry.
 
 The packaged app ships a Content Security Policy that only allows its own scripts, styles and images, plus Tauri IPC.
 
@@ -77,6 +84,6 @@ The packaged app ships a Content Security Policy that only allows its own script
 
 ## Report a vulnerability
 
-Contact the repository owner privately (`NyckDragon`).
+Please report privately through [GitHub private vulnerability reporting](https://github.com/NyckDragon/ai-dock/security/advisories/new) instead of a public issue. Only the latest release receives security fixes.
 
 Do not paste live tokens, cookies, session keys, auth files or other credentials into issues, screenshots, logs or documentation.

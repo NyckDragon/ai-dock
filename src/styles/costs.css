@@ -1,0 +1,175 @@
+/* Costs view, status banners and small bits added with them */
+
+.costs { display: grid; gap: 12px; }
+.costs .search-row .segmented { flex: 1; }
+
+.cost-hero {
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+.cost-hero .eyebrow { margin-bottom: 0; }
+.cost-hero strong {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.cost-hero small { font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* Daily columns: thin bars on a shared baseline, a tooltip on hover or focus. */
+.cost-chart {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 96px auto;
+  column-gap: 8px;
+  row-gap: 4px;
+  margin: 0;
+}
+.cost-chart__axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.cost-chart__plot {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+.cost-chart__slot {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+}
+.cost-chart__slot:hover,
+.cost-chart__slot.is-active { background: var(--surface-1); }
+.cost-chart__slot:focus-visible { box-shadow: var(--focus-ring); }
+.cost-chart__slot i {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+  opacity: .85;
+}
+.cost-chart__slot.is-active i { opacity: 1; }
+.cost-chart__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 2;
+  display: grid;
+  gap: 1px;
+  min-width: 96px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.cost-chart__tip strong { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.cost-chart__tip span { font-size: var(--fs-2xs); color: var(--text-3); }
+.cost-chart__dates {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+
+.cost-table table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.cost-table tr + tr th,
+.cost-table tr + tr td { border-top: 1px solid var(--border); }
+.cost-table th {
+  width: 100%;
+  max-width: 0;
+  padding: 7px 8px 7px 0;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text);
+}
+.cost-table td {
+  padding: 7px 0 7px 10px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.cost-table td + td { color: var(--text-3); }
+.cost-table__name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cost-table__name > span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cost-table__bar {
+  display: block;
+  height: 3px;
+  margin-top: 5px;
+  border-radius: 99px;
+  background: var(--track);
+}
+.cost-table__bar i { display: block; height: 100%; border-radius: 99px; background: var(--accent); opacity: .7; }
+
+/* Official status page incident, in cards and in the peek */
+.status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.status-banner > svg { flex: 0 0 auto; margin-top: 2px; }
+.status-banner > span { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.status-banner strong { font-weight: 600; }
+.status-banner small { color: var(--text-2); font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.status-banner--info { background: var(--surface-2); color: var(--text-2); }
+.status-banner--warning { background: var(--warning-soft); color: var(--warning); }
+.status-banner--danger { background: var(--danger-soft); color: var(--danger); }
+.provider-peek .status-banner { margin-top: 8px; }
+
+/* Small incident mark on a dock slot (icon + tooltip text carry the meaning too) */
+.slot-incident {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-pill);
+  pointer-events: none;
+}
+.slot-incident--maintenance { background: var(--text-3); }
+.slot-incident--minor { background: var(--warning); }
+.slot-incident--major,
+.slot-incident--critical { background: var(--danger); }
+
+/* Notification pause */
+.pause-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.pause-row > span { flex: 0 0 auto; white-space: nowrap; }
+.pause-row__options { display: flex; flex-wrap: wrap; gap: 6px; }

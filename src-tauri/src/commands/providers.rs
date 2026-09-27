@@ -167,6 +167,18 @@ fn claude_credentials_path() -> Option<PathBuf> {
         .map(|p| p.join(".credentials.json"))
 }
 
+/// Plan from Claude Code's credentials (`subscriptionType`, `rateLimitTier`), when present.
+fn claude_code_plan() -> Option<String> {
+    let raw = fs::read_to_string(claude_credentials_path()?).ok()?;
+    let json = serde_json::from_str::<Value>(&raw).ok()?;
+    let oauth = json.get("claudeAiOauth")?;
+    claude_web::plan_label(
+        oauth.get("rateLimitTier").and_then(Value::as_str),
+        &[],
+        oauth.get("subscriptionType").and_then(Value::as_str),
+    )
+}
+
 fn claude_oauth_token() -> Option<String> {
     env::var("CLAUDE_CODE_OAUTH_TOKEN")
         .ok()
@@ -243,7 +255,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         id: "claude".into(),
         name: "Claude".into(),
         connected: true,
-        plan: Some("Code".into()),
+        plan: claude_code_plan().or_else(|| Some("Code".into())),
         windows,
         error: None,
     }

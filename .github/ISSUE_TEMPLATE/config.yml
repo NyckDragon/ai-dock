@@ -1,5 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Security
-    url: https://github.com/NyckDragon/ai-dock/blob/main/SECURITY.md
-    about: Do not file public issues for tokens or session cookies.
+    url: https://github.com/NyckDragon/ai-dock/security/advisories/new
+    about: Report vulnerabilities privately. Never post tokens or session cookies in issues.

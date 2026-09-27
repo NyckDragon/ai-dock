@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { t } from "../lib/i18n";
 import type { PromptVariable } from "../lib/promptTemplate";
 
 /** Asks for the `{{variáveis}}` of a prompt before it is copied. */
@@ -47,10 +48,10 @@ export function PromptVariablesDialog({
       >
         <div className="dialog__head">
           <div>
-            <span className="eyebrow">Preencher variáveis</span>
+            <span className="eyebrow">{t("Preencher variáveis")}</span>
             <h3 id="prompt-variables-title">{title}</h3>
           </div>
-          <button type="button" className="icon-button" onClick={onCancel} aria-label="Cancelar">
+          <button type="button" className="icon-button" onClick={onCancel} aria-label={t("Cancelar")}>
             <X size={15} />
           </button>
         </div>
@@ -70,10 +71,10 @@ export function PromptVariablesDialog({
         </div>
         <div className="dialog__actions">
           <button type="button" className="button button--ghost" onClick={onCancel}>
-            Cancelar
+            {t("Cancelar")}
           </button>
           <button type="submit" className="button button--primary">
-            Copiar prompt
+            {t("Copiar prompt")}
           </button>
         </div>
       </form>

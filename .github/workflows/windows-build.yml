@@ -1,6 +1,6 @@
 name: Windows Build
 
-# Pull requests only run the quick checks on Linux. The Windows build (billed at
+# Pull requests run the frontend and Rust checks on Linux. The Windows build (billed at
 # 2x the Linux rate on private repos) runs on main, on version tags and on demand.
 # A merge to main whose version has no release yet publishes that release, so the
 # installer is always one click away in Releases.
@@ -30,18 +30,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           package-manager-cache: false
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run frontend logic tests
         run: npm run test:frontend
@@ -49,39 +49,78 @@ jobs:
       - name: Typecheck and build the frontend
         run: npm run build
 
+  rust-tests:
+    name: Rust tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # Tauri embeds the built frontend, so it must exist before cargo compiles.
+      - name: Build the frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
   build-windows:
     name: Build Windows installer
     if: github.event_name != 'pull_request'
-    needs: checks
+    needs: [checks, rust-tests]
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri -> target
           cache-on-failure: true
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Build AI Dock for Windows
         run: npm run tauri:build -- --bundles nsis
@@ -91,7 +130,7 @@ jobs:
         run: Copy-Item "src-tauri/target/release/ai-dock.exe" "src-tauri/target/release/AI-Dock-Portable.exe"
 
       - name: Upload Windows builds
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ai-dock-windows-${{ github.sha }}
           path: |
@@ -110,10 +149,12 @@ jobs:
 
     steps:
       - name: Read app version
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: package.json
+          sparse-checkout: |
+            package.json
+            CHANGELOG.md
           sparse-checkout-cone-mode: false
 
       - name: Decide release tag
@@ -137,18 +178,35 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Release notes from CHANGELOG
+        if: steps.tag.outputs.publish == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          version="${TAG#v}"
+          # The section between "## [version]" and the next "## [".
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "See CHANGELOG.md." > release-notes.md; fi
+          cat release-notes.md
+
       - name: Download Windows builds
         if: steps.tag.outputs.publish == 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ai-dock-windows-${{ github.sha }}
           path: release
 
       - name: Publish GitHub Release
         if: steps.tag.outputs.publish == 'true'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
           generate_release_notes: true
           files: release/**/*.exe

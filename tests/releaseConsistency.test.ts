@@ -7,6 +7,7 @@ const tauri = JSON.parse(readFileSync("src-tauri/tauri.conf.json", "utf8"));
 const cargo = readFileSync("src-tauri/Cargo.toml", "utf8");
 const changelog = readFileSync("CHANGELOG.md", "utf8");
 const readme = readFileSync("README.md", "utf8");
+const readmePt = readFileSync("README.pt-BR.md", "utf8");
 
 function cargoPackageVersion() {
   const packageBlock = cargo.match(/\[package\]([\s\S]*?)(?:\n\[|$)/)?.[1] ?? "";
@@ -29,5 +30,12 @@ test("README version badge matches the current app version", () => {
   assert.ok(
     readme.includes(`version-${pkg.version}-`),
     `README version badge should reference ${pkg.version}`
+  );
+});
+
+test("Portuguese README version badge matches the current app version", () => {
+  assert.ok(
+    readmePt.includes(`vers%C3%A3o-${pkg.version}-`),
+    `README.pt-BR version badge should reference ${pkg.version}`
   );
 });

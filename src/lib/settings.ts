@@ -36,6 +36,11 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyLowQuota: true,
   notifyReset: true,
   notifyWaiting: true,
+  notifyIncidents: true,
+  notifyFailures: true,
+  notificationsPausedUntil: null,
+  language: "auto",
+  historyRange: "24h",
   providerOrder: PROVIDER_IDS,
   hiddenProviders: [],
   obsidianPath: null,
@@ -75,6 +80,12 @@ function normalize(value: Partial<Settings>): Settings {
     ...merged,
     compactMode: COMPACT_MODES.includes(merged.compactMode) ? merged.compactMode : DEFAULT_SETTINGS.compactMode,
     headline: merged.headline === "limiting" ? "limiting" : "session",
+    language: ["auto", "pt", "en"].includes(merged.language) ? merged.language : "auto",
+    historyRange: ["24h", "7d", "30d"].includes(merged.historyRange) ? merged.historyRange : "24h",
+    notificationsPausedUntil:
+      typeof merged.notificationsPausedUntil === "number" && merged.notificationsPausedUntil > Date.now()
+        ? merged.notificationsPausedUntil
+        : null,
     verticalOffset: Math.max(-45, Math.min(45, Number(merged.verticalOffset) || 0)),
     refreshMinutes: REFRESH_CHOICES.includes(merged.refreshMinutes) ? merged.refreshMinutes : 5,
     providerOrder: [...known, ...PROVIDER_IDS.filter((id) => !known.includes(id))],
