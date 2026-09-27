@@ -2,7 +2,7 @@
 
 Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **launcher de prompts do Obsidian**.
 
-[![Version](https://img.shields.io/badge/version-0.6.0-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.1-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requisitos)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)

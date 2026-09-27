@@ -5,6 +5,12 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-09-27
+
+### Fixed
+
+- O dock às vezes ficava coberto por outro app que também fica sempre no topo. O Tauri ignora o pedido de "sempre no topo" quando a opção já está ligada, então o dock nunca voltava para cima. Agora ele se reposiciona no topo da camada a cada 2,5 s pela API do Windows, sem mover a janela nem roubar o foco.
+
 ## [0.6.0] - 2026-09-26
 
 Inclui o trabalho do branch `fix/v0.4.2-auto-refresh`, que nunca tinha chegado ao `main`.

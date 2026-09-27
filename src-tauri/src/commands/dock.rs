@@ -155,6 +155,34 @@ fn fullscreen_app_active() -> bool {
     false
 }
 
+/// Puts the dock back at the top of the always-on-top band.
+///
+/// `set_always_on_top(true)` is a no-op once the flag is already set, so another
+/// topmost app that came forward would stay over the dock. Re-inserting the
+/// window at `HWND_TOPMOST` fixes that without moving it or taking focus.
+#[cfg(target_os = "windows")]
+fn reassert_topmost(window: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+    };
+    let Ok(hwnd) = window.hwnd() else { return };
+    // SAFETY: the handle belongs to our own live window; the flags keep size, position and focus.
+    unsafe {
+        SetWindowPos(
+            hwnd.0 as _,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn reassert_topmost(_window: &tauri::WebviewWindow) {}
+
 /// Keeps the dock on top. Returns true when it was hidden for a full-screen app.
 #[tauri::command]
 pub fn raise_dock(app: AppHandle, hide_on_fullscreen: Option<bool>) -> Result<bool, String> {
@@ -166,6 +194,7 @@ pub fn raise_dock(app: AppHandle, hide_on_fullscreen: Option<bool>) -> Result<bo
     let _ = window.unminimize();
     let _ = window.show();
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    reassert_topmost(&window);
     Ok(false)
 }
 
