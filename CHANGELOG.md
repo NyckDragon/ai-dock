@@ -5,6 +5,13 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Autoria: LICENSE, README (seção Autor), `Cargo.toml`, `package.json` e o instalador do Windows (publisher/copyright) passam a mostrar **Nycolas Monteiro (NyckDragon)**. A licença continua MIT.
+- Dependências atualizadas pelo Dependabot: TypeScript 7, Vite 8, `@vitejs/plugin-react` 6, `lucide-react` 1, `rusqlite` 0.40, `windows-sys` 0.61, `dirs` 7 e `actions/download-artifact` 8. `src/vite-env.d.ts` adicionado para o TypeScript 7 aceitar imports de CSS.
+
 ## [0.7.0] - 2026-09-27
 
 ### Added

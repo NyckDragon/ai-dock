@@ -126,6 +126,10 @@ AI Dock contains no code from these projects. See [THIRD_PARTY_NOTICES.md](THIRD
 
 AI Dock is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Anysphere (Cursor), Google or Obsidian. Product names and logos belong to their owners and are used only to identify each service. Usage numbers come from each provider's own endpoints and may change or stop working when a provider changes them.
 
+## Author
+
+Made by **Nycolas Monteiro** ([@NyckDragon](https://github.com/NyckDragon)).
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). You can use, change and share AI Dock, including in your own projects, as long as you keep the copyright notice and credit the author.

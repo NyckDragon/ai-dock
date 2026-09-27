@@ -126,6 +126,10 @@ O AI Dock não contém código desses projetos. Veja [THIRD_PARTY_NOTICES.md](TH
 
 O AI Dock é um projeto independente. Não é afiliado, endossado nem patrocinado pela Anthropic, OpenAI, Anysphere (Cursor), Google ou Obsidian. Nomes e logos pertencem aos seus donos e aparecem só para identificar cada serviço. Os números vêm dos endpoints de cada provider e podem mudar ou parar de funcionar quando o provider mudar.
 
+## Autor
+
+Feito por **Nycolas Monteiro** ([@NyckDragon](https://github.com/NyckDragon)).
+
 ## Licença
 
-[MIT](LICENSE)
+[MIT](LICENSE). Você pode usar, alterar e compartilhar o AI Dock, inclusive nos seus projetos, desde que mantenha o aviso de copyright e dê crédito ao autor.

@@ -2,7 +2,7 @@
 name = "ai-dock"
 version = "0.7.0"
 description = "Windows 11 AI usage monitor and Obsidian prompt launcher"
-authors = ["NyckDragon"]
+authors = ["Nycolas Monteiro <https://github.com/NyckDragon>"]
 edition = "2021"
 
 [lib]

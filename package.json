@@ -1,6 +1,8 @@
 {
   "name": "ai-dock",
   "private": true,
+  "author": "Nycolas Monteiro (https://github.com/NyckDragon)",
+  "license": "MIT",
   "version": "0.7.0",
   "type": "module",
   "scripts": {
