@@ -23,17 +23,17 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-dirs = "6"
+dirs = "7"
 walkdir = "2"
 regex = "1"
 portable-pty = "0.9"
 keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.60", features = [
+windows-sys = { version = "0.61", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
