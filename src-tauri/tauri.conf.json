@@ -35,6 +35,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Nycolas Monteiro",
+    "copyright": "Copyright (c) 2026 Nycolas Monteiro (NyckDragon). MIT License.",
     "windows": {
       "wix": null,
       "nsis": null
