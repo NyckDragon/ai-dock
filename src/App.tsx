@@ -3,6 +3,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CostsView } from "./components/CostsView";
 import { DockPill } from "./components/DockPill";
 import { Onboarding } from "./components/Onboarding";
 import { PromptLibrary } from "./components/PromptLibrary";
@@ -10,12 +11,15 @@ import { ProviderPeek } from "./components/ProviderPeek";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { useActivity } from "./hooks/useActivity";
+import { useCosts } from "./hooks/useCosts";
 import { useDockWindow } from "./hooks/useDockWindow";
 import { useNotifications, notify } from "./hooks/useNotifications";
 import { useNow } from "./hooks/useNow";
 import { usePrompts } from "./hooks/usePrompts";
+import { statusFor, useProviderStatus } from "./hooks/useProviderStatus";
 import { useProviders } from "./hooks/useProviders";
 import { formatAge } from "./lib/format";
+import { resolveLanguage, setLocale, t } from "./lib/i18n";
 import {
   arrangeProviders,
   baseProviderId,
@@ -40,6 +44,7 @@ import {
   raiseDock,
   rememberForeground,
   returnFocus,
+  setTrayMenu,
   setTrayTooltip
 } from "./lib/tauri";
 import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
@@ -60,7 +65,12 @@ export default function App() {
   const [shortcutError, setShortcutError] = useState<string | null>(null);
   const [version, setVersion] = useState<string | null>(null);
   const [peekTop, setPeekTop] = useState(8);
+  const [costDays, setCostDays] = useState(7);
   const now = useNow(30000);
+
+  // Strings are read while rendering, so the language is set before any child renders.
+  const locale = resolveLanguage(settings.language);
+  setLocale(locale);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((current) => {
@@ -73,7 +83,9 @@ export default function App() {
   const { providers, loading, lastUpdatedAt, failed, history, refresh } = useProviders(settings.refreshMinutes);
   const activities = useActivity(expanded);
   const promptState = usePrompts(settings.obsidianPath, expanded);
-  useNotifications(providers, activities, settings);
+  const statuses = useProviderStatus();
+  useNotifications(providers, activities, statuses, settings);
+  const costs = useCosts(expanded && view === "costs" && !settingsOpen, costDays);
   const dock = useDockWindow(settings, expanded);
 
   const visibleProviders = useMemo(
@@ -100,6 +112,10 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
   }, [settings.theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale === "en" ? "en" : "pt-BR";
+  }, [locale]);
 
   // One-time reads ---------------------------------------------------------
   useEffect(() => {
@@ -243,7 +259,9 @@ export default function App() {
         setShortcutError(null);
       })
       .catch(() =>
-        setShortcutError("Não foi possível registrar " + GLOBAL_SHORTCUT_LABEL + ". Outro app pode estar usando esse atalho.")
+        setShortcutError(
+          t("Não foi possível registrar {shortcut}. Outro app pode estar usando esse atalho.", { shortcut: t(GLOBAL_SHORTCUT_LABEL) })
+        )
       );
     return () => {
       if (registered) void unregister(GLOBAL_SHORTCUT).catch(() => undefined);
@@ -276,6 +294,8 @@ export default function App() {
   const trayRef = useRef<(action: string) => void>(() => undefined);
   trayRef.current = (action) => {
     if (action === "refresh") void refresh({ force: true });
+    else if (action === "pause") update({ notificationsPausedUntil: Date.now() + 60 * 60 * 1000 });
+    else if (action === "resume") update({ notificationsPausedUntil: null });
     else if (action === "settings") openSettings();
     else openPanel();
   };
@@ -292,17 +312,42 @@ export default function App() {
     };
   }, []);
 
+  // A timed pause ends on its own; drop it so the tray offers "Pause" again.
+  const pausedUntil = settings.notificationsPausedUntil;
+  useEffect(() => {
+    if (pausedUntil == null) return;
+    const left = pausedUntil - Date.now();
+    if (left <= 0) {
+      update({ notificationsPausedUntil: null });
+      return;
+    }
+    const timer = window.setTimeout(() => update({ notificationsPausedUntil: null }), Math.min(left, 2 ** 31 - 1));
+    return () => window.clearTimeout(timer);
+  }, [pausedUntil, update]);
+
+  useEffect(() => {
+    void setTrayMenu({
+      open: t("Abrir painel"),
+      refresh: t("Atualizar uso"),
+      pause: t("Pausar notificações por 1h"),
+      resume: t("Retomar notificações"),
+      settings: t("Configurações"),
+      quit: t("Encerrar AI Dock"),
+      paused: pausedUntil != null
+    }).catch(() => undefined);
+  }, [locale, pausedUntil]);
+
   useEffect(() => {
     const parts = visibleProviders
       .map((provider) => {
         const remaining = providerHeadroom(provider, settings.headline);
         if (remaining == null) return null;
         const value = shownPercent(remaining, settings.display, provider.id);
-        return provider.name + " " + value + "% " + displayWord(settings.display, provider.id) + (provider.stale ? " (antigo)" : "");
+        return provider.name + " " + value + "% " + displayWord(settings.display, provider.id) + (provider.stale ? " (" + t("antigo") + ")" : "");
       })
       .filter(Boolean);
     void setTrayTooltip(parts.length ? "AI Dock · " + parts.join(" · ") : "AI Dock").catch(() => undefined);
-  }, [visibleProviders, settings.display, settings.headline]);
+  }, [visibleProviders, settings.display, settings.headline, locale]);
 
   // Autostart --------------------------------------------------------------
   const toggleAutostart = useCallback(async (next: boolean) => {
@@ -372,7 +417,7 @@ export default function App() {
         <main
           className={"compact-shell compact-shell--" + settings.side + " is-hidden"}
           onMouseEnter={onShellEnter}
-          aria-label="AI Dock oculto. Passe o mouse para mostrar."
+          aria-label={t("AI Dock oculto. Passe o mouse para mostrar.")}
         >
           <div
             className={"dock-handle dock-handle--" + worst}
@@ -398,6 +443,7 @@ export default function App() {
             display={settings.display}
             headline={settings.headline}
             activities={activities}
+            statuses={statuses}
             side={settings.side}
             loading={loading}
             onOpen={openPanel}
@@ -418,6 +464,7 @@ export default function App() {
                 ref={peekRef}
                 provider={peekProvider}
                 activity={activityFor(peekProvider.id)}
+                status={statusFor(statuses, baseProviderId(peekProvider.id))}
                 updatedAt={lastUpdatedAt}
                 display={settings.display}
                 now={now}
@@ -433,12 +480,12 @@ export default function App() {
   // Expanded panel ---------------------------------------------------------
   const stale = lastUpdatedAt != null && now - lastUpdatedAt > settings.refreshMinutes * 2 * 60000;
   const status = loading
-    ? "Atualizando…"
+    ? t("Atualizando…")
     : failed
-      ? "Falha ao atualizar"
+      ? t("Falha ao atualizar")
       : lastUpdatedAt
-        ? "Atualizado " + formatAge(lastUpdatedAt, now)
-        : "Aguardando leitura";
+        ? t("Atualizado {age}", { age: formatAge(lastUpdatedAt, now) })
+        : t("Aguardando leitura");
   const CollapseIcon = settings.side === "right" ? ChevronRight : ChevronLeft;
 
   return (
@@ -462,8 +509,8 @@ export default function App() {
               type="button"
               className={"icon-button" + (loading ? " is-spinning" : "")}
               onClick={() => void refresh({ force: true })}
-              aria-label="Atualizar uso agora"
-              title="Atualizar uso agora"
+              aria-label={t("Atualizar uso agora")}
+              title={t("Atualizar uso agora")}
             >
               <RefreshCw size={15} />
             </button>
@@ -471,13 +518,13 @@ export default function App() {
               type="button"
               className={"icon-button" + (settingsOpen ? " is-active" : "")}
               onClick={() => (settingsOpen ? setSettingsOpen(false) : openSettings())}
-              aria-label="Configurações"
+              aria-label={t("Configurações")}
               aria-pressed={settingsOpen}
-              title="Configurações"
+              title={t("Configurações")}
             >
               <Settings2 size={16} />
             </button>
-            <button type="button" className="icon-button" onClick={collapse} aria-label="Recolher (Esc)" title="Recolher (Esc)">
+            <button type="button" className="icon-button" onClick={collapse} aria-label={t("Recolher (Esc)")} title={t("Recolher (Esc)")}>
               <CollapseIcon size={17} />
             </button>
           </div>
@@ -486,8 +533,13 @@ export default function App() {
         {settingsOpen ? (
           <>
             <div className="subheader">
-              <h2>Configurações</h2>
-              <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Fechar configurações">
+              <h2>{t("Configurações")}</h2>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setSettingsOpen(false)}
+                aria-label={t("Fechar configurações")}
+              >
                 <X size={15} />
               </button>
             </div>
@@ -505,7 +557,7 @@ export default function App() {
               version={version}
               onChooseFolder={() => void chooseFolder()}
               onProvidersChanged={() => void refresh({ force: true })}
-              onTestNotification={() => void notify("AI Dock", "As notificações estão funcionando.")}
+              onTestNotification={() => void notify("AI Dock", t("As notificações estão funcionando."), true)}
               onReplayOnboarding={() => {
                 setSettingsOpen(false);
                 setShowOnboarding(true);
@@ -516,7 +568,7 @@ export default function App() {
           </>
         ) : (
           <>
-            <div className="view-tabs" role="tablist" aria-label="Conteúdo do painel">
+            <div className="view-tabs" role="tablist" aria-label={t("Conteúdo do painel")}>
               <button
                 type="button"
                 role="tab"
@@ -524,7 +576,16 @@ export default function App() {
                 className={view === "usage" ? "is-selected" : ""}
                 onClick={() => setView("usage")}
               >
-                Uso
+                {t("Uso")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "costs"}
+                className={view === "costs" ? "is-selected" : ""}
+                onClick={() => setView("costs")}
+              >
+                {t("Custos")}
               </button>
               <button
                 type="button"
@@ -558,6 +619,8 @@ export default function App() {
                           display={settings.display}
                           headline={settings.headline}
                           history={history}
+                          historyRange={settings.historyRange}
+                          status={statusFor(statuses, provider.id)}
                           now={now}
                           highlighted={focusProvider === provider.id}
                           onConnect={provider.id === "claude" ? reconnectClaude : undefined}
@@ -565,11 +628,19 @@ export default function App() {
                       ))}
                   {visibleProviders.length === 0 && !loading ? (
                     <button type="button" className="empty-state" onClick={() => openSettings("connections")}>
-                      <span>Nenhum provider visível</span>
-                      <small>Escolha quais mostrar em Configurações → Conexões.</small>
+                      <span>{t("Nenhum provider visível")}</span>
+                      <small>{t("Escolha quais mostrar em Configurações → Conexões.")}</small>
                     </button>
                   ) : null}
                 </div>
+              ) : view === "costs" ? (
+                <CostsView
+                  report={costs.report}
+                  loading={costs.loading}
+                  days={costDays}
+                  onDays={setCostDays}
+                  onReload={() => void costs.reload()}
+                />
               ) : (
                 <PromptLibrary
                   prompts={promptState.prompts}

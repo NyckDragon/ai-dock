@@ -485,6 +485,49 @@ fn parse_usage(usage: &Value) -> Result<Vec<UsageWindow>, WebError> {
     Ok(windows)
 }
 
+/// Human plan name ("Max 5x", "Pro", "Team"...) from the tier and capability
+/// strings claude.ai and Claude Code expose. `None` when nothing is recognized.
+pub(crate) fn plan_label(tier: Option<&str>, capabilities: &[String], subscription: Option<&str>) -> Option<String> {
+    let tier = tier.unwrap_or_default().to_ascii_lowercase();
+    let subscription = subscription.unwrap_or_default().to_ascii_lowercase();
+    let has = |name: &str| capabilities.iter().any(|capability| capability.eq_ignore_ascii_case(name));
+
+    let label = if tier.contains("max_20x") {
+        "Max 20x"
+    } else if tier.contains("max_5x") {
+        "Max 5x"
+    } else if has("claude_max") || subscription == "max" || tier.contains("claude_max") {
+        "Max"
+    } else if has("claude_pro") || subscription == "pro" || tier.contains("claude_pro") {
+        "Pro"
+    } else if has("raven") || subscription == "team" || tier.contains("team") {
+        "Team"
+    } else if subscription == "enterprise" || tier.contains("enterprise") {
+        "Enterprise"
+    } else if subscription == "free" || tier == "default_claude_ai" {
+        "Free"
+    } else {
+        return None;
+    };
+    Some(label.to_string())
+}
+
+fn organization_plan(organizations: &Value, org_id: &str) -> Option<String> {
+    let orgs: Vec<&Value> = match organizations.as_array() {
+        Some(list) => list.iter().collect(),
+        None => vec![organizations],
+    };
+    let org = orgs.into_iter().find(|org| {
+        org.get("uuid").or_else(|| org.get("id")).and_then(Value::as_str) == Some(org_id)
+    })?;
+    let capabilities: Vec<String> = org
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .map(|list| list.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        .unwrap_or_default();
+    plan_label(org.get("rate_limit_tier").and_then(Value::as_str), &capabilities, None)
+}
+
 async fn usage_with_cookie(
     client: &reqwest::Client,
     cookie_header: &mut String,
@@ -507,7 +550,7 @@ async fn usage_with_cookie(
                     id: "claude".into(),
                     name: "Claude".into(),
                     connected: true,
-                    plan: Some("Web".into()),
+                    plan: organization_plan(&organizations, &org_id).or_else(|| Some("Web".into())),
                     windows: parse_usage(&usage)?,
                     error: None,
                 });
@@ -952,6 +995,28 @@ mod tests {
             Some("sessionKey=sk; cf_clearance=cf; __cf_bm=bm")
         );
         assert!(header_from_cookies(&[Cookie::new("cf_clearance", "cf")]).is_none());
+    }
+
+    #[test]
+    fn plan_label_reads_tiers_capabilities_and_subscriptions() {
+        let none: Vec<String> = vec![];
+        assert_eq!(plan_label(Some("default_claude_max_20x"), &none, None).as_deref(), Some("Max 20x"));
+        assert_eq!(plan_label(Some("default_claude_max_5x"), &none, None).as_deref(), Some("Max 5x"));
+        assert_eq!(plan_label(None, &["chat".into(), "claude_pro".into()], None).as_deref(), Some("Pro"));
+        assert_eq!(plan_label(None, &none, Some("max")).as_deref(), Some("Max"));
+        assert_eq!(plan_label(None, &none, Some("team")).as_deref(), Some("Team"));
+        assert_eq!(plan_label(Some("something_new"), &none, None), None);
+    }
+
+    #[test]
+    fn organization_plan_uses_the_org_that_answered() {
+        let orgs = json!([
+            { "uuid": "a", "rate_limit_tier": "default_claude_ai", "capabilities": ["chat"] },
+            { "uuid": "b", "rate_limit_tier": "default_claude_max_5x", "capabilities": ["chat", "claude_max"] }
+        ]);
+        assert_eq!(organization_plan(&orgs, "b").as_deref(), Some("Max 5x"));
+        assert_eq!(organization_plan(&orgs, "a").as_deref(), Some("Free"));
+        assert_eq!(organization_plan(&orgs, "missing"), None);
     }
 
     #[test]

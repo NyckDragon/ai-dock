@@ -120,6 +120,8 @@
 }
 .view-tabs button:hover,
 .tabs button:hover { color: var(--text); }
+/* Settings tab names differ in length per language: size them by their text. */
+.tabs button { flex: 1 1 auto; padding: 0 6px; white-space: nowrap; }
 .view-tabs button.is-selected,
 .tabs button.is-selected {
   background: var(--surface-3);

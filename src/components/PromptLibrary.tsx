@@ -1,5 +1,6 @@
 import { Check, Clipboard, FolderOpen, RefreshCw, Search, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { intlLocale, t } from "../lib/i18n";
 import { loadPromptUsage, recordPromptUse, type PromptUsage } from "../lib/prompts";
 import { fillPrompt, promptPreview, promptVariables } from "../lib/promptTemplate";
 import type { PromptItem } from "../types";
@@ -81,7 +82,7 @@ export function PromptLibrary({
         titleMatch(b) - titleMatch(a) ||
         Number(b.favorite) - Number(a.favorite) ||
         (usage[b.path]?.count || 0) - (usage[a.path]?.count || 0) ||
-        a.title.localeCompare(b.title, "pt-BR")
+        a.title.localeCompare(b.title, intlLocale())
       );
     });
   }, [prompts, query, filter, usage]);
@@ -108,7 +109,7 @@ export function PromptLibrary({
       onCopied?.();
       window.setTimeout(() => setCopied((value) => (value === prompt.path ? null : value)), 1400);
     } catch {
-      setCopyError("Não foi possível copiar para a área de transferência.");
+      setCopyError(t("Não foi possível copiar para a área de transferência."));
     }
   }
 
@@ -118,9 +119,9 @@ export function PromptLibrary({
   }
 
   const chips: { filter: Filter; label: string }[] = [
-    { filter: { kind: "all" }, label: "Todos" },
-    { filter: { kind: "favorites" }, label: "Favoritos" },
-    { filter: { kind: "recent" }, label: "Recentes" },
+    { filter: { kind: "all" }, label: t("Todos") },
+    { filter: { kind: "favorites" }, label: t("Favoritos") },
+    { filter: { kind: "recent" }, label: t("Recentes") },
     ...categories.map((value) => ({ filter: { kind: "category", value } as Filter, label: value }))
   ];
 
@@ -129,8 +130,8 @@ export function PromptLibrary({
       <section className="prompt-section">
         <button type="button" className="empty-state" onClick={onChooseFolder}>
           <FolderOpen size={22} />
-          <span>Vincular pasta de prompts</span>
-          <small>Escolha o Vault do Obsidian ou uma subpasta com arquivos .md.</small>
+          <span>{t("Vincular pasta de prompts")}</span>
+          <small>{t("Escolha o Vault do Obsidian ou uma subpasta com arquivos .md.")}</small>
         </button>
       </section>
     );
@@ -146,8 +147,8 @@ export function PromptLibrary({
           <input
             ref={searchRef}
             value={query}
-            aria-label="Pesquisar prompts"
-            placeholder="Pesquisar prompts…"
+            aria-label={t("Pesquisar prompts")}
+            placeholder={t("Pesquisar prompts…")}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
@@ -170,8 +171,8 @@ export function PromptLibrary({
           type="button"
           className={"icon-button" + (scanning ? " is-spinning" : "")}
           onClick={onRescan}
-          aria-label="Recarregar prompts"
-          title="Recarregar prompts"
+          aria-label={t("Recarregar prompts")}
+          title={t("Recarregar prompts")}
         >
           <RefreshCw size={15} />
         </button>
@@ -179,14 +180,14 @@ export function PromptLibrary({
           type="button"
           className="icon-button"
           onClick={onChooseFolder}
-          aria-label="Trocar pasta do Obsidian"
+          aria-label={t("Trocar pasta do Obsidian")}
           title={obsidianPath}
         >
           <FolderOpen size={15} />
         </button>
       </div>
 
-      <div className="chips" role="toolbar" aria-label="Filtrar prompts">
+      <div className="chips" role="toolbar" aria-label={t("Filtrar prompts")}>
         {chips.map((chip) => (
           <button
             type="button"
@@ -206,9 +207,11 @@ export function PromptLibrary({
 
       <div className="prompt-count">
         {filtered.length === prompts.length
-          ? prompts.length + (prompts.length === 1 ? " prompt" : " prompts")
-          : filtered.length + " de " + prompts.length}
-        <span>Enter copia · ↑↓ navega</span>
+          ? prompts.length === 1
+            ? t("1 prompt")
+            : t("{count} prompts", { count: prompts.length })
+          : t("{shown} de {total}", { shown: filtered.length, total: prompts.length })}
+        <span>{t("Enter copia · ↑↓ navega")}</span>
       </div>
 
       <div className="prompt-list" ref={listRef} role="listbox" aria-label="Prompts">
@@ -225,16 +228,16 @@ export function PromptLibrary({
               key={prompt.path}
               onMouseEnter={() => setActive(index)}
               onClick={() => choose(prompt)}
-              title={hasVariables ? "Preencher variáveis e copiar" : "Copiar prompt"}
+              title={hasVariables ? t("Preencher variáveis e copiar") : t("Copiar prompt")}
             >
               <span className="prompt-row__content">
                 <span className="prompt-row__title">
-                  {prompt.favorite ? <Star size={12} className="favorite-star" aria-label="Favorito" /> : null}
+                  {prompt.favorite ? <Star size={12} className="favorite-star" aria-label={t("Favorito")} /> : null}
                   {prompt.title}
                 </span>
                 <span className="prompt-row__meta">
                   {prompt.category || prompt.tags.slice(0, 2).join(" · ") || "Prompt"}
-                  {hasVariables ? <em>variáveis</em> : null}
+                  {hasVariables ? <em>{t("variáveis")}</em> : null}
                 </span>
                 <span className="prompt-row__preview">{promptPreview(prompt.content)}</span>
               </span>
@@ -246,18 +249,18 @@ export function PromptLibrary({
         })}
         {filtered.length === 0 ? (
           <div className="no-results">
-            {prompts.length === 0 ? "Nenhum arquivo .md encontrado nesta pasta." : "Nenhum prompt encontrado."}
+            {prompts.length === 0 ? t("Nenhum arquivo .md encontrado nesta pasta.") : t("Nenhum prompt encontrado.")}
           </div>
         ) : null}
         {filtered.length > limit ? (
           <button type="button" className="button button--ghost button--block" onClick={() => setLimit((value) => value + PAGE)}>
-            Mostrar mais ({filtered.length - limit} restantes)
+            {t("Mostrar mais ({count} restantes)", { count: filtered.length - limit })}
           </button>
         ) : null}
       </div>
 
       <div className="sr-only" aria-live="polite">
-        {copiedPrompt ? "Copiado: " + copiedPrompt.title : ""}
+        {copiedPrompt ? t("Copiado: {title}", { title: copiedPrompt.title }) : ""}
       </div>
 
       {pending ? (

@@ -1,4 +1,5 @@
 import type { HeadlineWindow, PercentDisplay, ProviderUsage, Settings, UsageWindow } from "../types";
+import { t } from "./i18n.ts";
 
 export type QuotaTone = "good" | "warning" | "danger" | "empty";
 
@@ -54,7 +55,7 @@ export function shownPercent(remaining: number, display: PercentDisplay, provide
 }
 
 export function displayWord(display: PercentDisplay, providerId: string) {
-  return displayKind(display, providerId) === "used" ? "usado" : "restante";
+  return displayKind(display, providerId) === "used" ? t("usado") : t("restante");
 }
 
 export function percentLabel(remaining: number | null, display: PercentDisplay, providerId: string, showSign = true) {

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 #[derive(Debug, Serialize)]
@@ -215,6 +215,43 @@ pub fn set_tray_tooltip(app: AppHandle, text: String) -> Result<(), String> {
     // Windows truncates tray tooltips at 127 characters.
     let text: String = text.chars().take(120).collect();
     tray.set_tooltip(Some(text)).map_err(|e| e.to_string())
+}
+
+/// Tray menu labels in the UI language, plus the notification pause state.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrayLabels {
+    open: String,
+    refresh: String,
+    pause: String,
+    resume: String,
+    settings: String,
+    quit: String,
+    paused: bool,
+}
+
+#[tauri::command]
+pub fn set_tray_menu(app: AppHandle, labels: TrayLabels) -> Result<(), String> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    let Some(tray) = app.tray_by_id("main") else {
+        return Ok(());
+    };
+    let item = |id: &str, text: &str| MenuItem::with_id(&app, id, text, true, None::<&str>);
+    let build = || -> tauri::Result<Menu<tauri::Wry>> {
+        let open = item("open", &labels.open)?;
+        let refresh = item("refresh", &labels.refresh)?;
+        let pause = if labels.paused {
+            item("resume", &labels.resume)?
+        } else {
+            item("pause", &labels.pause)?
+        };
+        let settings = item("settings", &labels.settings)?;
+        let separator = PredefinedMenuItem::separator(&app)?;
+        let quit = item("quit", &labels.quit)?;
+        Menu::with_items(&app, &[&open, &refresh, &pause, &settings, &separator, &quit])
+    };
+    let menu = build().map_err(|e| e.to_string())?;
+    tray.set_menu(Some(menu)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

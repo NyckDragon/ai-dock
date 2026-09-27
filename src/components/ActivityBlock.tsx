@@ -1,11 +1,12 @@
 import { formatAge } from "../lib/format";
+import { t, tr } from "../lib/i18n";
 import type { ProviderActivity } from "../types";
 
 export function activityHeadline(activity: ProviderActivity) {
   const count = activity.sessions.length;
   const waiting = activity.sessions.filter((session) => session.state === "waiting").length;
-  if (activity.state === "waiting") return waiting > 1 ? waiting + " esperando você" : "Esperando você";
-  return count > 1 ? count + " trabalhando" : "Trabalhando";
+  if (activity.state === "waiting") return waiting > 1 ? t("{count} esperando você", { count: waiting }) : t("Esperando você");
+  return count > 1 ? t("{count} trabalhando", { count }) : t("Trabalhando");
 }
 
 export function ActivityBlock({
@@ -26,19 +27,19 @@ export function ActivityBlock({
         <i aria-hidden="true" />
         <strong>{activityHeadline(activity)}</strong>
         {activity.confidence === "inferred" ? (
-          <small title="Inferido pela atividade recente dos arquivos locais">estimado</small>
+          <small title={t("Inferido pela atividade recente dos arquivos locais")}>{t("estimado")}</small>
         ) : null}
       </div>
       {activity.sessions.slice(0, limit).map((session) => (
         <div className={"activity__session activity__session--" + session.state} key={session.id}>
           <span>
-            <strong>{session.title}</strong>
-            {session.detail ? <small>{session.detail}</small> : null}
+            <strong>{tr(session.title)}</strong>
+            {session.detail ? <small>{tr(session.detail)}</small> : null}
           </span>
           <time>{formatAge(session.since, now)}</time>
         </div>
       ))}
-      {hidden > 0 ? <div className="activity__more">+{hidden} {hidden === 1 ? "tarefa" : "tarefas"}</div> : null}
+      {hidden > 0 ? <div className="activity__more">{hidden === 1 ? t("+1 tarefa") : t("+{count} tarefas", { count: hidden })}</div> : null}
     </div>
   );
 }

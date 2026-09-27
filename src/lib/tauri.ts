@@ -1,13 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { t } from "./i18n";
 import type {
+  CostReport,
   DockMode,
   DockSide,
   MonitorInfo,
   PromptItem,
   ProviderActivity,
   ProviderSetupStatus,
+  ProviderStatus,
   ProviderUsage
 } from "../types";
 
@@ -57,6 +60,21 @@ export async function setTrayTooltip(text: string) {
   await invoke("set_tray_tooltip", { text });
 }
 
+export type TrayLabels = {
+  open: string;
+  refresh: string;
+  pause: string;
+  resume: string;
+  settings: string;
+  quit: string;
+  paused: boolean;
+};
+
+export async function setTrayMenu(labels: TrayLabels) {
+  if (!isTauri()) return;
+  await invoke("set_tray_menu", { labels });
+}
+
 export async function onTrayAction(handler: (action: string) => void): Promise<UnlistenFn> {
   if (!isTauri()) return () => undefined;
   return listen<string>("tray-action", (event) => handler(event.payload));
@@ -88,6 +106,23 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
 export async function fetchActivity(): Promise<ProviderActivity[]> {
   if (!isTauri()) return [];
   return invoke<ProviderActivity[]>("get_provider_activity");
+}
+
+/** Public status-page state for Claude, Codex and Cursor. */
+export async function fetchProviderStatus(): Promise<ProviderStatus[]> {
+  if (!isTauri()) return [];
+  return invoke<ProviderStatus[]>("get_provider_status");
+}
+
+export async function openStatusPage(providerId: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("open_status_page", { providerId });
+}
+
+/** Local token and cost estimates from Claude Code and Codex logs. */
+export async function fetchLocalCosts(days: number): Promise<CostReport> {
+  if (!isTauri()) return { entries: [], prices: "none", files: 0 };
+  return invoke<CostReport>("get_local_costs", { tzOffsetMinutes: new Date().getTimezoneOffset(), days });
 }
 
 export async function fetchClaudeWebStatus(): Promise<ProviderUsage> {
@@ -159,7 +194,7 @@ export async function chooseObsidianFolder(): Promise<string | null> {
   const selected = await open({
     directory: true,
     multiple: false,
-    title: "Selecione o Vault ou a pasta de prompts do Obsidian"
+    title: t("Selecione o Vault ou a pasta de prompts do Obsidian")
   });
   return typeof selected === "string" ? selected : null;
 }

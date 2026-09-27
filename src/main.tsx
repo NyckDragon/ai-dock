@@ -5,6 +5,7 @@ import "./styles/dock.css";
 import "./styles/panel.css";
 import "./styles/prompts.css";
 import "./styles/settings.css";
+import "./styles/costs.css";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(<App />);

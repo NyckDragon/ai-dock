@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { normalizeClaudeCookieInput } from "../lib/claudeCookie";
+import { t, tr } from "../lib/i18n";
 import {
   claudeLogin,
   clearClaudeWebSession,
@@ -13,11 +14,12 @@ import {
 } from "../lib/tauri";
 import type { ProviderSetupStatus, ProviderUsage } from "../types";
 import { ProviderIcon } from "./ProviderIcon";
+import { rich } from "./Rich";
 
 function errorMessage(error: unknown) {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
-  return "Algo deu errado.";
+  if (typeof error === "string") return tr(error);
+  if (error instanceof Error) return tr(error.message);
+  return t("Algo deu errado.");
 }
 
 /** Cloudflare blocks and cooldowns pass on their own; the session itself is fine. */
@@ -36,12 +38,12 @@ function webState(snapshot: ProviderUsage): WebState {
   return "missing";
 }
 
-const TITLES: Record<WebState, string> = {
-  unknown: "Claude Web",
-  connected: "Claude conectado",
-  blocked: "Claude conectado · leitura bloqueada agora",
-  expired: "A sessão do Claude expirou",
-  missing: "Conectar o Claude"
+const TITLES: Record<WebState, () => string> = {
+  unknown: () => "Claude Web",
+  connected: () => t("Claude conectado"),
+  blocked: () => t("Claude conectado · leitura bloqueada agora"),
+  expired: () => t("A sessão do Claude expirou"),
+  missing: () => t("Conectar o Claude")
 };
 
 export function ClaudeConnectCard({
@@ -68,7 +70,7 @@ export function ClaudeConnectCard({
       .then((snapshot) => {
         const next = webState(snapshot);
         setState(next);
-        if (next === "blocked" || next === "expired") setMessage({ kind: "error", text: snapshot.error || "" });
+        if (next === "blocked" || next === "expired") setMessage({ kind: "error", text: tr(snapshot.error) });
       })
       .catch(() => setState("missing"));
     fetchProviderSetupStatus().then(setCli).catch(() => setCli(null));
@@ -83,14 +85,14 @@ export function ClaudeConnectCard({
         setState(event.message ? "blocked" : "connected");
         setMessage(
           event.message
-            ? { kind: "note", text: "Login salvo. " + event.message }
-            : { kind: "note", text: "Pronto! O AI Dock renova essa sessão sozinho daqui pra frente." }
+            ? { kind: "note", text: t("Login salvo.") + " " + tr(event.message) }
+            : { kind: "note", text: t("Pronto! O AI Dock renova essa sessão sozinho daqui pra frente.") }
         );
         onChangedRef.current();
       } else if (event.status === "timeout") {
-        setMessage({ kind: "error", text: event.message || "O login demorou demais. Tente de novo." });
+        setMessage({ kind: "error", text: tr(event.message) || t("O login demorou demais. Tente de novo.") });
       } else {
-        setMessage({ kind: "note", text: "Janela fechada antes de concluir o login." });
+        setMessage({ kind: "note", text: t("Janela fechada antes de concluir o login.") });
       }
     }).then((fn) => {
       if (alive) unlisten = fn;
@@ -119,7 +121,7 @@ export function ClaudeConnectCard({
       await saveClaudeWebSession(normalizeClaudeCookieInput(cookie));
       setState("connected");
       setCookie("");
-      setMessage({ kind: "note", text: "Cookie do Claude salvo e testado." });
+      setMessage({ kind: "note", text: t("Cookie do Claude salvo e testado.") });
       onChanged();
     } catch (error) {
       setMessage({ kind: "error", text: errorMessage(error) });
@@ -130,14 +132,14 @@ export function ClaudeConnectCard({
 
   async function remove() {
     const confirmed = await withDialog(() =>
-      window.confirm("Remover a sessão do claude.ai deste PC? Você vai precisar entrar de novo.")
+      window.confirm(t("Remover a sessão do claude.ai deste PC? Você vai precisar entrar de novo."))
     );
     if (!confirmed) return;
     setBusy(true);
     try {
       await clearClaudeWebSession();
       setState("missing");
-      setMessage({ kind: "note", text: "Sessão removida." });
+      setMessage({ kind: "note", text: t("Sessão removida.") });
       onChanged();
     } catch (error) {
       setMessage({ kind: "error", text: errorMessage(error) });
@@ -149,8 +151,8 @@ export function ClaudeConnectCard({
   async function runCli(action: "install" | "uninstall") {
     const question =
       action === "install"
-        ? "Instalar o Claude Code CLI (terminal), não o Claude Desktop?"
-        : "Desinstalar o Claude Code CLI instalado via npm? O Claude Desktop permanece.";
+        ? t("Instalar o Claude Code CLI (terminal), não o Claude Desktop?")
+        : t("Desinstalar o Claude Code CLI instalado via npm? O Claude Desktop permanece.");
     if (!(await withDialog(() => window.confirm(question)))) return;
     setCliBusy(true);
     setCliMessage(null);
@@ -158,7 +160,7 @@ export function ClaudeConnectCard({
       setCli(action === "install" ? await installProviderCli() : await uninstallProviderCli());
       setCliMessage({
         kind: "note",
-        text: action === "install" ? "Claude Code CLI instalado." : "Claude Code CLI desinstalado."
+        text: action === "install" ? t("Claude Code CLI instalado.") : t("Claude Code CLI desinstalado.")
       });
       onChanged();
     } catch (error) {
@@ -177,11 +179,11 @@ export function ClaudeConnectCard({
           <ProviderIcon providerId="claude" size={16} brand />
         </span>
         <span className="connect-card__copy">
-          <strong>{TITLES[state]}</strong>
+          <strong>{TITLES[state]()}</strong>
           <small>
             {connected
-              ? "O AI Dock renova a sessão sozinho. Só pede login de novo se o claude.ai te deslogar."
-              : "Entre na sua conta do claude.ai numa janela do AI Dock. Sem F12, sem copiar cookie."}
+              ? t("O AI Dock renova a sessão sozinho. Só pede login de novo se o claude.ai te deslogar.")
+              : t("Entre na sua conta do claude.ai numa janela do AI Dock. Sem F12, sem copiar cookie.")}
           </small>
         </span>
         <i className={"status-dot" + (connected ? " status-dot--on" : "")} aria-hidden="true" />
@@ -189,44 +191,52 @@ export function ClaudeConnectCard({
 
       <div className="button-row">
         <button type="button" className="button button--primary" onClick={() => void login()} disabled={waitingLogin}>
-          {waitingLogin ? "Aguardando login…" : connected || state === "expired" ? "Reconectar" : "Entrar com claude.ai"}
+          {waitingLogin ? t("Aguardando login…") : connected || state === "expired" ? t("Reconectar") : t("Entrar com claude.ai")}
         </button>
         {connected ? (
           <button type="button" className="button button--ghost" onClick={() => void remove()} disabled={busy}>
-            Sair
+            {t("Sair")}
           </button>
         ) : null}
       </div>
 
       {waitingLogin ? (
         <p className="hint">
-          Termine o login na janela que abriu; ela fecha sozinha. Se o Google recusar o login ali, use a opção de
-          entrar com e-mail.
+          {t(
+            "Termine o login na janela que abriu; ela fecha sozinha. Se o Google recusar o login ali, use a opção de entrar com e-mail."
+          )}
         </p>
       ) : null}
 
       {message?.text ? <div className={"notice notice--" + message.kind}>{message.text}</div> : null}
 
       <details className="steps">
-        <summary>Colar o cookie manualmente</summary>
+        <summary>{t("Colar o cookie manualmente")}</summary>
         <ol>
-          <li>Abra <strong>claude.ai</strong> logado no navegador e aperte <kbd>F12</kbd>.</li>
-          <li>Vá em <strong>Application → Cookies → https://claude.ai</strong>.</li>
-          <li>Selecione a tabela inteira, copie e cole abaixo. Também vale o cabeçalho <code>Cookie</code> completo ou só o <code>sessionKey</code>.</li>
+          <li>{rich(t("Abra **claude.ai** logado no navegador e aperte [[F12]]."))}</li>
+          <li>{rich(t("Vá em **Application → Cookies → https://claude.ai**."))}</li>
+          <li>
+            {rich(
+              t("Selecione a tabela inteira, copie e cole abaixo. Também vale o cabeçalho `Cookie` completo ou só o `sessionKey`.")
+            )}
+          </li>
         </ol>
         <textarea
           className="input input--area"
           rows={4}
           autoComplete="off"
           spellCheck={false}
-          placeholder="Cole a tabela de cookies, o cabeçalho Cookie ou o sessionKey"
-          aria-label="Cookie do claude.ai"
+          placeholder={t("Cole a tabela de cookies, o cabeçalho Cookie ou o sessionKey")}
+          aria-label={t("Cookie do claude.ai")}
           value={cookie}
           onChange={(event) => setCookie(event.target.value)}
         />
         <p className="hint">
-          O AI Dock guarda só <code>sessionKey</code>, <code>cf_clearance</code>, <code>__cf_bm</code> e{" "}
-          <code>anthropic-device-id</code>, no Gerenciador de Credenciais do Windows.
+          {rich(
+            t(
+              "O AI Dock guarda só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id`, no Gerenciador de Credenciais do Windows."
+            )
+          )}
         </p>
         <div className="button-row">
           <button
@@ -235,36 +245,36 @@ export function ClaudeConnectCard({
             onClick={() => void saveCookie()}
             disabled={busy || cookie.trim().length < 20}
           >
-            {busy ? "Validando…" : "Salvar e testar"}
+            {busy ? t("Validando…") : t("Salvar e testar")}
           </button>
         </div>
       </details>
 
       <details className="advanced">
-        <summary>Avançado: Claude Code CLI (terminal)</summary>
+        <summary>{t("Avançado: Claude Code CLI (terminal)")}</summary>
         <p className="hint">
-          Se o Claude Code estiver logado neste PC, o AI Dock usa o OAuth dele primeiro.
-          {cli?.version ? " Versão: " + cli.version + "." : ""}
+          {t("Se o Claude Code estiver logado neste PC, o AI Dock usa o OAuth dele primeiro.")}
+          {cli?.version ? " " + t("Versão: {version}.", { version: cli.version }) : ""}
         </p>
         <div className="button-row">
           {!cli?.installed && cli?.npmAvailable ? (
             <button type="button" className="button button--primary" onClick={() => void runCli("install")} disabled={cliBusy}>
-              {cliBusy ? "Instalando…" : "Instalar CLI"}
+              {cliBusy ? t("Instalando…") : t("Instalar CLI")}
             </button>
           ) : null}
           {cli?.installed ? (
             <button type="button" className="button button--ghost" onClick={() => void openProviderSetup()}>
-              Abrir CLI
+              {t("Abrir CLI")}
             </button>
           ) : null}
           {cli?.installed ? (
             <button type="button" className="button button--danger" onClick={() => void runCli("uninstall")} disabled={cliBusy}>
-              Desinstalar CLI
+              {t("Desinstalar CLI")}
             </button>
           ) : null}
         </div>
         {cli && !cli.installed && !cli.npmAvailable ? (
-          <p className="hint">Node.js/npm não encontrado. Instale o Node.js para instalar o CLI por aqui.</p>
+          <p className="hint">{t("Node.js/npm não encontrado. Instale o Node.js para instalar o CLI por aqui.")}</p>
         ) : null}
         {cliMessage ? <div className={"notice notice--" + cliMessage.kind}>{cliMessage.text}</div> : null}
       </details>

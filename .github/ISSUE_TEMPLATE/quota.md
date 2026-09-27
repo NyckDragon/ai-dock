@@ -1,6 +1,6 @@
 ---
-name: Quota não aparece
-about: O percentual de um provider está vazio ou desatualizado
+name: Quota missing or wrong
+about: A provider's percentage is empty, stale or different from the official app
 title: "[quota] "
 labels: []
 ---
@@ -8,13 +8,16 @@ labels: []
 **Provider**
 - [ ] Claude
 - [ ] Codex
+- [ ] Cursor
 - [ ] Antigravity
 
-**O que você vê no card**
-(mensagem de erro ou “não conectado”)
+**What the card shows**
+(error message, "not connected", or the numbers you see)
 
-**O app oficial está aberto e logado?**
+**What the official app or website shows**
 
-**Claude:** o `claude` no terminal responde `/login` como autenticado?
+**Is the official app open and signed in on this PC?**
 
-**Windows / versão do AI Dock**
+**AI Dock version / Windows version**
+
+Do not paste sessionKey, cookies, tokens or auth.json. Screenshots are fine if they show no credentials.

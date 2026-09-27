@@ -1,131 +1,131 @@
 # AI Dock
 
-Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **launcher de prompts do Obsidian**.
+A Windows 11 side dock that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
-[![Version](https://img.shields.io/badge/version-0.6.1-0a0a0c?style=flat-square)](CHANGELOG.md)
-[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requisitos)
+[![Version](https://img.shields.io/badge/version-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requirements)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
-> Sem ícone na barra de tarefas. Sempre no topo. Recolhe para um pill ou abre o painel de uso e prompts. Encerrar fica na bandeja e em Configurações → Geral.
+**English** · [Português](README.pt-BR.md)
+
+<p>
+  <img src="docs/screenshots/dock-peek.png" alt="Collapsed dock on the screen edge with the Codex peek open" width="280">
+  <img src="docs/screenshots/usage.png" alt="Usage panel with session and weekly windows, pace and a status incident" width="250">
+  <img src="docs/screenshots/costs.png" alt="Costs view with 30 days of estimated API cost per day, tool and model" width="250">
+</p>
 
 ## Download
 
-Baixe o instalador (NSIS) ou o exe portátil em [Releases](../../releases). Cada versão nova que entra no `main` publica a sua release sozinha.
+Get the installer (NSIS) or the portable `.exe` from [Releases](../../releases).
 
-Builds de teste de outros branches saem como artifact da Action [Windows Build](../../actions/workflows/windows-build.yml) (Run workflow).
+The binary is **not code-signed yet**, so Windows SmartScreen may warn the first time you open it (More info → Run anyway).
 
-O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na primeira abertura.
+## Features
 
-## O que faz
-
-- Fica fixo na **direita ou esquerda**, na tela e na altura que você escolher, e pode se **ocultar sozinho** numa faixa fina na borda.
-- Dock recolhido em 4 visuais: Círculo, Quadrado, Números ou Clássico, sempre com a cor da quota.
-- Painel com as janelas de uso de cada provider, **reset em contagem regressiva**, **ritmo de uso** ("Esgota em 2h 10min") e mini-gráfico das últimas 24h.
-- Peek no hover com quota, reset, plano e atividade, alinhado ao ícone.
-- Monitor de atividade para Codex, Cursor e Antigravity, com **notificação quando um agente espera você**.
-- Notificações de quota baixa (80% e 95% de uso) e de limite renovado.
-- Atualiza sozinho a cada 2, 5, 10 ou 15 min.
-- Biblioteca de prompts do Obsidian com busca, filtros, recentes, variáveis `{{assim}}` e atalho global **Ctrl + Alt + Espaço**. Pode colar direto no app em que você estava.
-- Tema claro, escuro ou do sistema; menu na bandeja; iniciar com o Windows; esconde em tela cheia.
+- **Always on top, out of the way.** Docks to the left or right edge of any display, at the height you pick. No taskbar icon. Auto-hides to a thin strip, and hides during full-screen apps.
+- **Quota at a glance.** Four collapsed styles (ring, square, numbers, classic) colored by how much is left. Hover a provider for a peek with every window, reset countdown and plan.
+- **Pace.** "Runs out in 2h 10min" or "19% under pace" for each window, plus a trend line for the last 24 hours, 7 days or 30 days.
+- **Real plan names**, such as Claude Max 5x or Max 20x, when the provider reports them.
+- **Service status.** Incidents from the official status pages of Claude, OpenAI (Codex) and Cursor show on the dock and in the cards, with a link to the status page.
+- **Local costs.** Tokens and the estimated API cost of your Claude Code and Codex CLI sessions, per day, tool, model and project, read from their local logs.
+- **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
+- **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
+- **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette, and optional paste straight into the app you were in.
+- English and Portuguese UI; light, dark or system theme; start with Windows.
 
 ## Providers
 
-| App | O que o dock lê | O que **não** lê |
+| Provider | What AI Dock reads | What it does **not** read |
 | --- | --- | --- |
-| **Codex** | `~/.codex/auth.json` (ou `CODEX_HOME`) e a API de uso da sessão | — |
-| **Cursor** | sessão local do editor em `%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb` + `cursor.com/api/usage-summary` | senha da conta / navegador |
-| **Antigravity** | Language server local do app instalado | Conta Google na web |
-| **Claude** | OAuth local do Claude Code **ou** a sessão do claude.ai em que você entra dentro do AI Dock (ou um Cookie colado à mão) | Cookies do Chrome/Edge / sessão interna do Claude Desktop |
+| **Claude** | The local Claude Code OAuth login, **or** the claude.ai session you sign in to inside AI Dock (or a cookie you paste by hand) | Chrome/Edge cookies, Claude Desktop's internal session |
+| **Codex** | `~/.codex/auth.json` (or `CODEX_HOME`) and the ChatGPT usage endpoint | — |
+| **Cursor** | The signed-in editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (read-only) and `cursor.com/api/usage-summary` | Your account password or browser |
+| **Antigravity** | The local language server of the installed app | Your Google account on the web |
 
-### Claude Web
+### Connecting Claude
 
-Em **Configurações → Conexões → Entrar com claude.ai**, o AI Dock abre a página de login do claude.ai numa janela própria. Entre na sua conta; a janela fecha sozinha e o Claude aparece no dock. Se o Google recusar o login nessa janela, entre com e-mail.
+In **Settings → Connections → Sign in with claude.ai**, AI Dock opens claude.ai's own login page in its window. Sign in (use email if Google refuses the embedded window) and the window closes by itself.
 
-Depois disso o AI Dock **renova a sessão sozinho**:
+After that AI Dock **renews the session on its own**: it keeps the cookies claude.ai rotates, and when the session stops working it reopens claude.ai hidden for a few seconds (at most every 20 minutes) so the site can refresh it. It only asks you to sign in again, with a notification, when claude.ai really signs you out. A Cloudflare challenge is not treated as an expired session: the last reading stays visible and marked as old.
 
-- guarda os cookies novos que o claude.ai devolve nas consultas;
-- quando a sessão para de funcionar, abre o claude.ai escondido por alguns segundos (no máximo a cada 20 min) para o próprio site renovar a sessão e o Cloudflare;
-- só pede login de novo, com uma notificação, se o claude.ai realmente te deslogar.
+Manual alternative: claude.ai DevTools → Application → Cookies → copy the whole table (or the `Cookie` header) and paste it in **Paste the cookie manually**. Never paste it in an issue.
 
-Um desafio do Cloudflare não é tratado como sessão expirada: a última leitura continua visível como **desatualizada** e o AI Dock tenta de novo depois de um cooldown.
+### Costs
 
-Alternativa manual: DevTools do claude.ai → Application → Cookies → copie a tabela inteira (ou o cabeçalho `Cookie`) e cole em **Colar o cookie manualmente**. O AI Dock guarda só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id`, no Gerenciador de Credenciais do Windows. Nunca cole isso numa issue.
+The **Costs** tab reads the JSONL logs Claude Code (`~/.claude/projects`) and the Codex CLI (`~/.codex/sessions`) already write on your PC, and prices each model with the public [LiteLLM price table](https://github.com/BerriAI/litellm). Subscriptions are not billed per token, so the number is **what the same usage would cost on the API**, not what you pay. Models missing from the table are counted in tokens only and marked with `+`.
 
-O AI Dock **não lê cookies do Chrome, do Edge nem de outro navegador**.
+## Privacy
 
-## Monitor de atividade
+AI Dock has no backend, account or telemetry. Everything runs on your PC.
 
-- **Codex Desktop:** lê turns ativos do SQLite local em modo somente leitura.
-- **Codex CLI/extensão:** fallback por rollout recente.
-- **Cursor:** lê `composerHeaders` do SQLite local e pode mostrar várias tarefas trabalhando/esperando você.
-- **Antigravity:** atividade inferida por atualização recente de transcript local.
+- Claude Code, Codex and Cursor credentials are **read only**, never copied. Cursor's session stays in memory for the request.
+- The Claude Web cookie is stored in **Windows Credential Manager**, and only `sessionKey`, `cf_clearance`, `__cf_bm` and `anthropic-device-id` are kept.
+- The claude.ai window is remote content with no access to AI Dock's commands.
+- AI Dock **never reads cookies from Chrome, Edge or any other browser**.
+- The local cache and usage history hold quota numbers only, never credentials.
 
-O AI Dock diferencia leitura **direta** de atividade **estimada**. Quota e activity são independentes: falha em um sinal não deve derrubar os outros providers.
+Network requests go only to:
 
-## Requisitos
+| Where | Why |
+| --- | --- |
+| `api.anthropic.com`, `claude.ai` | Claude usage |
+| `chatgpt.com` | Codex usage |
+| `cursor.com` | Cursor usage |
+| `status.claude.com`, `status.openai.com`, `status.cursor.com` | Public incident status, every 5 min |
+| `raw.githubusercontent.com` | LiteLLM price table, at most once a day, cached on disk |
 
-- Windows 11
-- [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
-- Para desenvolver: Node.js 22+, Rust stable, [pré-requisitos do Tauri 2](https://v2.tauri.app/start/prerequisites/)
+Details in [SECURITY.md](SECURITY.md).
 
-## Rodar no Windows
+## Prompts from Obsidian
 
-```bash
-npm install
-npm run tauri:dev
-```
-
-```bash
-npm run tauri:build
-```
-
-## Prompts do Obsidian
+Point AI Dock to your vault (or a folder inside it). Every `.md` file is a prompt; front matter is optional.
 
 ```md
 ---
-title: Editorial Campaign
-category: Imagem
+title: Editorial campaign
+category: Image
 tags:
-  - nano-banana
-  - campanha
+  - photo
 favorite: true
 ---
 
-Crie uma campanha editorial para {{marca}} com tom {{tom|sofisticado}}...
+Create an editorial campaign for {{brand}} with a {{tone|refined}} tone.
 ```
 
-`{{nome}}` vira um campo para preencher antes de copiar. `{{nome|padrão}}` já vem preenchido com o padrão.
+`{{name}}` becomes a field to fill in before copying; `{{name|default}}` comes prefilled.
 
-## Stack
+## Requirements
 
-Tauri 2 · React + TypeScript + Vite · Rust
+- Windows 11 with [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (already included in Windows 11)
+- The apps you want to track, signed in on the same PC
 
-## Segurança
+## Build from source
 
-- Credenciais de Claude Code e Codex são **só lidas** no disco.
-- A sessão local do Cursor é lida apenas em memória para consultar uso; o SQLite é aberto em modo somente leitura.
-- O Cookie do Claude Web fica no Gerenciador de Credenciais do Windows; o fallback em texto no AppData de versões antigas é migrado e apagado.
-- A janela de login do claude.ai não tem acesso aos comandos do AI Dock.
-- O AI Dock não lê cookies do Chrome/Edge.
-- Cache local só com metadados de quota, nunca credenciais.
+Needs Node.js 22+, Rust stable and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
 
-[SECURITY.md](SECURITY.md) · [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+```bash
+npm install
+npm run tauri:dev     # run in development
+npm run tauri:build   # installer + portable exe
+npm run test:frontend # frontend tests
+cd src-tauri && cargo test
+```
 
-## Abrir o repositório
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes and releases work.
 
-Antes de tornar público, no GitHub: **Settings → General → About**
+## Related projects
 
-- Description: `Windows 11 dock for Claude, Codex, Cursor and Antigravity usage/activity plus Obsidian prompts`
-- Topics: `tauri` `rust` `react` `windows-11` `claude` `cursor` `obsidian` `ai-usage`
-- Homepage: deixe vazio até existir site
+- [CodexBar](https://github.com/steipete/CodexBar): macOS menu bar app for AI coding usage limits. AI Dock's Antigravity `forceRefresh` fix follows its approach.
+- [UsageDeck](https://github.com/CallMeLewis/UsageDeck): Windows tray app for AI coding usage, limits and reset times.
+- [ccusage](https://github.com/ryoppippi/ccusage): CLI that reports token usage and cost from coding agents' local logs; the idea behind the Costs tab.
 
-Depois: Settings → Change repository visibility → Public.
+AI Dock contains no code from these projects. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Projetos próximos
+## Disclaimer
 
-[CodexBar](https://github.com/steipete/CodexBar), [UsageDeck](https://github.com/CallMeLewis/UsageDeck). O AI Dock não inclui código deles.
+AI Dock is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Anysphere (Cursor), Google or Obsidian. Product names and logos belong to their owners and are used only to identify each service. Usage numbers come from each provider's own endpoints and may change or stop working when a provider changes them.
 
-## Changelog
+## License
 
-[CHANGELOG.md](CHANGELOG.md)
+[MIT](LICENSE)

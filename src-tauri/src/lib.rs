@@ -38,6 +38,7 @@ pub fn run() {
             commands::dock::raise_dock,
             commands::dock::focus_dock,
             commands::dock::set_tray_tooltip,
+            commands::dock::set_tray_menu,
             commands::dock::quit_app,
             commands::focus::remember_foreground,
             commands::focus::return_focus,
@@ -53,6 +54,9 @@ pub fn run() {
             commands::claude_web::clear_claude_web_session,
             commands::claude_web::claude_login,
             commands::claude_web::set_web_user_agent,
+            commands::status::get_provider_status,
+            commands::costs::get_local_costs,
+            commands::status::open_status_page,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -87,6 +91,10 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "quit" => app.exit(0),
+                    // Pausing notifications happens in the background, without opening the dock.
+                    action @ ("pause" | "resume") => {
+                        let _ = app.emit("tray-action", action.to_string());
+                    }
                     action => tray_action(app, action),
                 })
                 .on_tray_icon_event(|tray, event| {

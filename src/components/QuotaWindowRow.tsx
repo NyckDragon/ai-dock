@@ -1,4 +1,5 @@
 import { absoluteDate, formatPace, formatReset } from "../lib/format";
+import { t, trLabel } from "../lib/i18n";
 import { clampPercent, displayWord, quotaTone, shownPercent, windowPace } from "../lib/quota";
 import type { PercentDisplay, UsageWindow } from "../types";
 
@@ -24,11 +25,12 @@ export function QuotaWindowRow({
   const tone = quotaTone(remaining);
   const pace = stale ? null : formatPace(windowPace(window, now));
   const exact = absoluteDate(window.resetAt);
+  const label = trLabel(window.label);
 
   return (
     <div className={"quota-row" + (compact ? " quota-row--compact" : "")}>
       <div className="quota-row__labels">
-        <span>{window.label}</span>
+        <span>{label}</span>
         <strong>
           {value}% <small>{word}</small>
         </strong>
@@ -36,7 +38,7 @@ export function QuotaWindowRow({
       <div
         className={"quota-track quota-track--" + tone}
         role="meter"
-        aria-label={window.label}
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
@@ -45,7 +47,7 @@ export function QuotaWindowRow({
         <i style={{ width: value + "%" }} />
       </div>
       <div className="quota-row__meta">
-        <span title={exact ? "Reset " + exact : undefined}>{formatReset(window.resetAt, now)}</span>
+        <span title={exact ? t("Reset {date}", { date: exact }) : undefined}>{formatReset(window.resetAt, now)}</span>
         {pace ? <span className={"pace pace--" + pace.tone}>{pace.text}</span> : null}
       </div>
     </div>
