@@ -22,6 +22,7 @@ cd src-tauri && cargo test
 - UI text is Portuguese in the code and goes through `t("…")` (see `src/lib/i18n.ts`). Add the English text to `src/lib/i18n-en.ts`; `tests/i18n.test.ts` fails when one is missing.
 - Messages from Rust that reach the UI also need an English entry, shown through `tr()`.
 - Match the surrounding code style. Add or update tests with behavior changes.
+- `package-lock.json` and `src-tauri/Cargo.lock` are committed; CI installs with `npm ci` and `cargo --locked`, so commit lockfile changes together with dependency changes.
 
 ## Commits
 
