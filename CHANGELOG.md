@@ -24,7 +24,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - SECURITY.md lista as leituras e conexões novas e indica o reporte privado de vulnerabilidades do GitHub.
 - A release publicada pelo CI usa a seção da versão no CHANGELOG como notas.
 - Dependabot mensal e agrupado para npm, Cargo e GitHub Actions.
-- CI: PRs também rodam os testes em Rust no Linux; `package-lock.json` e `Cargo.lock` entram no repositório e o CI instala com `npm ci` e `cargo --locked`; actions de terceiros fixadas por commit.
+- CI: PRs também rodam os testes em Rust no Linux; `package-lock.json` e `Cargo.lock` entram no repositório e o CI instala com `npm ci` e `cargo --locked`; todas as actions fixadas por commit (SHA).
 - O gráfico do card usa a mesma escala do número grande (usado ou restante).
 - LICENSE e Cargo.toml usam o nome de usuário do GitHub.
 
