@@ -149,6 +149,7 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
               mode={settings.compactMode}
               showSign={settings.showSign}
               display={settings.display}
+              headline={settings.headline}
               activities={activities}
               side={settings.side}
               loading={false}
@@ -159,16 +160,37 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
         </div>
       </Group>
 
+      <Group title="Em destaque">
+        <Segmented
+          label="Janela em destaque no dock"
+          value={settings.headline}
+          onChange={(headline) => update({ headline })}
+          options={[
+            { value: "session", label: "Sessão atual (5h)" },
+            { value: "limiting", label: "A que mais limita" }
+          ]}
+        />
+        <p className="hint">
+          Qual janela aparece no anel do dock e no número grande do card. Quem não tem sessão de 5h (como o Cursor)
+          mostra a janela que tiver.
+        </p>
+      </Group>
+
       <Group title="Percentual">
         <Segmented
           label="O que o percentual mostra"
           value={settings.display}
           onChange={(display) => update({ display })}
           options={[
-            { value: "remaining", label: "Quanto resta" },
-            { value: "used", label: "Quanto já usei" }
+            { value: "native", label: "Como no app" },
+            { value: "remaining", label: "Restante" },
+            { value: "used", label: "Usado" }
           ]}
         />
+        <p className="hint">
+          "Como no app" segue cada produto: o Claude mostra quanto você já usou, como no claude.ai; os outros mostram
+          quanto resta.
+        </p>
         {settings.compactMode !== "classic" ? (
           <Switch
             label="Símbolo % no dock"

@@ -49,6 +49,18 @@ export function useNotifications(
 ) {
   const quotaRef = useRef<Map<string, number> | null>(null);
   const activityRef = useRef<Map<string, string> | null>(null);
+  const claudeExpiredRef = useRef<boolean | null>(null);
+
+  // Only fires after the silent renewal already failed, so it really needs you.
+  useEffect(() => {
+    const claude = providers.find((provider) => provider.id === "claude");
+    if (!claude) return;
+    const expired = !claude.connected && /expirou/i.test(claude.error || "");
+    if (expired && claudeExpiredRef.current === false) {
+      void notify("A sessão do Claude expirou", "Abra o AI Dock e clique em Reconectar. Leva uns segundos.");
+    }
+    claudeExpiredRef.current = expired;
+  }, [providers]);
 
   useEffect(() => {
     if (!providers.length) return;

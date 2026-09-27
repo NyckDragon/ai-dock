@@ -51,6 +51,8 @@ pub fn run() {
             commands::claude_web::claude_web_status,
             commands::claude_web::set_claude_web_session,
             commands::claude_web::clear_claude_web_session,
+            commands::claude_web::claude_login,
+            commands::claude_web::set_web_user_agent,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

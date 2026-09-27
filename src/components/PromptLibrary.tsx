@@ -1,13 +1,7 @@
 import { Check, Clipboard, FolderOpen, RefreshCw, Search, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  fillPrompt,
-  loadPromptUsage,
-  promptPreview,
-  promptVariables,
-  recordPromptUse,
-  type PromptUsage
-} from "../lib/prompts";
+import { loadPromptUsage, recordPromptUse, type PromptUsage } from "../lib/prompts";
+import { fillPrompt, promptPreview, promptVariables } from "../lib/promptTemplate";
 import type { PromptItem } from "../types";
 import { PromptVariablesDialog } from "./PromptVariablesDialog";
 

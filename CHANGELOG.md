@@ -5,6 +5,46 @@ All notable changes to AI Dock are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-09-26
+
+Inclui o trabalho do branch `fix/v0.4.2-auto-refresh`, que nunca tinha chegado ao `main`.
+
+### Added
+
+- **Entrar com claude.ai**: login do Claude numa janela do AI Dock, sem F12 nem copiar cookie. A sessão é capturada, testada e salva sozinha.
+- Renovação automática da sessão do Claude: guarda cookies rotacionados pelo claude.ai e, quando a sessão falha, reabre o claude.ai escondido (no máximo a cada 20 min) para o site renovar sessão e Cloudflare antes de pedir login.
+- Notificação quando a sessão do Claude expira de verdade, com botão "Reconectar" no card.
+- Requests ao claude.ai usam o mesmo user agent do WebView2, que o Cloudflare exige para aceitar o `cf_clearance`.
+- Claude Web aceita o Cookie completo ou a tabela de cookies do DevTools (do 0.4.2).
+- Última leitura boa de cada provider fica salva e aparece como **desatualizada** quando uma atualização falha, inclusive ao abrir o app (do 0.4.2).
+- Atualização logo após um reset conhecido, ao voltar o foco para o dock e quando a internet volta (do 0.4.2).
+- Hover num provider com dado de mais de 1 min atualiza em segundo plano (do 0.4.2).
+- Opção de atualizar a cada 1 min.
+- Percentual "Como no app": o Claude mostra **% usado**, como no claude.ai, e os outros **% restante**. Passa a ser o padrão (do 0.4.2).
+- Testes: 23 de frontend (cookie do Claude, exibição, ritmo, variáveis de prompt, snapshots, versão) e 25 em Rust (Claude Web, Cloudflare, rotação de cookie, Antigravity, Obsidian, helpers).
+- CI roda os testes antes do build, valida PRs para o `main` e publica releases num job separado (do 0.4.2).
+- Template de pull request (do 0.4.2).
+
+### Fixed
+
+- Antigravity: o grupo em uso (ex.: Claude + GPT) mostrava números antigos, porque o language server devolve o resumo de quota em cache. O dock agora pede `forceRefresh`, como o CodexBar, e volta ao pedido antigo se o servidor recusar.
+- Antigravity: `remainingFraction` também é lido no formato oneof `{ case, value }` do protobuf.
+
+### Changed
+
+- Desafio do Cloudflare não é mais tratado como sessão expirada: entra em cooldown de 5 min e mantém a última leitura (do 0.4.2).
+- 401 transitório tem uma nova tentativa antes de ser considerado expiração (do 0.4.2).
+- Contas com mais de uma organização testam todas antes de falhar (do 0.4.2).
+- "Remover sessão" virou "Sair" e também apaga os cookies do claude.ai do perfil do AI Dock.
+- O dock destaca a **sessão atual (5h)** em vez da janela que mais limita. Dá para voltar ao comportamento antigo em Configurações → Aparência → Em destaque.
+- CI: PRs rodam só os testes rápidos em Linux; o build de Windows roda no `main`, em tags e sob demanda. Juntar uma versão nova ao `main` publica a release sozinho.
+
+### Security
+
+- Cookie do Claude só no Gerenciador de Credenciais; o fallback em texto no AppData é migrado e apagado (do 0.4.2).
+- A janela do claude.ai não tem capability do Tauri, então scripts do site não chamam comandos do AI Dock.
+- CI com `contents: read`; permissão de escrita só no job de release em tags `v*` (do 0.4.2).
+
 ## [0.5.0] - 2026-09-26
 
 ### Added

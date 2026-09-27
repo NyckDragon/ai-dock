@@ -1,34 +1,72 @@
 name: Windows Build
 
+# Pull requests only run the quick checks on Linux. The Windows build (billed at
+# 2x the Linux rate on private repos) runs on main, on version tags and on demand.
+# A merge to main whose version has no release yet publishes that release, so the
+# installer is always one click away in Releases.
+
 on:
   push:
     branches:
       - main
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  checks:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Run frontend logic tests
+        run: npm run test:frontend
+
+      - name: Typecheck and build the frontend
+        run: npm run build
+
   build-windows:
     name: Build Windows installer
+    if: github.event_name != 'pull_request'
+    needs: checks
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -42,6 +80,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Build AI Dock for Windows
         run: npm run tauri:build -- --bundles nsis
 
@@ -50,7 +91,7 @@ jobs:
         run: Copy-Item "src-tauri/target/release/ai-dock.exe" "src-tauri/target/release/AI-Dock-Portable.exe"
 
       - name: Upload Windows builds
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ai-dock-windows-${{ github.sha }}
           path: |
@@ -59,11 +100,55 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release-windows:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Read app version
+        uses: actions/checkout@v7
         with:
+          persist-credentials: false
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Decide release tag
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="v$(node -p "require('./package.json').version")"
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+          # A merge to main only publishes a version that has no release yet.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already exists; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download Windows builds
+        if: steps.tag.outputs.publish == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: ai-dock-windows-${{ github.sha }}
+          path: release
+
+      - name: Publish GitHub Release
+        if: steps.tag.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
-          files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/AI-Dock-Portable.exe
+          files: release/**/*.exe

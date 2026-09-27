@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import type { CSSProperties, Ref } from "react";
 import { baseProviderId, displayWord, percentLabel, providerHeadroom, quotaTone, shownPercent } from "../lib/quota";
-import type { CompactMode, DockSide, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
+import type { CompactMode, DockSide, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
 import { ProviderIcon } from "./ProviderIcon";
 
 type SlotProps = {
@@ -9,6 +9,7 @@ type SlotProps = {
   mode: CompactMode;
   showSign: boolean;
   display: PercentDisplay;
+  headline: HeadlineWindow;
   activity?: ProviderActivity;
   interactive: boolean;
   onHover?: (slotId: string) => void;
@@ -21,19 +22,20 @@ function slotLabel(provider: ProviderUsage, remaining: number | null, display: P
       ? provider.connected
         ? "sem dados de quota"
         : "não conectado"
-      : shownPercent(remaining, display) + "% " + displayWord(display);
+      : shownPercent(remaining, display, provider.id) + "% " + displayWord(display, provider.id);
   const state =
     activity?.state === "waiting" ? ", esperando você" : activity?.state === "working" ? ", trabalhando" : "";
-  return provider.name + ": " + quota + state;
+  const stale = provider.stale && remaining != null ? " (última leitura, não atualizou)" : "";
+  return provider.name + ": " + quota + stale + state;
 }
 
-function PillSlot({ provider, mode, showSign, display, activity, interactive, onHover, onOpen }: SlotProps) {
-  const remaining = providerHeadroom(provider);
+function PillSlot({ provider, mode, showSign, display, headline, activity, interactive, onHover, onOpen }: SlotProps) {
+  const remaining = providerHeadroom(provider, headline);
   const tone = quotaTone(remaining);
-  const label = percentLabel(remaining, display, showSign);
+  const label = percentLabel(remaining, display, provider.id, showSign);
   const activityState = activity?.state || "idle";
   const aria = slotLabel(provider, remaining, display, activity);
-  const degrees = remaining == null ? 0 : shownPercent(remaining, display) * 3.6;
+  const degrees = remaining == null ? 0 : shownPercent(remaining, display, provider.id) * 3.6;
 
   let body;
   if (mode === "classic") {
@@ -78,6 +80,7 @@ function PillSlot({ provider, mode, showSign, display, activity, interactive, on
       type="button"
       className={"pill-slot pill-slot--" + mode}
       data-slot={provider.id}
+      data-stale={provider.stale ? "true" : undefined}
       aria-label={aria}
       title={aria}
       onMouseEnter={() => onHover?.(provider.id)}
@@ -97,6 +100,7 @@ export function DockPill({
   mode,
   showSign,
   display,
+  headline,
   activities,
   side,
   loading,
@@ -109,6 +113,7 @@ export function DockPill({
   mode: CompactMode;
   showSign: boolean;
   display: PercentDisplay;
+  headline: HeadlineWindow;
   activities: ProviderActivity[];
   side: DockSide;
   loading: boolean;
@@ -161,6 +166,7 @@ export function DockPill({
                 mode={mode}
                 showSign={showSign}
                 display={display}
+                headline={headline}
                 activity={activityFor(provider.id)}
                 interactive={interactive}
                 onHover={onHoverSlot}

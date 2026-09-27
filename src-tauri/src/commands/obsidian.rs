@@ -103,3 +103,65 @@ pub fn scan_obsidian_prompts(root_path: String) -> Result<Vec<PromptItem>, Strin
     prompts.sort_by(|a, b| b.favorite.cmp(&a.favorite).then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase())));
     Ok(prompts)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn parses_yaml_frontmatter_and_removes_it_from_prompt_content() {
+        let raw = "---
+title: Editorial Campaign
+category: Imagem
+tags:
+  - nano-banana
+  - campanha
+favorite: true
+---
+
+Crie uma campanha editorial...
+";
+        let item = parse_markdown(Path::new("fallback.md"), raw);
+
+        assert_eq!(item.title, "Editorial Campaign");
+        assert_eq!(item.category.as_deref(), Some("Imagem"));
+        assert_eq!(item.tags, vec!["nano-banana", "campanha"]);
+        assert!(item.favorite);
+        assert_eq!(item.content, "Crie uma campanha editorial...");
+    }
+
+    #[test]
+    fn supports_comma_tags_and_falls_back_to_filename_for_blank_title() {
+        let raw = r#"---
+title: " "
+tags: "alpha, beta, , gamma"
+favorite: false
+---
+Body
+"#;
+        let item = parse_markdown(Path::new("Meu Prompt.md"), raw);
+
+        assert_eq!(item.title, "Meu Prompt");
+        assert_eq!(item.tags, vec!["alpha", "beta", "gamma"]);
+        assert!(!item.favorite);
+        assert_eq!(item.content, "Body");
+    }
+
+    #[test]
+    fn supports_crlf_frontmatter_and_plain_markdown_fallback() {
+        let crlf = "---\r\ntitle: CRLF Prompt\r\ntags: one, two\r\n---\r\nPrompt body\r\n";
+        let crlf_item = parse_markdown(Path::new("fallback.md"), crlf);
+        assert_eq!(crlf_item.title, "CRLF Prompt");
+        assert_eq!(crlf_item.tags, vec!["one", "two"]);
+        assert_eq!(crlf_item.content, "Prompt body");
+
+        let plain = parse_markdown(Path::new("Sem Frontmatter.md"), "  texto puro  ");
+        assert_eq!(plain.title, "Sem Frontmatter");
+        assert_eq!(plain.category, None);
+        assert!(plain.tags.is_empty());
+        assert!(!plain.favorite);
+        assert_eq!(plain.content, "texto puro");
+    }
+}
+

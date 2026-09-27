@@ -6,6 +6,8 @@ use std::{env, fs, path::PathBuf, process::Command};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+use tauri::AppHandle;
+
 use super::{antigravity, claude_web, cursor};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -247,21 +249,20 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
     }
 }
 
-async fn resolve_claude(client: &reqwest::Client) -> ProviderUsage {
+async fn resolve_claude(client: &reqwest::Client, app: &AppHandle) -> ProviderUsage {
     let code = claude_usage(client).await;
     if code.connected {
         return code;
     }
 
-    let web = claude_web::claude_web_status().await;
-    if web.connected || claude_web::has_stored_session() {
+    if let Some(web) = claude_web::web_usage(Some(app)).await {
         return web;
     }
 
     disconnected(
         "claude",
         "Claude",
-        "Claude ainda não vinculado. Em Configurações → Claude, cole o sessionKey do claude.ai.",
+        "Claude ainda não vinculado. Em Configurações → Conexões, clique em Entrar com claude.ai.",
     )
 }
 
@@ -410,7 +411,7 @@ fn unix_to_iso(seconds: i64) -> String {
 }
 
 #[tauri::command]
-pub async fn get_provider_usage() -> Vec<ProviderUsage> {
+pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
@@ -427,10 +428,40 @@ pub async fn get_provider_usage() -> Vec<ProviderUsage> {
     };
 
     let (claude, codex, cursor, antigravity) = tokio::join!(
-        resolve_claude(&client),
+        resolve_claude(&client, &app),
         codex_usage(&client),
         cursor::usage(&client),
         antigravity::usage(),
     );
     vec![claude, codex, cursor, antigravity]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn percent_accepts_numeric_json_values_only() {
+        assert_eq!(percent(Some(&json!(42))), Some(42.0));
+        assert_eq!(percent(Some(&json!(42.5))), Some(42.5));
+        assert_eq!(percent(Some(&json!("42"))), None);
+        assert_eq!(percent(None), None);
+    }
+
+    #[test]
+    fn remaining_percent_inverts_and_clamps_consumed_usage() {
+        assert_eq!(remaining_percent(0.0), 100.0);
+        assert_eq!(remaining_percent(76.0), 24.0);
+        assert_eq!(remaining_percent(100.0), 0.0);
+        assert_eq!(remaining_percent(-10.0), 100.0);
+        assert_eq!(remaining_percent(125.0), 0.0);
+    }
+
+    #[test]
+    fn unix_time_conversion_is_stable_and_negative_input_is_clamped() {
+        assert_eq!(unix_to_iso(0), "1970-01-01T00:00:00Z");
+        assert_eq!(unix_to_iso(1_609_459_200), "2021-01-01T00:00:00Z");
+        assert_eq!(format_unix(-1), "1970-01-01T00:00:00Z");
+    }
 }

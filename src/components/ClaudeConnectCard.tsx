@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { normalizeClaudeCookieInput } from "../lib/claudeCookie";
 import {
+  claudeLogin,
   clearClaudeWebSession,
   fetchClaudeWebStatus,
   fetchProviderSetupStatus,
   installProviderCli,
+  onClaudeLogin,
   openProviderSetup,
   saveClaudeWebSession,
   uninstallProviderCli
 } from "../lib/tauri";
-import type { ProviderSetupStatus } from "../types";
+import type { ProviderSetupStatus, ProviderUsage } from "../types";
 import { ProviderIcon } from "./ProviderIcon";
 
 function errorMessage(error: unknown) {
@@ -17,7 +20,29 @@ function errorMessage(error: unknown) {
   return "Algo deu errado.";
 }
 
+/** Cloudflare blocks and cooldowns pass on their own; the session itself is fine. */
+export function isTransientClaudeError(error?: string | null) {
+  const lower = (error || "").toLowerCase();
+  return lower.includes("cloudflare") || lower.includes("cooldown") || lower.includes("http 403") || lower.includes("rede");
+}
+
 type Message = { kind: "note" | "error"; text: string } | null;
+type WebState = "unknown" | "connected" | "blocked" | "expired" | "missing";
+
+function webState(snapshot: ProviderUsage): WebState {
+  if (snapshot.connected) return "connected";
+  if (isTransientClaudeError(snapshot.error)) return "blocked";
+  if (/expirou|inválid|invalid/i.test(snapshot.error || "")) return "expired";
+  return "missing";
+}
+
+const TITLES: Record<WebState, string> = {
+  unknown: "Claude Web",
+  connected: "Claude conectado",
+  blocked: "Claude conectado · leitura bloqueada agora",
+  expired: "A sessão do Claude expirou",
+  missing: "Conectar o Claude"
+};
 
 export function ClaudeConnectCard({
   onChanged,
@@ -27,36 +52,76 @@ export function ClaudeConnectCard({
   /** Runs a native or confirm dialog without the panel closing on blur. */
   withDialog: <T>(run: () => Promise<T> | T) => Promise<T>;
 }) {
-  const [connected, setConnected] = useState(false);
-  const [sessionKey, setSessionKey] = useState("");
+  const [state, setState] = useState<WebState>("unknown");
+  const [waitingLogin, setWaitingLogin] = useState(false);
+  const [cookie, setCookie] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
   const [cli, setCli] = useState<ProviderSetupStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliMessage, setCliMessage] = useState<Message>(null);
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
 
   useEffect(() => {
     fetchClaudeWebStatus()
       .then((snapshot) => {
-        setConnected(Boolean(snapshot.connected));
-        if (snapshot.connected) setMessage({ kind: "note", text: "Sessão do claude.ai salva neste PC." });
-        else if (snapshot.error) setMessage({ kind: "error", text: snapshot.error });
+        const next = webState(snapshot);
+        setState(next);
+        if (next === "blocked" || next === "expired") setMessage({ kind: "error", text: snapshot.error || "" });
       })
-      .catch(() => setConnected(false));
+      .catch(() => setState("missing"));
     fetchProviderSetupStatus().then(setCli).catch(() => setCli(null));
   }, []);
 
-  async function save() {
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let alive = true;
+    void onClaudeLogin((event) => {
+      setWaitingLogin(false);
+      if (event.status === "connected") {
+        setState(event.message ? "blocked" : "connected");
+        setMessage(
+          event.message
+            ? { kind: "note", text: "Login salvo. " + event.message }
+            : { kind: "note", text: "Pronto! O AI Dock renova essa sessão sozinho daqui pra frente." }
+        );
+        onChangedRef.current();
+      } else if (event.status === "timeout") {
+        setMessage({ kind: "error", text: event.message || "O login demorou demais. Tente de novo." });
+      } else {
+        setMessage({ kind: "note", text: "Janela fechada antes de concluir o login." });
+      }
+    }).then((fn) => {
+      if (alive) unlisten = fn;
+      else fn();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, []);
+
+  async function login() {
+    setMessage(null);
+    try {
+      await claudeLogin();
+      setWaitingLogin(true);
+    } catch (error) {
+      setMessage({ kind: "error", text: errorMessage(error) });
+    }
+  }
+
+  async function saveCookie() {
     setBusy(true);
     setMessage(null);
     try {
-      await saveClaudeWebSession(sessionKey.trim());
-      setConnected(true);
-      setSessionKey("");
-      setMessage({ kind: "note", text: "Claude Web conectado." });
+      await saveClaudeWebSession(normalizeClaudeCookieInput(cookie));
+      setState("connected");
+      setCookie("");
+      setMessage({ kind: "note", text: "Cookie do Claude salvo e testado." });
       onChanged();
     } catch (error) {
-      setConnected(false);
       setMessage({ kind: "error", text: errorMessage(error) });
     } finally {
       setBusy(false);
@@ -64,12 +129,14 @@ export function ClaudeConnectCard({
   }
 
   async function remove() {
-    const confirmed = await withDialog(() => window.confirm("Remover a sessão do claude.ai salva neste PC?"));
+    const confirmed = await withDialog(() =>
+      window.confirm("Remover a sessão do claude.ai deste PC? Você vai precisar entrar de novo.")
+    );
     if (!confirmed) return;
     setBusy(true);
     try {
       await clearClaudeWebSession();
-      setConnected(false);
+      setState("missing");
       setMessage({ kind: "note", text: "Sessão removida." });
       onChanged();
     } catch (error) {
@@ -101,6 +168,8 @@ export function ClaudeConnectCard({
     }
   }
 
+  const connected = state === "connected" || state === "blocked";
+
   return (
     <div className="connect-card">
       <div className="connect-card__head">
@@ -108,57 +177,68 @@ export function ClaudeConnectCard({
           <ProviderIcon providerId="claude" size={16} brand />
         </span>
         <span className="connect-card__copy">
-          <strong>{connected ? "Claude Web conectado" : "Conectar pelo claude.ai"}</strong>
-          <small>O Claude Desktop não informa a quota. O AI Dock usa a sessão do claude.ai.</small>
+          <strong>{TITLES[state]}</strong>
+          <small>
+            {connected
+              ? "O AI Dock renova a sessão sozinho. Só pede login de novo se o claude.ai te deslogar."
+              : "Entre na sua conta do claude.ai numa janela do AI Dock. Sem F12, sem copiar cookie."}
+          </small>
         </span>
         <i className={"status-dot" + (connected ? " status-dot--on" : "")} aria-hidden="true" />
       </div>
 
-      {!connected ? (
-        <>
-          <details className="steps">
-            <summary>Como obter o sessionKey</summary>
-            <ol>
-              <li>Abra <strong>claude.ai</strong> logado no navegador.</li>
-              <li>Aperte <kbd>F12</kbd> e vá em <strong>Application</strong> (ou Armazenamento).</li>
-              <li>Em <strong>Cookies → https://claude.ai</strong>, copie o valor de <strong>sessionKey</strong>.</li>
-              <li>Cole abaixo. Ele fica só no Gerenciador de Credenciais do Windows.</li>
-            </ol>
-          </details>
-          <input
-            className="input"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Cole o sessionKey"
-            aria-label="sessionKey do claude.ai"
-            value={sessionKey}
-            onChange={(event) => setSessionKey(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && sessionKey.trim().length >= 20 && !busy) void save();
-            }}
-          />
-        </>
-      ) : null}
-
       <div className="button-row">
+        <button type="button" className="button button--primary" onClick={() => void login()} disabled={waitingLogin}>
+          {waitingLogin ? "Aguardando login…" : connected || state === "expired" ? "Reconectar" : "Entrar com claude.ai"}
+        </button>
         {connected ? (
           <button type="button" className="button button--ghost" onClick={() => void remove()} disabled={busy}>
-            Remover sessão
+            Sair
           </button>
-        ) : (
+        ) : null}
+      </div>
+
+      {waitingLogin ? (
+        <p className="hint">
+          Termine o login na janela que abriu; ela fecha sozinha. Se o Google recusar o login ali, use a opção de
+          entrar com e-mail.
+        </p>
+      ) : null}
+
+      {message?.text ? <div className={"notice notice--" + message.kind}>{message.text}</div> : null}
+
+      <details className="steps">
+        <summary>Colar o cookie manualmente</summary>
+        <ol>
+          <li>Abra <strong>claude.ai</strong> logado no navegador e aperte <kbd>F12</kbd>.</li>
+          <li>Vá em <strong>Application → Cookies → https://claude.ai</strong>.</li>
+          <li>Selecione a tabela inteira, copie e cole abaixo. Também vale o cabeçalho <code>Cookie</code> completo ou só o <code>sessionKey</code>.</li>
+        </ol>
+        <textarea
+          className="input input--area"
+          rows={4}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Cole a tabela de cookies, o cabeçalho Cookie ou o sessionKey"
+          aria-label="Cookie do claude.ai"
+          value={cookie}
+          onChange={(event) => setCookie(event.target.value)}
+        />
+        <p className="hint">
+          O AI Dock guarda só <code>sessionKey</code>, <code>cf_clearance</code>, <code>__cf_bm</code> e{" "}
+          <code>anthropic-device-id</code>, no Gerenciador de Credenciais do Windows.
+        </p>
+        <div className="button-row">
           <button
             type="button"
-            className="button button--primary"
-            onClick={() => void save()}
-            disabled={busy || sessionKey.trim().length < 20}
+            className="button button--ghost"
+            onClick={() => void saveCookie()}
+            disabled={busy || cookie.trim().length < 20}
           >
             {busy ? "Validando…" : "Salvar e testar"}
           </button>
-        )}
-      </div>
-
-      {message ? <div className={"notice notice--" + message.kind}>{message.text}</div> : null}
+        </div>
+      </details>
 
       <details className="advanced">
         <summary>Avançado: Claude Code CLI (terminal)</summary>

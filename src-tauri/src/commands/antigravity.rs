@@ -256,28 +256,65 @@ fn local_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
+fn metadata_body() -> Value {
+    json!({
+        "metadata": {
+            "ideName": "antigravity",
+            "extensionName": "antigravity",
+            "ideVersion": "unknown",
+            "locale": "en"
+        }
+    })
+}
+
+/// Request bodies for a method, preferred first. The quota summary is cached by
+/// the language server and only the group in use goes stale, so it is asked to
+/// refresh (as CodexBar does); older servers that reject the field get the plain body.
+fn request_bodies(method: &str) -> Vec<Value> {
+    if method == "RetrieveUserQuotaSummary" {
+        let mut with_metadata = metadata_body();
+        with_metadata["forceRefresh"] = json!(true);
+        vec![with_metadata, json!({ "forceRefresh": true }), metadata_body()]
+    } else {
+        vec![metadata_body()]
+    }
+}
+
 async fn ls_call(scheme: &str, port: u16, csrf: &str, method: &str) -> Option<Value> {
     let url = format!("{scheme}://127.0.0.1:{port}/{LS_SERVICE}/{method}");
-    let mut request = local_client()
-        .post(url)
-        .header("Content-Type", "application/json")
-        .header("Connect-Protocol-Version", "1")
-        .json(&json!({
-            "metadata": {
-                "ideName": "antigravity",
-                "extensionName": "antigravity",
-                "ideVersion": "unknown",
-                "locale": "en"
-            }
-        }));
-    if !csrf.is_empty() {
-        request = request.header("X-Codeium-Csrf-Token", csrf);
+    for body in request_bodies(method) {
+        let mut request = local_client()
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("Connect-Protocol-Version", "1")
+            .json(&body);
+        if !csrf.is_empty() {
+            request = request.header("X-Codeium-Csrf-Token", csrf);
+        }
+        // A connection error means the port is wrong: no other body will help.
+        let response = request.send().await.ok()?;
+        if response.status().is_success() {
+            return response.json::<Value>().await.ok();
+        }
     }
-    let response = request.send().await.ok()?;
-    if !response.status().is_success() {
-        return None;
+    None
+}
+
+/// `remainingFraction` comes plain, nested under `remaining`, or as a protobuf
+/// oneof `{ "case": "remainingFraction", "value": 0.6 }`.
+fn remaining_fraction(bucket: &Value) -> Option<f64> {
+    if let Some(value) = bucket.get("remainingFraction").and_then(Value::as_f64) {
+        return Some(value);
     }
-    response.json::<Value>().await.ok()
+    let remaining = bucket.get("remaining")?;
+    if let Some(value) = remaining.get("remainingFraction").and_then(Value::as_f64) {
+        return Some(value);
+    }
+    let case = remaining.get("case").and_then(Value::as_str).unwrap_or_default();
+    if case.eq_ignore_ascii_case("remainingFraction") {
+        return remaining.get("value").and_then(Value::as_f64);
+    }
+    None
 }
 
 async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
@@ -385,11 +422,7 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
                 continue;
             };
 
-            let remaining = bucket
-                .get("remainingFraction")
-                .and_then(Value::as_f64)
-                .or_else(|| bucket.pointer("/remaining/remainingFraction").and_then(Value::as_f64));
-            let Some(remaining) = remaining else { continue };
+            let Some(remaining) = remaining_fraction(&bucket) else { continue };
             let reset_at = bucket
                 .get("resetTime")
                 .and_then(Value::as_str)
@@ -518,4 +551,216 @@ fn extract_plan(document: &Value) -> Option<String> {
         .or_else(|| document.pointer("/response/userStatus/planStatus/planInfo/planName"))
         .and_then(Value::as_str)
         .map(|value| value.trim_start_matches("Google AI ").to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn by_id<'a>(windows: &'a [UsageWindow], id: &str) -> &'a UsageWindow {
+        windows
+            .iter()
+            .find(|window| window.id == id)
+            .unwrap_or_else(|| panic!("missing usage window {id}"))
+    }
+
+    fn assert_percent(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn parses_grouped_session_and_weekly_windows() {
+        let document = json!({
+            "groups": [
+                {
+                    "displayName": "Gemini",
+                    "buckets": [
+                        {
+                            "bucketId": "session",
+                            "displayName": "5-hour",
+                            "remainingFraction": 0.75,
+                            "resetTime": "2026-09-23T12:00:00Z"
+                        },
+                        {
+                            "bucketId": "weekly",
+                            "displayName": "week",
+                            "remaining": {
+                                "remainingFraction": 0.40,
+                                "resetTime": "2026-09-29T12:00:00Z"
+                            }
+                        },
+                        {
+                            "bucketId": "disabled-weekly",
+                            "displayName": "week",
+                            "remainingFraction": 0.05,
+                            "disabled": true
+                        }
+                    ]
+                },
+                {
+                    "displayName": "Claude + GPT",
+                    "buckets": [
+                        {
+                            "bucketId": "session",
+                            "displayName": "session",
+                            "remainingFraction": 0.55
+                        },
+                        {
+                            "bucketId": "weekly",
+                            "displayName": "weekly",
+                            "remainingFraction": 0.20
+                        }
+                    ]
+                }
+            ]
+        });
+
+        let windows = parse_quota_summary(&document);
+
+        assert_eq!(
+            windows.iter().map(|window| window.id.as_str()).collect::<Vec<_>>(),
+            vec![
+                "gemini-session",
+                "gemini-weekly",
+                "claude-gpt-session",
+                "claude-gpt-weekly"
+            ]
+        );
+        assert_percent(by_id(&windows, "gemini-session").remaining_percent, 75.0);
+        assert_percent(by_id(&windows, "gemini-weekly").remaining_percent, 40.0);
+        assert_eq!(
+            by_id(&windows, "gemini-weekly").reset_at.as_deref(),
+            Some("2026-09-29T12:00:00Z")
+        );
+        assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 55.0);
+        assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 20.0);
+    }
+
+    #[test]
+    fn grouped_duplicate_window_keeps_the_most_conservative_remaining_value() {
+        let document = json!({
+            "groups": [{
+                "displayName": "Gemini",
+                "buckets": [
+                    {
+                        "bucketId": "session-a",
+                        "displayName": "session",
+                        "remainingFraction": 0.80
+                    },
+                    {
+                        "bucketId": "session-b",
+                        "displayName": "5-hour",
+                        "remainingFraction": 0.35,
+                        "resetTime": "2026-09-23T13:00:00Z"
+                    }
+                ]
+            }]
+        });
+
+        let windows = parse_quota_summary(&document);
+
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].id, "gemini-session");
+        assert_percent(windows[0].remaining_percent, 35.0);
+        assert_eq!(
+            windows[0].reset_at.as_deref(),
+            Some("2026-09-23T13:00:00Z")
+        );
+    }
+
+    #[test]
+    fn legacy_model_quotas_ignore_non_chat_models_and_keep_lowest_family_value() {
+        let document = json!({
+            "clientModelConfigs": [
+                {
+                    "label": "Gemini 2.5 Pro",
+                    "quotaInfo": {"remainingFraction": 0.90}
+                },
+                {
+                    "label": "Gemini 2.5 Flash",
+                    "quotaInfo": {
+                        "remainingFraction": 0.40,
+                        "resetTime": "2026-09-23T14:00:00Z"
+                    }
+                },
+                {
+                    "label": "Gemini Image",
+                    "quotaInfo": {"remainingFraction": 0.05}
+                },
+                {
+                    "label": "Claude Sonnet",
+                    "quotaInfo": {"remainingFraction": 0.60}
+                },
+                {
+                    "label": "GPT",
+                    "quotaInfo": {"remainingFraction": 0.30}
+                }
+            ]
+        });
+
+        let windows = parse_legacy_model_quotas(&document);
+
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].id, "gemini-session");
+        assert_percent(windows[0].remaining_percent, 40.0);
+        assert_eq!(windows[1].id, "claude-gpt-session");
+        assert_percent(windows[1].remaining_percent, 30.0);
+    }
+
+    #[test]
+    fn quota_summary_request_asks_for_a_fresh_reading_first() {
+        let bodies = request_bodies("RetrieveUserQuotaSummary");
+        assert_eq!(bodies[0]["forceRefresh"], json!(true));
+        assert_eq!(bodies[0]["metadata"]["ideName"], json!("antigravity"));
+        assert_eq!(bodies[1], json!({ "forceRefresh": true }));
+        assert!(bodies[2].get("forceRefresh").is_none());
+
+        let status = request_bodies("GetUserStatus");
+        assert_eq!(status.len(), 1);
+        assert!(status[0].get("forceRefresh").is_none());
+    }
+
+    #[test]
+    fn reads_remaining_fraction_in_every_shape() {
+        assert_eq!(remaining_fraction(&json!({ "remainingFraction": 0.63 })), Some(0.63));
+        assert_eq!(remaining_fraction(&json!({ "remaining": { "remainingFraction": 0.34 } })), Some(0.34));
+        assert_eq!(
+            remaining_fraction(&json!({ "remaining": { "case": "remainingFraction", "value": 0.5 } })),
+            Some(0.5)
+        );
+        assert_eq!(remaining_fraction(&json!({ "remaining": { "case": "other", "value": 0.5 } })), None);
+        assert_eq!(remaining_fraction(&json!({ "resetTime": "2026-09-27T00:00:00Z" })), None);
+    }
+
+    #[test]
+    fn parses_group_and_bucket_names_documented_by_codexbar() {
+        let document = json!({
+            "groups": [
+                {
+                    "displayName": "Gemini Models",
+                    "buckets": [
+                        { "bucketId": "gemini-weekly", "displayName": "Weekly Limit", "remaining": { "remainingFraction": 0.53 } },
+                        { "bucketId": "gemini-5h", "displayName": "Five Hour Limit", "remaining": { "remainingFraction": 0.0 } }
+                    ]
+                },
+                {
+                    "displayName": "Claude and GPT models",
+                    "buckets": [
+                        { "bucketId": "3p-weekly", "displayName": "Weekly Limit", "remaining": { "remainingFraction": 0.34 } },
+                        { "bucketId": "3p-5h", "displayName": "Five Hour Limit", "remaining": { "remainingFraction": 0.63 } }
+                    ]
+                }
+            ]
+        });
+
+        let windows = parse_quota_summary(&document);
+        assert_percent(by_id(&windows, "gemini-weekly").remaining_percent, 53.0);
+        assert_percent(by_id(&windows, "gemini-session").remaining_percent, 0.0);
+        assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 34.0);
+        assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 63.0);
+    }
 }

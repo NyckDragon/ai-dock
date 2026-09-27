@@ -16,7 +16,11 @@ export const ProviderPeek = forwardRef<
     onOpen: () => void;
   }
 >(function ProviderPeek({ provider, activity, updatedAt, display, now, onOpen }, ref) {
-  const status = updatedAt ? "Atualizado " + formatAge(updatedAt, now) : "Aguardando leitura";
+  const status = provider.stale
+    ? "Última leitura " + (provider.updatedAt ? formatAge(provider.updatedAt, now) : "salva") + " · não atualizou"
+    : updatedAt
+      ? "Atualizado " + formatAge(updatedAt, now)
+      : "Aguardando leitura";
 
   return (
     <aside ref={ref} className="provider-peek" onClick={onOpen} aria-label={provider.name}>
@@ -34,12 +38,14 @@ export const ProviderPeek = forwardRef<
         <i className={"status-dot" + (provider.connected ? " status-dot--on" : "")} aria-hidden="true" />
       </div>
 
-      {provider.error ? <div className="notice notice--error">{provider.error}</div> : null}
+      {provider.error ? (
+        <div className={"notice " + (provider.stale ? "notice--warning" : "notice--error")}>{provider.error}</div>
+      ) : null}
 
       {provider.windows.length ? (
-        <div className="provider-peek__windows">
+        <div className={"provider-peek__windows" + (provider.stale ? " is-stale" : "")}>
           {provider.windows.map((window) => (
-            <QuotaWindowRow key={window.id} window={window} display={display} now={now} compact />
+            <QuotaWindowRow key={window.id} window={window} providerId={provider.id} display={display} now={now} compact stale={provider.stale} />
           ))}
         </div>
       ) : null}

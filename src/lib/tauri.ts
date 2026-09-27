@@ -104,6 +104,25 @@ export async function saveClaudeWebSession(sessionKey: string): Promise<Provider
   return invoke<ProviderUsage>("set_claude_web_session", { sessionKey });
 }
 
+/** Opens claude.ai's login page in an AI Dock window; the session is captured when you sign in. */
+export async function claudeLogin(): Promise<void> {
+  if (!isTauri()) throw new Error("Abra o AI Dock instalado para entrar no Claude.");
+  await invoke("claude_login");
+}
+
+export type ClaudeLoginEvent = { status: "connected" | "closed" | "timeout"; message?: string | null };
+
+export async function onClaudeLogin(handler: (event: ClaudeLoginEvent) => void): Promise<UnlistenFn> {
+  if (!isTauri()) return () => undefined;
+  return listen<ClaudeLoginEvent>("claude-login", (event) => handler(event.payload));
+}
+
+/** Cloudflare ties its clearance cookie to the browser's user agent; Rust reuses this one. */
+export async function shareWebUserAgent() {
+  if (!isTauri()) return;
+  await invoke("set_web_user_agent", { userAgent: navigator.userAgent });
+}
+
 export async function clearClaudeWebSession(): Promise<void> {
   if (!isTauri()) return;
   await invoke("clear_claude_web_session");

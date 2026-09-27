@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { PromptVariable } from "../lib/prompts";
+import type { PromptVariable } from "../lib/promptTemplate";
 
 /** Asks for the `{{variáveis}}` of a prompt before it is copied. */
 export function PromptVariablesDialog({

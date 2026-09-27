@@ -20,6 +20,7 @@ import {
   arrangeProviders,
   baseProviderId,
   compactSlots,
+  displayWord,
   providerHeadroom,
   quotaTone,
   shownPercent,
@@ -28,6 +29,9 @@ import {
 import { GLOBAL_SHORTCUT, GLOBAL_SHORTCUT_LABEL, loadSettings, saveSettings } from "./lib/settings";
 import {
   chooseObsidianFolder,
+  claudeLogin,
+  onClaudeLogin,
+  shareWebUserAgent,
   fetchMonitors,
   focusDock,
   isTauri,
@@ -101,6 +105,7 @@ export default function App() {
   useEffect(() => {
     fetchMonitors().then(setMonitors).catch(() => setMonitors([]));
     if (!isTauri()) return;
+    void shareWebUserAgent().catch(() => undefined);
     autostartEnabled().then(setAutostart).catch(() => setAutostart(null));
     getVersion().then(setVersion).catch(() => setVersion(null));
   }, []);
@@ -245,10 +250,32 @@ export default function App() {
     };
   }, [settings.globalShortcut]);
 
+  // Claude sign-in window ----------------------------------------------------
+  const reconnectClaude = useCallback(() => {
+    claudeLogin().catch(() => openSettings("connections"));
+  }, [openSettings]);
+
+  const refreshAfterLoginRef = useRef(refresh);
+  refreshAfterLoginRef.current = refresh;
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let alive = true;
+    void onClaudeLogin((event) => {
+      if (event.status === "connected") void refreshAfterLoginRef.current({ force: true });
+    }).then((fn) => {
+      if (alive) unlisten = fn;
+      else fn();
+    });
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, []);
+
   // Tray -------------------------------------------------------------------
   const trayRef = useRef<(action: string) => void>(() => undefined);
   trayRef.current = (action) => {
-    if (action === "refresh") void refresh();
+    if (action === "refresh") void refresh({ force: true });
     else if (action === "settings") openSettings();
     else openPanel();
   };
@@ -268,13 +295,14 @@ export default function App() {
   useEffect(() => {
     const parts = visibleProviders
       .map((provider) => {
-        const remaining = providerHeadroom(provider);
-        return remaining == null ? null : provider.name + " " + shownPercent(remaining, settings.display) + "%";
+        const remaining = providerHeadroom(provider, settings.headline);
+        if (remaining == null) return null;
+        const value = shownPercent(remaining, settings.display, provider.id);
+        return provider.name + " " + value + "% " + displayWord(settings.display, provider.id) + (provider.stale ? " (antigo)" : "");
       })
       .filter(Boolean);
-    const suffix = settings.display === "used" ? " usado" : "";
-    void setTrayTooltip(parts.length ? "AI Dock · " + parts.join(" · ") + suffix : "AI Dock").catch(() => undefined);
-  }, [visibleProviders, settings.display]);
+    void setTrayTooltip(parts.length ? "AI Dock · " + parts.join(" · ") : "AI Dock").catch(() => undefined);
+  }, [visibleProviders, settings.display, settings.headline]);
 
   // Autostart --------------------------------------------------------------
   const toggleAutostart = useCallback(async (next: boolean) => {
@@ -368,11 +396,16 @@ export default function App() {
             mode={settings.compactMode}
             showSign={settings.showSign}
             display={settings.display}
+            headline={settings.headline}
             activities={activities}
             side={settings.side}
             loading={loading}
             onOpen={openPanel}
-            onHoverSlot={(id) => void dock.openPeek(id)}
+            onHoverSlot={(id) => {
+              // An old reading gets a quiet refresh while the peek opens.
+              if (!lastUpdatedAt || Date.now() - lastUpdatedAt > 60_000) void refresh({ background: true });
+              void dock.openPeek(id);
+            }}
           />
 
           {peekProvider ? (
@@ -428,7 +461,7 @@ export default function App() {
             <button
               type="button"
               className={"icon-button" + (loading ? " is-spinning" : "")}
-              onClick={() => void refresh()}
+              onClick={() => void refresh({ force: true })}
               aria-label="Atualizar uso agora"
               title="Atualizar uso agora"
             >
@@ -471,7 +504,7 @@ export default function App() {
               shortcutError={shortcutError}
               version={version}
               onChooseFolder={() => void chooseFolder()}
-              onProvidersChanged={() => void refresh()}
+              onProvidersChanged={() => void refresh({ force: true })}
               onTestNotification={() => void notify("AI Dock", "As notificações estão funcionando.")}
               onReplayOnboarding={() => {
                 setSettingsOpen(false);
@@ -523,10 +556,11 @@ export default function App() {
                           provider={provider}
                           activity={activityFor(provider.id)}
                           display={settings.display}
+                          headline={settings.headline}
                           history={history}
                           now={now}
                           highlighted={focusProvider === provider.id}
-                          onConnect={provider.id === "claude" ? () => openSettings("connections") : undefined}
+                          onConnect={provider.id === "claude" ? reconnectClaude : undefined}
                         />
                       ))}
                   {visibleProviders.length === 0 && !loading ? (
@@ -561,6 +595,7 @@ export default function App() {
             onOpenConnections={() => {
               finishOnboarding();
               openSettings("connections");
+              reconnectClaude();
             }}
             onFinish={finishOnboarding}
           />

@@ -1,7 +1,10 @@
 export type DockSide = "left" | "right";
 export type CompactMode = "classic" | "percent" | "ring" | "square";
 export type ThemePreference = "system" | "dark" | "light";
-export type PercentDisplay = "remaining" | "used";
+/** "native" follows each product: Claude shows what was used, the others what is left. */
+export type PercentDisplay = "native" | "remaining" | "used";
+/** Which usage window the dock and the card headline show. */
+export type HeadlineWindow = "session" | "limiting";
 export type DockMode = "compact" | "peek" | "hidden" | "expanded";
 export type SettingsTab = "appearance" | "position" | "general" | "connections";
 export type PanelView = "usage" | "prompts";
@@ -28,6 +31,10 @@ export type ProviderUsage = {
   plan?: string | null;
   windows: UsageWindow[];
   error?: string | null;
+  /** True when the windows are the last good reading, kept after a failed refresh. */
+  stale?: boolean;
+  updatedAt?: number | null;
+  lastErrorAt?: number | null;
 };
 
 export type ProviderSetupStatus = {
@@ -73,6 +80,7 @@ export type Settings = {
   compactMode: CompactMode;
   showSign: boolean;
   display: PercentDisplay;
+  headline: HeadlineWindow;
   theme: ThemePreference;
   autoHide: boolean;
   closeOnBlur: boolean;
@@ -87,4 +95,6 @@ export type Settings = {
   hiddenProviders: string[];
   obsidianPath: string | null;
   onboarded: boolean;
+  /** Bumped when a default changes and stored settings need a one-time migration. */
+  settingsVersion: number;
 };

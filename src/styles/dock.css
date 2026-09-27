@@ -84,6 +84,11 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 .pill-slot:hover > :first-child,
 .pill-slot:focus-visible > :first-child { transform: scale(1.07); }
 
+/* A slot showing the last good reading after a failed refresh */
+.pill-slot[data-stale="true"] > :first-child { opacity: .5; }
+.pill-slot[data-stale="true"] .slot-value,
+.pill-slot[data-stale="true"] .slot-chip { opacity: .6; font-style: italic; }
+
 .pill-slot--skeleton {
   width: 34px;
   height: 34px;
