@@ -36,6 +36,8 @@ Inclui o trabalho do branch `fix/v0.4.2-auto-refresh`, que nunca tinha chegado a
 - 401 transitório tem uma nova tentativa antes de ser considerado expiração (do 0.4.2).
 - Contas com mais de uma organização testam todas antes de falhar (do 0.4.2).
 - "Remover sessão" virou "Sair" e também apaga os cookies do claude.ai do perfil do AI Dock.
+- O dock destaca a **sessão atual (5h)** em vez da janela que mais limita. Dá para voltar ao comportamento antigo em Configurações → Aparência → Em destaque.
+- CI: PRs rodam só os testes rápidos em Linux; o build de Windows roda no `main`, em tags e sob demanda. Juntar uma versão nova ao `main` publica a release sozinho.
 
 ### Security
 

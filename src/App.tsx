@@ -295,14 +295,14 @@ export default function App() {
   useEffect(() => {
     const parts = visibleProviders
       .map((provider) => {
-        const remaining = providerHeadroom(provider);
+        const remaining = providerHeadroom(provider, settings.headline);
         if (remaining == null) return null;
         const value = shownPercent(remaining, settings.display, provider.id);
         return provider.name + " " + value + "% " + displayWord(settings.display, provider.id) + (provider.stale ? " (antigo)" : "");
       })
       .filter(Boolean);
     void setTrayTooltip(parts.length ? "AI Dock · " + parts.join(" · ") : "AI Dock").catch(() => undefined);
-  }, [visibleProviders, settings.display]);
+  }, [visibleProviders, settings.display, settings.headline]);
 
   // Autostart --------------------------------------------------------------
   const toggleAutostart = useCallback(async (next: boolean) => {
@@ -396,6 +396,7 @@ export default function App() {
             mode={settings.compactMode}
             showSign={settings.showSign}
             display={settings.display}
+            headline={settings.headline}
             activities={activities}
             side={settings.side}
             loading={loading}
@@ -555,6 +556,7 @@ export default function App() {
                           provider={provider}
                           activity={activityFor(provider.id)}
                           display={settings.display}
+                          headline={settings.headline}
                           history={history}
                           now={now}
                           highlighted={focusProvider === provider.id}

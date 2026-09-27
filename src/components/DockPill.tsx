@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import type { CSSProperties, Ref } from "react";
 import { baseProviderId, displayWord, percentLabel, providerHeadroom, quotaTone, shownPercent } from "../lib/quota";
-import type { CompactMode, DockSide, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
+import type { CompactMode, DockSide, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
 import { ProviderIcon } from "./ProviderIcon";
 
 type SlotProps = {
@@ -9,6 +9,7 @@ type SlotProps = {
   mode: CompactMode;
   showSign: boolean;
   display: PercentDisplay;
+  headline: HeadlineWindow;
   activity?: ProviderActivity;
   interactive: boolean;
   onHover?: (slotId: string) => void;
@@ -28,8 +29,8 @@ function slotLabel(provider: ProviderUsage, remaining: number | null, display: P
   return provider.name + ": " + quota + stale + state;
 }
 
-function PillSlot({ provider, mode, showSign, display, activity, interactive, onHover, onOpen }: SlotProps) {
-  const remaining = providerHeadroom(provider);
+function PillSlot({ provider, mode, showSign, display, headline, activity, interactive, onHover, onOpen }: SlotProps) {
+  const remaining = providerHeadroom(provider, headline);
   const tone = quotaTone(remaining);
   const label = percentLabel(remaining, display, provider.id, showSign);
   const activityState = activity?.state || "idle";
@@ -99,6 +100,7 @@ export function DockPill({
   mode,
   showSign,
   display,
+  headline,
   activities,
   side,
   loading,
@@ -111,6 +113,7 @@ export function DockPill({
   mode: CompactMode;
   showSign: boolean;
   display: PercentDisplay;
+  headline: HeadlineWindow;
   activities: ProviderActivity[];
   side: DockSide;
   loading: boolean;
@@ -163,6 +166,7 @@ export function DockPill({
                 mode={mode}
                 showSign={showSign}
                 display={display}
+                headline={headline}
                 activity={activityFor(provider.id)}
                 interactive={interactive}
                 onHover={onHoverSlot}

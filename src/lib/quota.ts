@@ -1,4 +1,4 @@
-import type { PercentDisplay, ProviderUsage, Settings, UsageWindow } from "../types";
+import type { HeadlineWindow, PercentDisplay, ProviderUsage, Settings, UsageWindow } from "../types";
 
 export type QuotaTone = "good" | "warning" | "danger" | "empty";
 
@@ -14,8 +14,22 @@ export function limitingWindow(provider: ProviderUsage): UsageWindow | null {
   );
 }
 
-export function providerHeadroom(provider: ProviderUsage) {
-  const window = limitingWindow(provider);
+/** The current short window (5h session), for providers that have one. */
+export function sessionWindow(provider: ProviderUsage): UsageWindow | null {
+  return provider.windows.find((window) => /session|5h/i.test(window.id)) || null;
+}
+
+/**
+ * The window the dock features: the current session by default, falling back to
+ * the most limiting one when a provider has no session window (Cursor, for one).
+ */
+export function featuredWindow(provider: ProviderUsage, headline: HeadlineWindow): UsageWindow | null {
+  if (headline === "session") return sessionWindow(provider) || limitingWindow(provider);
+  return limitingWindow(provider);
+}
+
+export function providerHeadroom(provider: ProviderUsage, headline: HeadlineWindow = "limiting") {
+  const window = featuredWindow(provider, headline);
   return window ? clampPercent(window.remainingPercent) : null;
 }
 

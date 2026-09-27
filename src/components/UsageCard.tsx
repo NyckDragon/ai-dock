@@ -2,8 +2,8 @@ import { AlertCircle, CheckCircle2, History } from "lucide-react";
 import { forwardRef } from "react";
 import { formatAge } from "../lib/format";
 import { historyKey, type UsageHistory } from "../lib/history";
-import { displayWord, limitingWindow, quotaTone, shownPercent } from "../lib/quota";
-import type { PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
+import { displayWord, featuredWindow, quotaTone, shownPercent } from "../lib/quota";
+import type { HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
 import { ProviderIcon } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
@@ -15,17 +15,18 @@ export const UsageCard = forwardRef<
     provider: ProviderUsage;
     activity?: ProviderActivity;
     display: PercentDisplay;
+    headline: HeadlineWindow;
     history: UsageHistory;
     now: number;
     highlighted?: boolean;
     onConnect?: () => void;
   }
->(function UsageCard({ provider, activity, display, history, now, highlighted, onConnect }, ref) {
-  const limiting = limitingWindow(provider);
-  const headline = limiting ? shownPercent(limiting.remainingPercent, display, provider.id) : null;
-  const tone = quotaTone(limiting ? limiting.remainingPercent : null);
-  const trend = limiting ? history[historyKey(provider.id, limiting.id)] : undefined;
-  const showTrend = Boolean(limiting) && (provider.windows.length > 1 || (trend?.length || 0) > 1);
+>(function UsageCard({ provider, activity, display, headline: featured, history, now, highlighted, onConnect }, ref) {
+  const shown = featuredWindow(provider, featured);
+  const headline = shown ? shownPercent(shown.remainingPercent, display, provider.id) : null;
+  const tone = quotaTone(shown ? shown.remainingPercent : null);
+  const trend = shown ? history[historyKey(provider.id, shown.id)] : undefined;
+  const showTrend = Boolean(shown) && (provider.windows.length > 1 || (trend?.length || 0) > 1);
 
   return (
     <article
@@ -52,7 +53,7 @@ export const UsageCard = forwardRef<
             )}
           </div>
         </div>
-        {limiting && headline != null ? (
+        {shown && headline != null ? (
           <div className="usage-card__headline">
             <strong className={"tone-text--" + tone}>{headline}%</strong>
             <small>{displayWord(display, provider.id)}</small>
@@ -60,10 +61,10 @@ export const UsageCard = forwardRef<
         ) : null}
       </div>
 
-      {limiting && showTrend ? (
+      {shown && showTrend ? (
         <div className="usage-card__trend">
-          <span>{provider.windows.length > 1 ? "Limita: " + limiting.label : "Últimas 24h"}</span>
-          <Sparkline points={trend} label={"Uso restante de " + limiting.label + " nas últimas 24 horas"} />
+          <span>{provider.windows.length > 1 ? "Em destaque: " + shown.label : "Últimas 24h"}</span>
+          <Sparkline points={trend} label={"Uso restante de " + shown.label + " nas últimas 24 horas"} />
         </div>
       ) : null}
 

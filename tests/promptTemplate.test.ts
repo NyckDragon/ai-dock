@@ -13,8 +13,8 @@ test("finds each variable once, with its default", () => {
 
 test("fills values and falls back to defaults", () => {
   const content = "Campanha para {{marca}} em tom {{tom|sofisticado}}.";
-  assert.equal(fillPrompt(content, { marca: "Kreatz" }), "Campanha para Kreatz em tom sofisticado.");
-  assert.equal(fillPrompt(content, { marca: "Kreatz", tom: "leve" }), "Campanha para Kreatz em tom leve.");
+  assert.equal(fillPrompt(content, { marca: "Acme" }), "Campanha para Acme em tom sofisticado.");
+  assert.equal(fillPrompt(content, { marca: "Acme", tom: "leve" }), "Campanha para Acme em tom leve.");
 });
 
 test("a prompt without variables is left untouched", () => {

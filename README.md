@@ -11,9 +11,9 @@ Dock lateral para Windows 11: **quota das IAs** numa das bordas da tela + **laun
 
 ## Download
 
-Enquanto o repo for privado, o instalador sai no artifact da Action [Windows Build](../../actions/workflows/windows-build.yml).
+Baixe o instalador (NSIS) ou o exe portátil em [Releases](../../releases). Cada versão nova que entra no `main` publica a sua release sozinha.
 
-Quando existir uma tag `v0.6.0`, o mesmo workflow publica o NSIS e o exe portátil em [Releases](../../releases).
+Builds de teste de outros branches saem como artifact da Action [Windows Build](../../actions/workflows/windows-build.yml) (Run workflow).
 
 O binário ainda **não é assinado**. O SmartScreen do Windows pode avisar na primeira abertura.
 

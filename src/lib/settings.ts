@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   compactMode: "ring",
   showSign: true,
   display: "native",
+  headline: "session",
   theme: "system",
   autoHide: false,
   closeOnBlur: true,
@@ -73,6 +74,7 @@ function normalize(value: Partial<Settings>): Settings {
   return {
     ...merged,
     compactMode: COMPACT_MODES.includes(merged.compactMode) ? merged.compactMode : DEFAULT_SETTINGS.compactMode,
+    headline: merged.headline === "limiting" ? "limiting" : "session",
     verticalOffset: Math.max(-45, Math.min(45, Number(merged.verticalOffset) || 0)),
     refreshMinutes: REFRESH_CHOICES.includes(merged.refreshMinutes) ? merged.refreshMinutes : 5,
     providerOrder: [...known, ...PROVIDER_IDS.filter((id) => !known.includes(id))],

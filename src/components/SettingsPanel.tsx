@@ -149,6 +149,7 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
               mode={settings.compactMode}
               showSign={settings.showSign}
               display={settings.display}
+              headline={settings.headline}
               activities={activities}
               side={settings.side}
               loading={false}
@@ -157,6 +158,22 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
           </div>
           <CompactModePicker value={settings.compactMode} onChange={(compactMode) => update({ compactMode })} />
         </div>
+      </Group>
+
+      <Group title="Em destaque">
+        <Segmented
+          label="Janela em destaque no dock"
+          value={settings.headline}
+          onChange={(headline) => update({ headline })}
+          options={[
+            { value: "session", label: "Sessão atual (5h)" },
+            { value: "limiting", label: "A que mais limita" }
+          ]}
+        />
+        <p className="hint">
+          Qual janela aparece no anel do dock e no número grande do card. Quem não tem sessão de 5h (como o Cursor)
+          mostra a janela que tiver.
+        </p>
       </Group>
 
       <Group title="Percentual">

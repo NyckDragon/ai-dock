@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { displayKind, displayWord, percentLabel, shownPercent, windowPace } from "../src/lib/quota.ts";
+import { displayKind, displayWord, featuredWindow, percentLabel, providerHeadroom, shownPercent, windowPace } from "../src/lib/quota.ts";
 import { formatPace } from "../src/lib/format.ts";
 
 test("native display: Claude shows consumed percentage, like claude.ai", () => {
@@ -29,6 +29,33 @@ test("display percentage is clamped", () => {
   assert.equal(shownPercent(140, "native", "codex"), 100);
   assert.equal(shownPercent(-20, "native", "claude"), 100);
   assert.equal(shownPercent(140, "native", "claude"), 0);
+});
+
+test("the dock features the current session, or the most limiting window on request", () => {
+  const claude = {
+    id: "claude",
+    name: "Claude",
+    connected: true,
+    windows: [
+      { id: "session", label: "Sessão · 5h", remainingPercent: 65 },
+      { id: "weekly", label: "Semanal", remainingPercent: 31 }
+    ]
+  };
+  assert.equal(featuredWindow(claude, "session")?.id, "session");
+  assert.equal(featuredWindow(claude, "limiting")?.id, "weekly");
+  assert.equal(providerHeadroom(claude, "session"), 65);
+  assert.equal(providerHeadroom(claude), 31);
+});
+
+test("providers without a session window fall back to the most limiting one", () => {
+  const cursor = { id: "cursor", name: "Cursor", connected: true, windows: [{ id: "included", label: "Uso incluído", remainingPercent: 88 }] };
+  assert.equal(featuredWindow(cursor, "session")?.id, "included");
+  const gemini = { id: "antigravity-gemini", name: "Gemini", connected: true, windows: [
+    { id: "gemini-weekly", label: "Gemini · semanal", remainingPercent: 53 },
+    { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 0 }
+  ] };
+  assert.equal(featuredWindow(gemini, "session")?.id, "gemini-session");
+  assert.equal(featuredWindow({ id: "codex", name: "Codex", connected: false, windows: [] }, "session"), null);
 });
 
 test("percent label handles missing data and the % sign", () => {
