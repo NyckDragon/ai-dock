@@ -30,7 +30,7 @@ Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/re
 
 The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
 
-Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching Spaces, the tray, the shortcut, starting at login, and quota for the four providers. Hiding on full screen and pasting back into the previous app are still Windows-only. There is no Intel build.
+Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching Spaces, the tray, the shortcut, starting at login, quota for the four providers, hiding for a full-screen app, the dock coming back to the front, and pasting after Accessibility is allowed. There is no Intel build.
 
 ## Features
 

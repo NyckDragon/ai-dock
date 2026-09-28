@@ -30,7 +30,7 @@ Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases
 
 O app não é assinado nem notarizado. O Gatekeeper avisa na primeira abertura: clique com o botão direito em AI Dock → Abrir.
 
-Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de Space, bandeja, atalho, iniciar ao entrar e a cota dos quatro provedores. Esconder em tela cheia e colar de volta no app anterior continuam só no Windows. Não há binário Intel.
+Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de Space, bandeja, atalho, iniciar ao entrar, a cota dos quatro provedores, sumir em tela cheia, o dock voltar para a frente, e colar depois de permitir Acessibilidade. Não há binário Intel.
 
 ## O que faz
 
