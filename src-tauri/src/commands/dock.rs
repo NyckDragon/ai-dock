@@ -150,7 +150,28 @@ fn fullscreen_app_active() -> bool {
     result >= 0 && matches!(state, QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+fn fullscreen_app_active() -> bool {
+    // Without Hyprland there is no fullscreen signal. A failed query must not hide the dock.
+    let Some(hyprctl) = session_tool("hyprctl") else {
+        return false;
+    };
+    let Ok(output) = std::process::Command::new(hyprctl).args(["activewindow", "-j"]).output() else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) else {
+        return false;
+    };
+    let fullscreen = json.get("fullscreen").and_then(serde_json::Value::as_i64).unwrap_or(0);
+    let pid = json.get("pid").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
+    let class = json.get("class").and_then(serde_json::Value::as_str).unwrap_or("");
+    hypr_fullscreen_hides_dock(fullscreen, hypr_window_is_ours(pid, class))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn fullscreen_app_active() -> bool {
     false
 }
@@ -180,8 +201,57 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+/// `set_always_on_top` is only a hint on Wayland. Hyprland keeps the dock
+/// above other windows when the running session floats and pins its class.
+/// `keyword` changes that session and does not write hyprland.conf.
+#[cfg(target_os = "linux")]
+fn reassert_topmost(window: &tauri::WebviewWindow) {
+    let _ = window.set_always_on_top(true);
+    let Some(hyprctl) = session_tool("hyprctl") else {
+        return;
+    };
+    let class = "app\\.aidock\\.desktop";
+    for rule in [format!("float, class:^({class})$"), format!("pin, class:^({class})$")] {
+        let _ = std::process::Command::new(&hyprctl)
+            .args(["keyword", "windowrulev2", &rule])
+            .output();
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn reassert_topmost(_window: &tauri::WebviewWindow) {}
+
+/// The tray does not inherit a login PATH, so Hyprland's tool is a file first.
+#[cfg(target_os = "linux")]
+fn session_tool(name: &str) -> Option<std::path::PathBuf> {
+    let system = std::path::PathBuf::from("/usr/bin").join(name);
+    if system.is_file() {
+        return Some(system);
+    }
+    if let Some(home) = dirs::home_dir() {
+        let local = home.join(".local").join("bin").join(name);
+        if local.is_file() {
+            return Some(local);
+        }
+    }
+    let output = std::process::Command::new("which").arg(name).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    path.is_file().then_some(path)
+}
+
+/// Hyprland leaves a maximized window at `fullscreen` 0. 1 and 2 are the
+/// fullscreen states. The dock's own window must not hide itself.
+fn hypr_fullscreen_hides_dock(fullscreen: i64, own_window: bool) -> bool {
+    !own_window && matches!(fullscreen, 1 | 2)
+}
+
+#[cfg(target_os = "linux")]
+fn hypr_window_is_ours(pid: u32, class: &str) -> bool {
+    (pid != 0 && pid == std::process::id()) || class == "app.aidock.desktop" || class == "AI Dock"
+}
 
 /// Keeps the dock on top. Returns true when it was hidden for a full-screen app.
 #[tauri::command]
@@ -278,4 +348,26 @@ pub fn set_dock_state(
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hypr_fullscreen_hides_dock;
+
+    #[test]
+    fn fullscreen_modes_hide_the_dock() {
+        assert!(hypr_fullscreen_hides_dock(1, false));
+        assert!(hypr_fullscreen_hides_dock(2, false));
+    }
+
+    #[test]
+    fn maximized_window_is_not_fullscreen() {
+        assert!(!hypr_fullscreen_hides_dock(0, false));
+    }
+
+    #[test]
+    fn our_window_does_not_hide_the_dock() {
+        assert!(!hypr_fullscreen_hides_dock(1, true));
+        assert!(!hypr_fullscreen_hides_dock(2, true));
+    }
 }

@@ -7,6 +7,7 @@ use std::os::windows::process::CommandExt;
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const LS_SERVICE: &str = "exa.language_server_pb.LanguageServerService";
 

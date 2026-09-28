@@ -8,6 +8,7 @@ use std::os::windows::process::CommandExt;
 
 use super::providers::ProviderSetupStatus;
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {

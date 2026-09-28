@@ -10,6 +10,7 @@ use tauri::AppHandle;
 
 use super::{antigravity, claude_web, cursor};
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Serialize)]
