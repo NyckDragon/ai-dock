@@ -206,10 +206,17 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
 /// `keyword` changes that session and does not write hyprland.conf.
 #[cfg(target_os = "linux")]
 fn reassert_topmost(window: &tauri::WebviewWindow) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     let _ = window.set_always_on_top(true);
     let Some(hyprctl) = session_tool("hyprctl") else {
         return;
     };
+    // windowrulev2 appends. Raising the dock every few seconds would stack the same rules.
+    static APPLIED: AtomicBool = AtomicBool::new(false);
+    if APPLIED.swap(true, Ordering::Relaxed) {
+        return;
+    }
     let class = "app\\.aidock\\.desktop";
     for rule in [format!("float, class:^({class})$"), format!("pin, class:^({class})$")] {
         let _ = std::process::Command::new(&hyprctl)
