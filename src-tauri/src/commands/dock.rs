@@ -201,28 +201,96 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
     }
 }
 
-/// `set_always_on_top` is only a hint on Wayland. Hyprland keeps the dock
-/// above other windows when the running session floats and pins its class.
-/// `keyword` changes that session and does not write hyprland.conf.
+/// `set_always_on_top` is only a hint on Wayland. The live window is floated
+/// and pinned by its address, so a wrong class name cannot leave it tiled.
+/// The class rule is recorded once and does not write hyprland.conf.
 #[cfg(target_os = "linux")]
 fn reassert_topmost(window: &tauri::WebviewWindow) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-
     let _ = window.set_always_on_top(true);
     let Some(hyprctl) = session_tool("hyprctl") else {
         return;
     };
-    // windowrulev2 appends. Raising the dock every few seconds would stack the same rules.
-    static APPLIED: AtomicBool = AtomicBool::new(false);
-    if APPLIED.swap(true, Ordering::Relaxed) {
+    let Some(client) = our_hypr_client(&hyprctl) else {
+        return;
+    };
+    place_hypr_dock(&hyprctl, &client);
+    remember_hypr_class_rules(&hyprctl, &client);
+}
+
+#[cfg(target_os = "linux")]
+fn our_hypr_client(hyprctl: &std::path::Path) -> Option<serde_json::Value> {
+    let output = std::process::Command::new(hyprctl)
+        .args(["clients", "-j"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let clients: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).ok()?;
+    let pid = std::process::id() as u64;
+    clients.into_iter().find(|client| client.get("pid").and_then(|value| value.as_u64()) == Some(pid))
+}
+
+#[cfg(target_os = "linux")]
+fn place_hypr_dock(hyprctl: &std::path::Path, client: &serde_json::Value) {
+    let Some(address) = client.get("address").and_then(|value| value.as_str()) else {
+        return;
+    };
+    if address.is_empty() || address == "0x0" {
         return;
     }
-    let class = "app\\.aidock\\.desktop";
-    for rule in [format!("float, class:^({class})$"), format!("pin, class:^({class})$")] {
-        let _ = std::process::Command::new(&hyprctl)
+    let window = format!("address:{address}");
+    for action in ["setfloating", "pin"] {
+        let _ = std::process::Command::new(hyprctl)
+            .args(["dispatch", action, &window])
+            .output();
+    }
+    let _ = std::process::Command::new(hyprctl)
+        .args(["dispatch", "alterzorder", &format!("top,{window}")])
+        .output();
+}
+
+#[cfg(target_os = "linux")]
+fn remember_hypr_class_rules(hyprctl: &std::path::Path, client: &serde_json::Value) {
+    use std::sync::Mutex;
+    static APPLIED: Mutex<String> = Mutex::new(String::new());
+    let Some(class) = client.get("class").and_then(|value| value.as_str()).filter(|class| !class.is_empty()) else {
+        return;
+    };
+    let Ok(mut applied) = APPLIED.lock() else {
+        return;
+    };
+    if *applied == class {
+        return;
+    }
+    let escaped = hypr_class_regex(class);
+    for rule in hypr_dock_rules(&escaped) {
+        let _ = std::process::Command::new(hyprctl)
             .args(["keyword", "windowrulev2", &rule])
             .output();
     }
+    *applied = class.to_string();
+}
+
+#[cfg(target_os = "linux")]
+fn hypr_class_regex(class: &str) -> String {
+    const SPECIAL: &[char] = &['\\', '.', '^', '$', '|', '(', ')', '[', ']', '*', '+', '?', '{', '}'];
+    let mut escaped = String::with_capacity(class.len());
+    for ch in class.chars() {
+        if SPECIAL.contains(&ch) {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+#[cfg(target_os = "linux")]
+fn hypr_dock_rules(class_regex: &str) -> [String; 2] {
+    [
+        format!("float, class:^({class_regex})$"),
+        format!("pin, class:^({class_regex})$"),
+    ]
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -376,5 +444,18 @@ mod tests {
     fn our_window_does_not_hide_the_dock() {
         assert!(!hypr_fullscreen_hides_dock(1, true));
         assert!(!hypr_fullscreen_hides_dock(2, true));
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod hypr_rule_tests {
+    use super::{hypr_class_regex, hypr_dock_rules};
+
+    #[test]
+    fn dots_in_the_class_are_literal() {
+        assert_eq!(hypr_class_regex("app.aidock.desktop"), "app\\.aidock\\.desktop");
+        let rules = hypr_dock_rules("app\\.aidock\\.desktop");
+        assert_eq!(rules[0], "float, class:^(app\\.aidock\\.desktop)$");
+        assert_eq!(rules[1], "pin, class:^(app\\.aidock\\.desktop)$");
     }
 }

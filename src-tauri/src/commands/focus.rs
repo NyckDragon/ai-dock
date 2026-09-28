@@ -138,7 +138,7 @@ mod imp_linux {
             return false;
         }
         let Some(hyprctl) = tool("hyprctl") else { return false };
-        let focused = Command::new(hyprctl)
+        let focused = Command::new(&hyprctl)
             .args(["dispatch", "focuswindow", &format!("address:{address}")])
             .status()
             .map(|status| status.success())
@@ -147,14 +147,38 @@ mod imp_linux {
             return false;
         }
         if paste {
-            // wtype speaks Wayland. ydotool is the fallback when that is not installed.
-            // Neither is installed for the user, and focus still counts.
-            if let Some(paste_with) = tool("wtype").or_else(|| tool("ydotool")) {
-                tokio::time::sleep(std::time::Duration::from_millis(90)).await;
-                let _ = send_ctrl_v(&paste_with);
+            tokio::time::sleep(std::time::Duration::from_millis(90)).await;
+            // Hyprland can deliver the shortcut itself. wtype and ydotool remain
+            // for a session where that dispatcher is missing.
+            if !send_hypr_ctrl_v(&hyprctl, &address) {
+                if let Some(paste_with) = tool("wtype").or_else(|| tool("ydotool")) {
+                    let _ = send_ctrl_v(&paste_with);
+                }
             }
         }
         true
+    }
+
+    fn send_hypr_ctrl_v(hyprctl: &PathBuf, address: &str) -> bool {
+        Command::new(hyprctl)
+            .args(["dispatch", "sendshortcut", &hypr_ctrl_v_argument(address)])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    fn hypr_ctrl_v_argument(address: &str) -> String {
+        format!("CTRL, V, address:{address}")
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::hypr_ctrl_v_argument;
+
+        #[test]
+        fn ctrl_v_goes_to_the_remembered_address() {
+            assert_eq!(hypr_ctrl_v_argument("0xabc"), "CTRL, V, address:0xabc");
+        }
     }
 }
 
