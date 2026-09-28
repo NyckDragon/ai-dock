@@ -190,6 +190,7 @@ export const EN: Record<string, string> = {
   // Settings: general
   "Comportamento": "Behavior",
   "Iniciar com o Windows": "Start with Windows",
+  "Iniciar com o Linux": "Start with Linux",
   "Atalho global": "Global shortcut",
   "Ctrl + Alt + Espaço": "Ctrl + Alt + Space",
   "abre a busca de prompts de qualquer lugar.": "opens prompt search from anywhere.",

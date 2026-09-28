@@ -389,7 +389,7 @@ function GeneralTab({
     <>
       <Group title={t("Comportamento")}>
         <Switch
-          label={t("Iniciar com o Windows")}
+          label={t(navigator.userAgent.includes("Linux") ? "Iniciar com o Linux" : "Iniciar com o Windows")}
           checked={Boolean(autostart)}
           disabled={autostart == null}
           onChange={onAutostart}
