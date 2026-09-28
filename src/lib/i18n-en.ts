@@ -371,7 +371,9 @@ export const EN: Record<string, string> = {
   "O Claude Web respondeu em um formato inesperado.": "Claude Web answered in an unexpected format.",
   "Nenhuma organização Claude válida foi encontrada nessa sessão.": "No valid Claude organization was found in this session.",
   "Não foi possível acessar o Gerenciador de Credenciais do Windows.": "Could not access Windows Credential Manager.",
+  "Não foi possível acessar o cofre de segredos do Linux.": "Could not access the Linux secret service.",
   "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.": "Could not save the Claude cookie in Credential Manager.",
+  "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.": "Could not save the Claude cookie in the Linux secret service.",
   "Cole o Cookie completo de uma requisição do claude.ai.": "Paste the full Cookie from a claude.ai request.",
   "Cookie incompleto. Cole o cabeçalho Cookie completo ou o valor inteiro do sessionKey.":
     "Incomplete cookie. Paste the full Cookie header or the whole sessionKey value.",

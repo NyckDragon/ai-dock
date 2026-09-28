@@ -109,13 +109,9 @@ fn credential_store_unavailable() -> String {
     {
         "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string()
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     {
         "Não foi possível acessar o cofre de segredos do Linux.".to_string()
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    {
-        "Não foi possível acessar o cofre de credenciais.".to_string()
     }
 }
 
@@ -124,13 +120,9 @@ fn credential_store_save_failed() -> String {
     {
         "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string()
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     {
         "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.".to_string()
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    {
-        "Não consegui salvar o cookie do Claude no cofre de credenciais.".to_string()
     }
 }
 
