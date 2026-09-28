@@ -278,6 +278,7 @@ async fn resolve_claude(client: &reqwest::Client, app: &AppHandle) -> ProviderUs
     )
 }
 
+#[cfg(target_os = "windows")]
 fn provider_executable() -> Option<PathBuf> {
     if let Some(home) = home_dir() {
         let native = home.join(".local").join("bin").join("claude.exe");
@@ -305,6 +306,7 @@ fn provider_executable() -> Option<PathBuf> {
         .next()
 }
 
+#[cfg(target_os = "windows")]
 fn provider_version(executable: &PathBuf) -> Option<String> {
     let command_line = format!("\"{}\" --version", executable.display());
     let output = run_hidden("cmd.exe", &["/C", &command_line]).ok()?;
@@ -315,6 +317,7 @@ fn provider_version(executable: &PathBuf) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
+#[cfg(target_os = "windows")]
 fn npm_available() -> bool {
     run_hidden("where.exe", &["npm.cmd"])
         .map(|output| output.status.success())
@@ -322,6 +325,68 @@ fn npm_available() -> bool {
         || run_hidden("where.exe", &["npm"])
             .map(|output| output.status.success())
             .unwrap_or(false)
+}
+
+/// The tray does not inherit a login-shell PATH, so the usual install
+/// locations are checked as files before `which` is asked.
+#[cfg(target_os = "linux")]
+fn provider_executable() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(home) = home_dir() {
+        candidates.push(home.join(".local").join("bin").join("claude"));
+        candidates.push(home.join(".claude").join("local").join("claude"));
+    }
+    candidates.push(PathBuf::from("/usr/bin/claude"));
+    if let Some(found) = candidates.into_iter().find(|path| path.is_file()) {
+        return Some(found);
+    }
+    let output = Command::new("which").arg("claude").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    path.is_file().then_some(path)
+}
+
+#[cfg(target_os = "linux")]
+fn provider_version(executable: &PathBuf) -> Option<String> {
+    let output = Command::new(executable).arg("--version").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+/// A bare `npm` is invisible to the tray. Only the two absolute installs count.
+#[cfg(target_os = "linux")]
+fn linux_npm() -> Option<PathBuf> {
+    let system = PathBuf::from("/usr/bin/npm");
+    if system.is_file() {
+        return Some(system);
+    }
+    let local = home_dir()?.join(".local").join("bin").join("npm");
+    local.is_file().then_some(local)
+}
+
+#[cfg(target_os = "linux")]
+fn npm_available() -> bool {
+    linux_npm().is_some()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+fn provider_executable() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+fn provider_version(_executable: &PathBuf) -> Option<String> {
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+fn npm_available() -> bool {
+    false
 }
 
 #[tauri::command]
@@ -345,7 +410,23 @@ pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
     }
 
     let output = tauri::async_runtime::spawn_blocking(|| {
-        run_hidden("cmd.exe", &["/C", "npm install -g @anthropic-ai/claude-code"])
+        #[cfg(target_os = "windows")]
+        {
+            run_hidden("cmd.exe", &["/C", "npm install -g @anthropic-ai/claude-code"])
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let Some(npm) = linux_npm() else {
+                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "npm"));
+            };
+            Command::new(npm)
+                .args(["install", "-g", "@anthropic-ai/claude-code"])
+                .output()
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        {
+            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "npm"))
+        }
     })
     .await
     .map_err(|_| "A instalação do Claude Code foi interrompida.".to_string())?
@@ -367,6 +448,7 @@ pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
     Ok(status)
 }
 
+#[cfg(target_os = "windows")]
 #[tauri::command]
 pub fn open_provider_setup() -> Result<(), String> {
     let executable = provider_executable().ok_or_else(|| {
@@ -397,6 +479,64 @@ pub fn open_provider_setup() -> Result<(), String> {
             .map(|_| ())
             .map_err(|_| "Não foi possível abrir o Claude para autenticação.".to_string())
     }
+}
+
+/// Each terminal has its own way to keep a command open. The tray's PATH is
+/// empty, so a missing file is skipped instead of trusting the bare name.
+#[cfg(target_os = "linux")]
+fn spawn_login_terminal(executable: &std::path::Path) -> Result<(), ()> {
+    let program = executable.as_os_str();
+    let attempts: [(&str, Vec<std::ffi::OsString>); 6] = [
+        ("xdg-terminal-exec", vec![program.into()]),
+        ("kitty", vec![program.into()]),
+        ("foot", vec![program.into()]),
+        ("alacritty", vec!["-e".into(), program.into()]),
+        ("ghostty", vec!["-e".into(), program.into()]),
+        ("wezterm", vec!["start".into(), "--".into(), program.into()]),
+    ];
+    for (name, args) in attempts {
+        let Some(bin) = linux_tool(name) else { continue };
+        if Command::new(bin).args(args).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    Err(())
+}
+
+#[cfg(target_os = "linux")]
+fn linux_tool(name: &str) -> Option<PathBuf> {
+    let system = PathBuf::from("/usr/bin").join(name);
+    if system.is_file() {
+        return Some(system);
+    }
+    if let Some(home) = home_dir() {
+        let local = home.join(".local").join("bin").join(name);
+        if local.is_file() {
+            return Some(local);
+        }
+    }
+    let output = Command::new("which").arg(name).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    path.is_file().then_some(path)
+}
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub fn open_provider_setup() -> Result<(), String> {
+    let executable = provider_executable().ok_or_else(|| {
+        "Claude Code não está instalado. Use o botão Instalar Claude Code primeiro.".to_string()
+    })?;
+    spawn_login_terminal(&executable)
+        .map_err(|_| "Não foi possível abrir o Claude para autenticação.".to_string())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[tauri::command]
+pub fn open_provider_setup() -> Result<(), String> {
+    Err("Não foi possível abrir o Claude para autenticação.".to_string())
 }
 
 fn format_unix(timestamp: i64) -> String {
