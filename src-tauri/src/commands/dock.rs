@@ -150,7 +150,12 @@ fn fullscreen_app_active() -> bool {
     result >= 0 && matches!(state, QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn fullscreen_app_active() -> bool {
+    macos_fullscreen::covers_any_monitor()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn fullscreen_app_active() -> bool {
     false
 }
@@ -180,7 +185,26 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+/// `set_always_on_top(true)` does not reorder once the level is already floating,
+/// so another floating app that came forward stays above the dock. Tauri's
+/// always-on-top level is `NSFloatingWindowLevel`; putting that back and ordering
+/// front leaves the window inactive and does not move or resize it.
+#[cfg(target_os = "macos")]
+fn reassert_topmost(window: &tauri::WebviewWindow) {
+    use objc2::rc::Retained;
+    use objc2_app_kit::{NSFloatingWindowLevel, NSWindow};
+
+    let Ok(ptr) = window.ns_window() else { return };
+    // SAFETY: `ns_window()` is our live window, autoreleased for this call.
+    // Retaining it keeps the object alive while we reorder. `setLevel` and
+    // `orderFrontRegardless` do not make the window key.
+    let ns_window = unsafe { Retained::retain(ptr.cast::<NSWindow>()) };
+    let Some(ns_window) = ns_window else { return };
+    ns_window.setLevel(NSFloatingWindowLevel);
+    ns_window.orderFrontRegardless();
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn reassert_topmost(_window: &tauri::WebviewWindow) {}
 
 /// Keeps the dock on top. Returns true when it was hidden for a full-screen app.
@@ -278,4 +302,216 @@ pub fn set_dock_state(
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+/// A rectangle in the same point space as a display and a window.
+#[derive(Clone, Copy, Debug)]
+struct ScreenRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+/// True when `window` reaches every edge of `monitor`.
+///
+/// Eight points of slack absorbs rounding. A zoomed window stays short of the
+/// menu bar by more than that, so it does not count; real fullscreen and a
+/// borderless game cover the whole display, menu bar included.
+fn rect_covers_monitor(window: ScreenRect, monitor: ScreenRect) -> bool {
+    const TOLERANCE: f64 = 8.0;
+    window.x <= monitor.x + TOLERANCE
+        && window.y <= monitor.y + TOLERANCE
+        && window.x + window.width >= monitor.x + monitor.width - TOLERANCE
+        && window.y + window.height >= monitor.y + monitor.height - TOLERANCE
+}
+
+/// On-screen windows from other apps. System panels and the Dock are skipped by
+/// name because a layer-0 check alone still sees some of them.
+#[cfg(target_os = "macos")]
+mod macos_fullscreen {
+    use core_foundation::base::{CFType, CFTypeRef, TCFType};
+    use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
+    use core_foundation::number::CFNumber;
+    use core_foundation::string::CFString;
+    use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+    use core_graphics::window::{
+        copy_window_info, kCGNullWindowID, kCGWindowBounds, kCGWindowLayer, kCGWindowListOptionOnScreenOnly,
+        kCGWindowOwnerName, kCGWindowOwnerPID,
+    };
+
+    use super::{rect_covers_monitor, ScreenRect};
+
+    const IGNORED_OWNERS: [&str; 4] = ["Window Server", "Dock", "Control Center", "Notification Center"];
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGRectMakeWithDictionaryRepresentation(dict: CFDictionaryRef, rect: *mut CGRect) -> bool;
+    }
+
+    struct Keys {
+        layer: CFString,
+        bounds: CFString,
+        owner_pid: CFString,
+        owner_name: CFString,
+    }
+
+    fn keys() -> Keys {
+        // SAFETY: the symbols are process-lifetime CFStrings from CoreGraphics.
+        unsafe {
+            Keys {
+                layer: CFString::wrap_under_get_rule(kCGWindowLayer),
+                bounds: CFString::wrap_under_get_rule(kCGWindowBounds),
+                owner_pid: CFString::wrap_under_get_rule(kCGWindowOwnerPID),
+                owner_name: CFString::wrap_under_get_rule(kCGWindowOwnerName),
+            }
+        }
+    }
+
+    /// 0.10.1's `find` returns `ItemRef<*const c_void>` for an untyped dictionary,
+    /// not a pointer. The item holds the borrowed value; retaining it lets a
+    /// downcast reject the wrong type.
+    fn lookup(dict: &CFDictionary, key: &CFString) -> Option<CFType> {
+        let value = dict.find(key.as_concrete_TypeRef() as *const std::ffi::c_void)?;
+        let ptr: *const std::ffi::c_void = *value;
+        if ptr.is_null() {
+            None
+        } else {
+            // SAFETY: the pointer came from a window-info dictionary and is non-null.
+            Some(unsafe { CFType::wrap_under_get_rule(ptr as CFTypeRef) })
+        }
+    }
+
+    fn cf_i64(dict: &CFDictionary, key: &CFString) -> Option<i64> {
+        lookup(dict, key)?.downcast::<CFNumber>()?.to_i64()
+    }
+
+    fn owner_name(dict: &CFDictionary, key: &CFString) -> Option<String> {
+        Some(lookup(dict, key)?.downcast::<CFString>()?.to_string())
+    }
+
+    fn window_rect(dict: &CFDictionary, key: &CFString) -> Option<ScreenRect> {
+        let bounds = lookup(dict, key)?.downcast::<CFDictionary>()?;
+        let mut rect = CGRect {
+            origin: CGPoint { x: 0.0, y: 0.0 },
+            size: CGSize { width: 0.0, height: 0.0 },
+        };
+        // SAFETY: a successful downcast means this is a CFDictionary. The out pointer is ours.
+        let ok = unsafe { CGRectMakeWithDictionaryRepresentation(bounds.as_concrete_TypeRef(), &mut rect) };
+        if !ok {
+            return None;
+        }
+        Some(ScreenRect {
+            x: rect.origin.x,
+            y: rect.origin.y,
+            width: rect.size.width,
+            height: rect.size.height,
+        })
+    }
+
+    fn monitor_rects() -> Vec<ScreenRect> {
+        // CGDisplay bounds and kCGWindowBounds share one space: global points,
+        // origin at the top-left of the primary display. Comparing in pixels
+        // would make a fullscreen window look short of a Retina display.
+        let Ok(ids) = CGDisplay::active_displays() else {
+            return Vec::new();
+        };
+        ids.into_iter()
+            .map(|id| {
+                let bounds = CGDisplay::new(id).bounds();
+                ScreenRect {
+                    x: bounds.origin.x,
+                    y: bounds.origin.y,
+                    width: bounds.size.width,
+                    height: bounds.size.height,
+                }
+            })
+            .collect()
+    }
+
+    pub fn covers_any_monitor() -> bool {
+        let monitors = monitor_rects();
+        if monitors.is_empty() {
+            return false;
+        }
+        let Some(windows) = copy_window_info(kCGWindowListOptionOnScreenOnly, kCGNullWindowID) else {
+            return false;
+        };
+        let keys = keys();
+        let own_pid = std::process::id() as i64;
+        for ptr in windows.get_all_values() {
+            if ptr.is_null() {
+                continue;
+            }
+            // SAFETY: CGWindowListCopyWindowInfo returns an array of CFDictionaries.
+            let dict = unsafe { CFDictionary::wrap_under_get_rule(ptr as CFDictionaryRef) };
+            if cf_i64(&dict, &keys.layer) != Some(0) {
+                continue;
+            }
+            if cf_i64(&dict, &keys.owner_pid) == Some(own_pid) {
+                continue;
+            }
+            if owner_name(&dict, &keys.owner_name).is_some_and(|name| IGNORED_OWNERS.contains(&name.as_str())) {
+                continue;
+            }
+            let Some(window) = window_rect(&dict, &keys.bounds) else {
+                continue;
+            };
+            if monitors.iter().any(|monitor| rect_covers_monitor(window, *monitor)) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{rect_covers_monitor, ScreenRect};
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> ScreenRect {
+        ScreenRect { x, y, width, height }
+    }
+
+    #[test]
+    fn exact_fullscreen_covers_the_monitor() {
+        let monitor = rect(0.0, 0.0, 1920.0, 1080.0);
+        assert!(rect_covers_monitor(monitor, monitor));
+    }
+
+    #[test]
+    fn eight_points_of_slack_still_covers() {
+        let monitor = rect(0.0, 0.0, 1920.0, 1080.0);
+        assert!(rect_covers_monitor(rect(0.0, 8.0, 1920.0, 1072.0), monitor));
+        assert!(rect_covers_monitor(rect(0.0, 0.0, 1912.0, 1080.0), monitor));
+    }
+
+    #[test]
+    fn nine_points_short_does_not_cover() {
+        let monitor = rect(0.0, 0.0, 1920.0, 1080.0);
+        assert!(!rect_covers_monitor(rect(0.0, 9.0, 1920.0, 1071.0), monitor));
+        assert!(!rect_covers_monitor(rect(0.0, 0.0, 1911.0, 1080.0), monitor));
+    }
+
+    #[test]
+    fn zoomed_window_stops_short_of_the_menu_bar() {
+        let monitor = rect(0.0, 0.0, 1512.0, 982.0);
+        let zoomed = rect(0.0, 25.0, 1512.0, 957.0);
+        assert!(!rect_covers_monitor(zoomed, monitor));
+    }
+
+    #[test]
+    fn window_on_another_monitor_does_not_cover() {
+        let primary = rect(0.0, 0.0, 1920.0, 1080.0);
+        let other = rect(1920.0, 0.0, 1920.0, 1080.0);
+        assert!(!rect_covers_monitor(other, primary));
+        assert!(rect_covers_monitor(other, other));
+    }
+
+    #[test]
+    fn larger_window_that_contains_the_monitor_covers_it() {
+        let monitor = rect(0.0, 0.0, 1920.0, 1080.0);
+        let window = rect(-10.0, -10.0, 1940.0, 1100.0);
+        assert!(rect_covers_monitor(window, monitor));
+    }
 }
