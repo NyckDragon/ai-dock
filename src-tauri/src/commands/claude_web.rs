@@ -43,7 +43,11 @@ const LOGIN_EVENT: &str = "claude-login";
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const RENEW_GAP: Duration = Duration::from_secs(20 * 60);
 const RENEW_WAIT: Duration = Duration::from_secs(7);
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT: &str = if cfg!(target_os = "macos") {
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
+} else {
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+};
 
 /// The only claude.ai cookies AI Dock keeps.
 const ALLOWED: [&str; 4] = ["sessionKey", "cf_clearance", "__cf_bm", "anthropic-device-id"];
@@ -99,8 +103,13 @@ fn state<T>(cell: &'static OnceLock<Mutex<Option<T>>>) -> &'static Mutex<Option<
 // Credential storage ---------------------------------------------------------
 
 fn credential_entry(account: &str) -> Result<Entry, String> {
-    Entry::new(KEYRING_SERVICE, account)
-        .map_err(|_| "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string())
+    Entry::new(KEYRING_SERVICE, account).map_err(|_| {
+        if cfg!(target_os = "macos") {
+            "Não foi possível acessar o Keychain.".to_string()
+        } else {
+            "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string()
+        }
+    })
 }
 
 fn legacy_session_file() -> Option<PathBuf> {
@@ -116,7 +125,13 @@ fn delete_legacy_session_file() {
 fn persist_cookie_header(cookie_header: &str) -> Result<(), String> {
     credential_entry(KEYRING_ACCOUNT)?
         .set_password(cookie_header)
-        .map_err(|_| "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string())?;
+        .map_err(|_| {
+            if cfg!(target_os = "macos") {
+                "Não consegui salvar o Cookie do Claude no Keychain.".to_string()
+            } else {
+                "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string()
+            }
+        })?;
     delete_legacy_session_file();
     if let Ok(entry) = credential_entry(LEGACY_KEYRING_ACCOUNT) {
         let _ = entry.delete_credential();

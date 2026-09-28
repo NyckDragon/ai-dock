@@ -27,7 +27,7 @@ dirs = "7"
 walkdir = "2"
 regex = "1"
 portable-pty = "0.9"
-keyring = { version = "3", features = ["windows-native"] }
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 rusqlite = { version = "0.40", features = ["bundled"] }

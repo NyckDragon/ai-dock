@@ -1,12 +1,12 @@
 # Security
 
-AI Dock runs locally on Windows and reads provider data only from sources required for the supported integrations.
+AI Dock runs locally on Windows and macOS and reads provider data only from sources required for the supported integrations.
 
 ## What we read
 
 - **Claude Code:** `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`
 - **Codex:** `%USERPROFILE%\.codex\auth.json` or `CODEX_HOME`
-- **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb`, opened read-only
+- **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` on Windows, or `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS, opened read-only
 - **Antigravity:** local process/language-server state
 - **Claude Web:** the claude.ai session the user signs in to inside AI Dock, or a Cookie the user pastes manually
 - **Costs tab:** the JSONL session logs Claude Code (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`) and the Codex CLI (`~/.codex/sessions`, `CODEX_HOME`) write locally. Only token counts, model names, timestamps and the project folder name are used; prompts and answers in those files are skipped and never stored or sent anywhere.
@@ -25,7 +25,7 @@ Either way, the app keeps only:
 - `__cf_bm`
 - `anthropic-device-id`
 
-Those values are stored in **Windows Credential Manager** through the native keyring integration. WebView2 keeps its own copy of the claude.ai cookies in AI Dock's profile folder, encrypted by WebView2 like Edge does.
+Those values are stored in **Windows Credential Manager** or, on macOS, the login **Keychain**, through the native keyring integration. WebView2 on Windows, and WKWebView on macOS, keep their own copy of the claude.ai cookies in AI Dock's profile folder.
 
 AI Dock does **not** read cookies from Chrome, Edge or any other browser profile.
 

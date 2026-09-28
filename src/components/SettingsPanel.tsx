@@ -389,7 +389,7 @@ function GeneralTab({
     <>
       <Group title={t("Comportamento")}>
         <Switch
-          label={t("Iniciar com o Windows")}
+          label={t(navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac") ? "Iniciar com o Mac" : "Iniciar com o Windows")}
           checked={Boolean(autostart)}
           disabled={autostart == null}
           onChange={onAutostart}
@@ -398,7 +398,7 @@ function GeneralTab({
           label={t("Atalho global")}
           description={
             <>
-              <kbd>{t(GLOBAL_SHORTCUT_LABEL)}</kbd> {t("abre a busca de prompts de qualquer lugar.")}
+              <kbd>{t(navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac") ? "⌘ + ⌥ + Espaço" : GLOBAL_SHORTCUT_LABEL)}</kbd> {t("abre a busca de prompts de qualquer lugar.")}
             </>
           }
           checked={settings.globalShortcut}

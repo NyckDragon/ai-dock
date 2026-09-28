@@ -54,7 +54,11 @@ pub(crate) async fn usage() -> ProviderUsage {
     disconnected(
         "antigravity",
         "Antigravity",
-        "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
+        if cfg!(target_os = "macos") {
+            "Antigravity não foi encontrado em /Applications/Antigravity.app."
+        } else {
+            "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe."
+        },
     )
 }
 
@@ -96,6 +100,22 @@ fn command_flag(command_line: &str, flag: &str) -> Option<String> {
 }
 
 fn discover() -> Discovery {
+    #[cfg(target_os = "windows")]
+    {
+        discover_windows()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        discover_macos()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Discovery::default()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn discover_windows() -> Discovery {
     let installed = antigravity_exe().is_some();
     let script = r#"
 $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\antigravity'
@@ -239,6 +259,87 @@ $all | Where-Object {
         });
     }
 
+    Discovery {
+        installed,
+        app_running,
+        servers,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn discover_macos() -> Discovery {
+    let mut installed = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join("Applications").join("Antigravity.app"))
+        .is_some_and(|path| path.is_dir())
+        || PathBuf::from("/Applications/Antigravity.app").is_dir();
+
+    let Some(raw) = run_hidden("/bin/ps", &["-axww", "-o", "pid=,command="]) else {
+        return Discovery { installed, ..Default::default() };
+    };
+
+    let mut app_running = false;
+    let mut servers = vec![];
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        let Some((pid_text, command)) = trimmed.split_once(' ') else { continue };
+        let Ok(pid) = pid_text.parse::<u32>() else { continue };
+        if pid == 0 || command.is_empty() {
+            continue;
+        }
+        let lower = command.to_lowercase();
+        if lower.contains("antigravity.app") || lower.contains("/antigravity") {
+            app_running = true;
+        }
+        let looks_like_server = lower.contains("language_server") || lower.contains("language-server");
+        if !looks_like_server || !lower.contains("antigravity") {
+            continue;
+        }
+        let csrf_token = command_flag(command, "csrf_token")
+            .or_else(|| command_flag(command, "csrf-token"))
+            .unwrap_or_default();
+        let extension_csrf_token = command_flag(command, "extension_server_csrf_token")
+            .or_else(|| command_flag(command, "extension-server-csrf-token"))
+            .unwrap_or_else(|| csrf_token.clone());
+        let extension_port = command_flag(command, "extension_server_port")
+            .or_else(|| command_flag(command, "extension-server-port"))
+            .and_then(|value| value.parse::<u16>().ok());
+        let lsof = run_hidden(
+            "/usr/sbin/lsof",
+            &["-nP", "-a", "-iTCP", "-sTCP:LISTEN", "-p", &pid.to_string()],
+        )
+        .unwrap_or_default();
+        let mut ports = Vec::new();
+        for row in lsof.lines() {
+            if !row.contains("(LISTEN)") {
+                continue;
+            }
+            if let Some(port) = row.split_whitespace().find_map(|part| {
+                let (address, port) = part.rsplit_once(':')?;
+                if address.contains('.') || address.contains(':') {
+                    port.parse::<u16>().ok()
+                } else {
+                    None
+                }
+            }) {
+                ports.push(port);
+            }
+        }
+        ports.sort_unstable();
+        ports.dedup();
+        if ports.is_empty() && extension_port.is_none() {
+            continue;
+        }
+        servers.push(LanguageServer {
+            ports,
+            extension_port,
+            csrf_token,
+            extension_csrf_token,
+        });
+    }
+    if app_running {
+        installed = true;
+    }
     Discovery {
         installed,
         app_running,

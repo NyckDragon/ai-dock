@@ -16,19 +16,53 @@ fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Out
 }
 
 fn npm_claude() -> Option<PathBuf> {
-    if let Some(appdata) = env::var_os("APPDATA") {
-        let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
-        if npm.is_file() {
-            return Some(npm);
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(appdata) = env::var_os("APPDATA") {
+            let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
+            if npm.is_file() {
+                return Some(npm);
+            }
         }
+        return None;
     }
-    None
+    #[cfg(target_os = "macos")]
+    {
+        for candidate in ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"] {
+            let path = PathBuf::from(candidate);
+            if path.is_file() {
+                return Some(path);
+            }
+        }
+        return None;
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        None
+    }
 }
 
 fn npm_available() -> bool {
-    run_hidden("where.exe", &["npm.cmd"])
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    #[cfg(target_os = "windows")]
+    {
+        return run_hidden("where.exe", &["npm.cmd"])
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
+            .into_iter()
+            .any(|path| PathBuf::from(path).is_file());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Command::new("npm")
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
 }
 
 #[tauri::command]
@@ -41,7 +75,22 @@ pub async fn uninstall_provider_cli() -> Result<ProviderSetupStatus, String> {
     }
 
     let output = tauri::async_runtime::spawn_blocking(|| {
-        run_hidden("cmd.exe", &["/C", "npm uninstall -g @anthropic-ai/claude-code"])
+        #[cfg(target_os = "windows")]
+        {
+            run_hidden("cmd.exe", &["/C", "npm uninstall -g @anthropic-ai/claude-code"])
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let npm = ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
+                .into_iter()
+                .find(|path| PathBuf::from(path).is_file())
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "npm"))?;
+            run_hidden(npm, &["uninstall", "-g", "@anthropic-ai/claude-code"])
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            run_hidden("npm", &["uninstall", "-g", "@anthropic-ai/claude-code"])
+        }
     })
     .await
     .map_err(|_| "A desinstalação do Claude Code CLI foi interrompida.".to_string())?

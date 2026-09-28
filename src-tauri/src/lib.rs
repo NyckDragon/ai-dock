@@ -9,6 +9,8 @@ fn reveal(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_always_on_top(true);
+        #[cfg(target_os = "macos")]
+        let _ = window.set_visible_on_all_workspaces(true);
         let _ = window.set_focus();
     }
 }
@@ -66,6 +68,8 @@ pub fn run() {
                 let _ = window.center();
                 let _ = window.show();
                 let _ = window.set_always_on_top(true);
+                #[cfg(target_os = "macos")]
+                let _ = window.set_visible_on_all_workspaces(true);
 
                 let keep_topmost = window.clone();
                 window.on_window_event(move |event| {

@@ -279,49 +279,104 @@ async fn resolve_claude(client: &reqwest::Client, app: &AppHandle) -> ProviderUs
 }
 
 fn provider_executable() -> Option<PathBuf> {
-    if let Some(home) = home_dir() {
-        let native = home.join(".local").join("bin").join("claude.exe");
-        if native.is_file() {
-            return Some(native);
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(home) = home_dir() {
+            let native = home.join(".local").join("bin").join("claude.exe");
+            if native.is_file() {
+                return Some(native);
+            }
         }
-    }
 
-    if let Some(appdata) = env::var_os("APPDATA") {
-        let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
-        if npm.is_file() {
-            return Some(npm);
+        if let Some(appdata) = env::var_os("APPDATA") {
+            let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
+            if npm.is_file() {
+                return Some(npm);
+            }
         }
-    }
 
-    let output = run_hidden("where.exe", &["claude"]).ok()?;
-    if !output.status.success() {
-        return None;
+        let output = run_hidden("where.exe", &["claude"]).ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        return String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(PathBuf::from)
+            .next();
     }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(PathBuf::from)
-        .next()
+    #[cfg(target_os = "macos")]
+    {
+        let mut candidates = Vec::new();
+        if let Some(home) = home_dir() {
+            candidates.push(home.join(".local").join("bin").join("claude"));
+            candidates.push(home.join(".claude").join("local").join("claude"));
+        }
+        candidates.push(PathBuf::from("/opt/homebrew/bin/claude"));
+        candidates.push(PathBuf::from("/usr/local/bin/claude"));
+        if let Some(found) = candidates.into_iter().find(|path| path.is_file()) {
+            return Some(found);
+        }
+        let output = Command::new("/usr/bin/which").arg("claude").output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+        return path.is_file().then_some(path);
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        None
+    }
 }
 
 fn provider_version(executable: &PathBuf) -> Option<String> {
-    let command_line = format!("\"{}\" --version", executable.display());
-    let output = run_hidden("cmd.exe", &["/C", &command_line]).ok()?;
-    if !output.status.success() {
-        return None;
+    #[cfg(target_os = "windows")]
+    {
+        let command_line = format!("\"{}\" --version", executable.display());
+        let output = run_hidden("cmd.exe", &["/C", &command_line]).ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return (!text.is_empty()).then_some(text);
     }
-    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!text.is_empty()).then_some(text)
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new(executable).arg("--version").output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        (!text.is_empty()).then_some(text)
+    }
 }
 
 fn npm_available() -> bool {
-    run_hidden("where.exe", &["npm.cmd"])
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-        || run_hidden("where.exe", &["npm"])
+    #[cfg(target_os = "windows")]
+    {
+        return run_hidden("where.exe", &["npm.cmd"])
             .map(|output| output.status.success())
             .unwrap_or(false)
+            || run_hidden("where.exe", &["npm"])
+                .map(|output| output.status.success())
+                .unwrap_or(false);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
+            .into_iter()
+            .any(|path| PathBuf::from(path).is_file());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Command::new("npm")
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
 }
 
 #[tauri::command]
@@ -345,7 +400,22 @@ pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
     }
 
     let output = tauri::async_runtime::spawn_blocking(|| {
-        run_hidden("cmd.exe", &["/C", "npm install -g @anthropic-ai/claude-code"])
+        #[cfg(target_os = "windows")]
+        {
+            run_hidden("cmd.exe", &["/C", "npm install -g @anthropic-ai/claude-code"])
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let npm = ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
+                .into_iter()
+                .find(|path| PathBuf::from(path).is_file())
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "npm"))?;
+            run_hidden(npm, &["install", "-g", "@anthropic-ai/claude-code"])
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            run_hidden("npm", &["install", "-g", "@anthropic-ai/claude-code"])
+        }
     })
     .await
     .map_err(|_| "A instalação do Claude Code foi interrompida.".to_string())?
@@ -374,28 +444,48 @@ pub fn open_provider_setup() -> Result<(), String> {
     })?;
     let command_line = format!("\"{}\"", executable.display());
 
-    if run_hidden("where.exe", &["wt.exe"])
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    #[cfg(target_os = "windows")]
     {
-        Command::new("wt.exe")
-            .args([
-                "new-tab",
-                "--title",
-                "Conectar Claude ao AI Dock",
-                "cmd.exe",
-                "/K",
-                &command_line,
-            ])
-            .spawn()
-            .map(|_| ())
-            .map_err(|_| "Não foi possível abrir o Claude no Windows Terminal.".to_string())
-    } else {
-        Command::new("cmd.exe")
+        if run_hidden("where.exe", &["wt.exe"])
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+        {
+            return Command::new("wt.exe")
+                .args([
+                    "new-tab",
+                    "--title",
+                    "Conectar Claude ao AI Dock",
+                    "cmd.exe",
+                    "/K",
+                    &command_line,
+                ])
+                .spawn()
+                .map(|_| ())
+                .map_err(|_| "Não foi possível abrir o Claude no Windows Terminal.".to_string());
+        }
+        return Command::new("cmd.exe")
             .args(["/K", &command_line])
             .spawn()
             .map(|_| ())
-            .map_err(|_| "Não foi possível abrir o Claude para autenticação.".to_string())
+            .map_err(|_| "Não foi possível abrir o Claude para autenticação.".to_string());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = command_line;
+        let script = format!(
+            "tell application \"Terminal\" to do script \"{}\"",
+            executable.display().to_string().replace('\\', "\\\\").replace('"', "\\\"")
+        );
+        return Command::new("osascript")
+            .args(["-e", &script])
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Não foi possível abrir o Claude no Terminal.".to_string());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = command_line;
+        Err("Não foi possível abrir o Claude para autenticação.".to_string())
     }
 }
 
