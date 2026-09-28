@@ -1,9 +1,10 @@
 # AI Dock
 
-Dock lateral para Windows 11 que mostra **quanto resta da quota das IAs** (Claude, Codex, Cursor e Antigravity), o que seus agentes estão fazendo, quanto esse uso custaria na API e a sua **biblioteca de prompts do Obsidian**, a um hover de distância.
+Dock lateral para Windows 11, com beta no macOS, que mostra **quanto resta da quota das IAs** (Claude, Codex, Cursor e Antigravity), o que seus agentes estão fazendo, quanto esse uso custaria na API e a sua **biblioteca de prompts do Obsidian**, a um hover de distância.
 
 [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
-[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requisitos)
+[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -17,9 +18,19 @@ Dock lateral para Windows 11 que mostra **quanto resta da quota das IAs** (Claud
 
 ## Download
 
+### Windows 11
+
 Baixe o instalador (NSIS) ou o `.exe` portátil em [Releases](../../releases).
 
 O binário **ainda não é assinado**, então o SmartScreen do Windows pode avisar na primeira abertura (Mais informações → Executar assim mesmo).
+
+### macOS em teste
+
+Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.1/AI-Dock-macOS-beta-aarch64.dmg). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1), separado do release 0.7.0 de Windows.
+
+O app não é assinado nem notarizado. O Gatekeeper avisa na primeira abertura: clique com o botão direito em AI Dock → Abrir.
+
+Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de Space, bandeja, atalho, iniciar ao entrar e a cota dos quatro provedores. Esconder em tela cheia e colar de volta no app anterior continuam só no Windows. Não há binário Intel.
 
 ## O que faz
 
@@ -60,7 +71,7 @@ A aba **Custos** lê os logs JSONL que o Claude Code (`~/.claude/projects`) e o 
 O AI Dock não tem servidor, conta nem telemetria. Tudo roda no seu PC.
 
 - As credenciais do Claude Code, do Codex e do Cursor são **só lidas**, nunca copiadas. A sessão do Cursor fica em memória durante a consulta.
-- O cookie do Claude Web fica no **Gerenciador de Credenciais do Windows**, e só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id` são guardados.
+- O cookie do Claude Web fica no **Gerenciador de Credenciais do Windows**. No beta do macOS, os mesmos valores vão para o **Keychain** de login. Só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id` são guardados.
 - A janela do claude.ai é conteúdo remoto, sem acesso aos comandos do AI Dock.
 - O AI Dock **nunca lê cookies do Chrome, do Edge ou de outro navegador**.
 - O cache local e o histórico de uso guardam só números de quota, nunca credenciais.
@@ -98,7 +109,8 @@ Crie uma campanha editorial para {{marca}} com tom {{tom|sofisticado}}.
 ## Requisitos
 
 - Windows 11 com [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (já vem no Windows 11)
-- Os apps que você quer acompanhar, logados no mesmo PC
+- Beta do macOS: Apple Silicon
+- Os apps que você quer acompanhar, logados no mesmo computador
 
 ## Compilar
 

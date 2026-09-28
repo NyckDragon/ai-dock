@@ -1,9 +1,10 @@
 # AI Dock
 
-A Windows 11 side dock that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
+A side dock for Windows 11, with a macOS beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
 [![Version](https://img.shields.io/badge/version-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
-[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#requirements)
+[![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -17,9 +18,19 @@ A Windows 11 side dock that shows **how much AI quota you have left** in Claude,
 
 ## Download
 
+### Windows 11
+
 Get the installer (NSIS) or the portable `.exe` from [Releases](../../releases).
 
 The binary is **not code-signed yet**, so Windows SmartScreen may warn the first time you open it (More info → Run anyway).
+
+### macOS beta
+
+Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.1/AI-Dock-macOS-beta-aarch64.dmg). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1), separate from the Windows 0.7.0 release.
+
+The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
+
+Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching Spaces, the tray, the shortcut, starting at login, and quota for the four providers. Hiding on full screen and pasting back into the previous app are still Windows-only. There is no Intel build.
 
 ## Features
 
@@ -60,7 +71,7 @@ The **Costs** tab reads the JSONL logs Claude Code (`~/.claude/projects`) and th
 AI Dock has no backend, account or telemetry. Everything runs on your PC.
 
 - Claude Code, Codex and Cursor credentials are **read only**, never copied. Cursor's session stays in memory for the request.
-- The Claude Web cookie is stored in **Windows Credential Manager**, and only `sessionKey`, `cf_clearance`, `__cf_bm` and `anthropic-device-id` are kept.
+- The Claude Web cookie is stored in **Windows Credential Manager**. On the macOS beta, the same values go in the login **Keychain**. Only `sessionKey`, `cf_clearance`, `__cf_bm` and `anthropic-device-id` are kept.
 - The claude.ai window is remote content with no access to AI Dock's commands.
 - AI Dock **never reads cookies from Chrome, Edge or any other browser**.
 - The local cache and usage history hold quota numbers only, never credentials.
@@ -98,7 +109,8 @@ Create an editorial campaign for {{brand}} with a {{tone|refined}} tone.
 ## Requirements
 
 - Windows 11 with [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (already included in Windows 11)
-- The apps you want to track, signed in on the same PC
+- macOS beta: Apple Silicon
+- The apps you want to track, signed in on the same computer
 
 ## Build from source
 
