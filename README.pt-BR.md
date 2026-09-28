@@ -1,10 +1,11 @@
 # AI Dock
 
-Dock lateral para Windows 11, com beta no macOS, que mostra **quanto resta da quota das IAs** (Claude, Codex, Cursor e Antigravity), o que seus agentes estão fazendo, quanto esse uso custaria na API e a sua **biblioteca de prompts do Obsidian**, a um hover de distância.
+Dock lateral para Windows 11, com beta no macOS e no Linux, que mostra **quanto resta da quota das IAs** (Claude, Codex, Cursor e Antigravity), o que seus agentes estão fazendo, quanto esse uso custaria na API e a sua **biblioteca de prompts do Obsidian**, a um hover de distância.
 
 [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
 [![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -32,6 +33,14 @@ O app não é assinado nem notarizado. O Gatekeeper avisa na primeira abertura: 
 
 Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de Space, bandeja, atalho, iniciar ao entrar, a cota dos quatro provedores, sumir em tela cheia, o dock voltar para a frente, e colar depois de permitir Acessibilidade. Não há binário Intel.
 
+### Linux em teste
+
+Omarchy (Hyprland). [Baixe o AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.1/AI.Dock_0.7.0_amd64.AppImage). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1), separado do release 0.7.0 de Windows.
+
+O AppImage não é assinado. Dê permissão de execução e abra. Se reclamar do FUSE, instale `fuse2`, ou extraia com `--appimage-extract` e rode `./squashfs-root/AppRun`.
+
+Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de workspace, bandeja, atalho, iniciar ao entrar, a cota dos quatro provedores, sumir em tela cheia, o dock continuar na frente, e colar. Este build é para o Hyprland.
+
 ## O que faz
 
 - **Sempre no topo, sem atrapalhar.** Fica na borda esquerda ou direita de qualquer tela, na altura que você escolher. Sem ícone na barra de tarefas. Pode se ocultar numa faixa fina e some durante apps em tela cheia.
@@ -43,7 +52,7 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 - **Atividade dos agentes.** Veja quando Codex, Cursor ou Antigravity estão trabalhando e receba uma notificação quando um agente espera você.
 - **Notificações** de quota baixa (80% e 95% de uso), limite renovado, instabilidade no serviço e provider que parou de atualizar (e quando volta). Pause de 30 min até "amanhã" em Configurações ou na bandeja.
 - **Prompts do Obsidian.** Busca, favoritos, recentes, `{{variáveis}}` preenchidas antes de copiar, atalho global **Ctrl + Alt + Espaço** e opção de colar direto no app em que você estava.
-- Interface em português e inglês; tema claro, escuro ou do sistema; iniciar com o Windows.
+- Interface em português e inglês; tema claro, escuro ou do sistema; iniciar com o Windows, com o Mac ou com o Linux.
 
 ## Providers
 
@@ -71,7 +80,7 @@ A aba **Custos** lê os logs JSONL que o Claude Code (`~/.claude/projects`) e o 
 O AI Dock não tem servidor, conta nem telemetria. Tudo roda no seu PC.
 
 - As credenciais do Claude Code, do Codex e do Cursor são **só lidas**, nunca copiadas. A sessão do Cursor fica em memória durante a consulta.
-- O cookie do Claude Web fica no **Gerenciador de Credenciais do Windows**. No beta do macOS, os mesmos valores vão para o **Keychain** de login. Só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id` são guardados.
+- O cookie do Claude Web fica no **Gerenciador de Credenciais do Windows**. No beta do macOS, os mesmos valores vão para o **Keychain** de login. No beta do Linux, vão para o **Secret Service** quando esse serviço está aberto e, se não estiver, para o chaveiro do kernel nesta sessão. Só `sessionKey`, `cf_clearance`, `__cf_bm` e `anthropic-device-id` são guardados.
 - A janela do claude.ai é conteúdo remoto, sem acesso aos comandos do AI Dock.
 - O AI Dock **nunca lê cookies do Chrome, do Edge ou de outro navegador**.
 - O cache local e o histórico de uso guardam só números de quota, nunca credenciais.

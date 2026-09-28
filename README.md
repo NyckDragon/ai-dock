@@ -1,10 +1,11 @@
 # AI Dock
 
-A side dock for Windows 11, with a macOS beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
+A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
 [![Version](https://img.shields.io/badge/version-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
 [![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -32,6 +33,14 @@ The app is unsigned and not notarized. Gatekeeper warns the first time: right-cl
 
 Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching Spaces, the tray, the shortcut, starting at login, quota for the four providers, hiding for a full-screen app, the dock coming back to the front, and pasting after Accessibility is allowed. There is no Intel build.
 
+### Linux beta
+
+Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.1/AI.Dock_0.7.0_amd64.AppImage). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1), separate from the Windows 0.7.0 release.
+
+The AppImage is unsigned. Make it executable and run it. If it complains about FUSE, install `fuse2`, or extract it with `--appimage-extract` and run `./squashfs-root/AppRun`.
+
+Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching workspaces, the tray, the shortcut, starting at login, quota for the four providers, hiding for a full-screen app, the dock staying in front, and pasting. This build is for Hyprland.
+
 ## Features
 
 - **Always on top, out of the way.** Docks to the left or right edge of any display, at the height you pick. No taskbar icon. Auto-hides to a thin strip, and hides during full-screen apps.
@@ -43,7 +52,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 - **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
 - **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
 - **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette, and optional paste straight into the app you were in.
-- English and Portuguese UI; light, dark or system theme; start with Windows.
+- English and Portuguese UI; light, dark or system theme; start with Windows, with the Mac, or with Linux.
 
 ## Providers
 
@@ -71,7 +80,7 @@ The **Costs** tab reads the JSONL logs Claude Code (`~/.claude/projects`) and th
 AI Dock has no backend, account or telemetry. Everything runs on your PC.
 
 - Claude Code, Codex and Cursor credentials are **read only**, never copied. Cursor's session stays in memory for the request.
-- The Claude Web cookie is stored in **Windows Credential Manager**. On the macOS beta, the same values go in the login **Keychain**. Only `sessionKey`, `cf_clearance`, `__cf_bm` and `anthropic-device-id` are kept.
+- The Claude Web cookie is stored in **Windows Credential Manager**. On the macOS beta, the same values go in the login **Keychain**. On the Linux beta, they go in the **Secret Service** when that service is running, and otherwise in the kernel keyring for the session. Only `sessionKey`, `cf_clearance`, `__cf_bm` and `anthropic-device-id` are kept.
 - The claude.ai window is remote content with no access to AI Dock's commands.
 - AI Dock **never reads cookies from Chrome, Edge or any other browser**.
 - The local cache and usage history hold quota numbers only, never credentials.
