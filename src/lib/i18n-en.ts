@@ -360,6 +360,7 @@ export const EN: Record<string, string> = {
     "Antigravity was found on this PC. Open Antigravity, wait a few seconds and click Refresh.",
   "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.":
     "Antigravity was not found in %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
+  "Antigravity não foi encontrado neste computador.": "Antigravity was not found on this computer.",
   "Falha de rede ao consultar o Claude Web.": "Network failure reaching Claude Web.",
   "A sessão do Claude expirou. Clique em Reconectar e entre no claude.ai de novo.":
     "Your Claude session expired. Click Reconnect and sign in to claude.ai again.",
