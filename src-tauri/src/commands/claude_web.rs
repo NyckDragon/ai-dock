@@ -99,8 +99,59 @@ fn state<T>(cell: &'static OnceLock<Mutex<Option<T>>>) -> &'static Mutex<Option<
 // Credential storage ---------------------------------------------------------
 
 fn credential_entry(account: &str) -> Result<Entry, String> {
-    Entry::new(KEYRING_SERVICE, account)
-        .map_err(|_| "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string())
+    #[cfg(target_os = "linux")]
+    ensure_secret_service();
+    Entry::new(KEYRING_SERVICE, account).map_err(|_| credential_store_unavailable())
+}
+
+fn credential_store_unavailable() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "Não foi possível acessar o cofre de segredos do Linux.".to_string()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        "Não foi possível acessar o cofre de credenciais.".to_string()
+    }
+}
+
+fn credential_store_save_failed() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.".to_string()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        "Não consegui salvar o cookie do Claude no cofre de credenciais.".to_string()
+    }
+}
+
+/// Secret Service persists across reboots. If it is installed but not running,
+/// start it once. The persistent keyring still falls back to the kernel store.
+#[cfg(target_os = "linux")]
+fn ensure_secret_service() {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let daemon = std::path::Path::new("/usr/bin/gnome-keyring-daemon");
+        if !daemon.is_file() {
+            return;
+        }
+        let _ = std::process::Command::new(daemon)
+            .args(["--start", "--components=secrets"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    });
 }
 
 fn legacy_session_file() -> Option<PathBuf> {
@@ -116,7 +167,7 @@ fn delete_legacy_session_file() {
 fn persist_cookie_header(cookie_header: &str) -> Result<(), String> {
     credential_entry(KEYRING_ACCOUNT)?
         .set_password(cookie_header)
-        .map_err(|_| "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string())?;
+        .map_err(|_| credential_store_save_failed())?;
     delete_legacy_session_file();
     if let Ok(entry) = credential_entry(LEGACY_KEYRING_ACCOUNT) {
         let _ = entry.delete_credential();
