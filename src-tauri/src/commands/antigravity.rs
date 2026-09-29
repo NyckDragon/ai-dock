@@ -1,9 +1,9 @@
 use regex::Regex;
 use serde_json::{json, Value};
-use std::{env, path::PathBuf, process::Command, time::Duration};
+use std::{path::PathBuf, process::Command, time::Duration};
 
 #[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::{env, os::windows::process::CommandExt};
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 

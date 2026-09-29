@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Power } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { intlLocale, t, tr } from "../lib/i18n";
+import { currentPlatform } from "../lib/platform";
 import { compactSlots } from "../lib/quota";
 import { GLOBAL_SHORTCUT_LABEL, REFRESH_CHOICES } from "../lib/settings";
 import type {
@@ -389,7 +390,7 @@ function GeneralTab({
     <>
       <Group title={t("Comportamento")}>
         <Switch
-          label={t(navigator.userAgent.includes("Linux") ? "Iniciar com o Linux" : "Iniciar com o Windows")}
+          label={t(currentPlatform() === "linux" ? "Iniciar com o Linux" : "Iniciar com o Windows")}
           checked={Boolean(autostart)}
           disabled={autostart == null}
           onChange={onAutostart}

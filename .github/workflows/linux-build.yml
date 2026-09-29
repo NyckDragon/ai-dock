@@ -1,10 +1,13 @@
 name: Linux Build
 
-# Compile check for the linux-beta branch. A push here is not a merge to main
-# and does not publish a release. The AppImage artifact is not a public beta.
+# Builds the Linux beta. The AppImage is attached to the linux-beta
+# pre-release by hand; nothing here touches main or the Windows release.
 
 on:
   push:
+    branches:
+      - linux-beta
+  pull_request:
     branches:
       - linux-beta
 
