@@ -1,13 +1,17 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
+
+#[cfg(target_os = "windows")]
+use std::env;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 use super::providers::ProviderSetupStatus;
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
+fn run_hidden(program: impl AsRef<std::ffi::OsStr>, args: &[&str]) -> std::io::Result<std::process::Output> {
     let mut command = Command::new(program);
     command.args(args);
     #[cfg(target_os = "windows")]
@@ -28,13 +32,7 @@ fn npm_claude() -> Option<PathBuf> {
     }
     #[cfg(target_os = "macos")]
     {
-        for candidate in ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"] {
-            let path = PathBuf::from(candidate);
-            if path.is_file() {
-                return Some(path);
-            }
-        }
-        return None;
+        return super::macos::homebrew_tool("claude");
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
@@ -51,9 +49,7 @@ fn npm_available() -> bool {
     }
     #[cfg(target_os = "macos")]
     {
-        return ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
-            .into_iter()
-            .any(|path| PathBuf::from(path).is_file());
+        return super::macos::homebrew_tool("npm").is_some();
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
@@ -81,9 +77,7 @@ pub async fn uninstall_provider_cli() -> Result<ProviderSetupStatus, String> {
         }
         #[cfg(target_os = "macos")]
         {
-            let npm = ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
-                .into_iter()
-                .find(|path| PathBuf::from(path).is_file())
+            let npm = super::macos::homebrew_tool("npm")
                 .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "npm"))?;
             run_hidden(npm, &["uninstall", "-g", "@anthropic-ai/claude-code"])
         }

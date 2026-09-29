@@ -1,12 +1,13 @@
 use regex::Regex;
 use serde_json::{json, Value};
-use std::{env, path::PathBuf, process::Command, time::Duration};
+use std::{path::PathBuf, process::Command, time::Duration};
 
 #[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::{env, os::windows::process::CommandExt};
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const LS_SERVICE: &str = "exa.language_server_pb.LanguageServerService";
 
@@ -62,12 +63,14 @@ pub(crate) async fn usage() -> ProviderUsage {
     )
 }
 
+#[cfg(target_os = "windows")]
 fn install_root() -> Option<PathBuf> {
     env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("Programs").join("antigravity"))
 }
 
+#[cfg(target_os = "windows")]
 fn antigravity_exe() -> Option<PathBuf> {
     let root = install_root()?;
     for name in ["Antigravity.exe", "antigravity.exe"] {

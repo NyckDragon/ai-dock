@@ -305,6 +305,7 @@ pub fn quit_app(app: AppHandle) {
 }
 
 /// A rectangle in the same point space as a display and a window.
+#[cfg(any(target_os = "macos", test))]
 #[derive(Clone, Copy, Debug)]
 struct ScreenRect {
     x: f64,
@@ -318,6 +319,7 @@ struct ScreenRect {
 /// Eight points of slack absorbs rounding. A zoomed window stays short of the
 /// menu bar by more than that, so it does not count; real fullscreen and a
 /// borderless game cover the whole display, menu bar included.
+#[cfg(any(target_os = "macos", test))]
 fn rect_covers_monitor(window: ScreenRect, monitor: ScreenRect) -> bool {
     const TOLERANCE: f64 = 8.0;
     window.x <= monitor.x + TOLERANCE

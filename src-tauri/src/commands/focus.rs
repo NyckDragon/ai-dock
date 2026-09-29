@@ -128,12 +128,13 @@ mod imp_macos {
     }
 
     fn post_key(pid: i32, key: u16, down: bool, flags: u64) {
-        // SAFETY: a null source is the default. The event is released here;
-        // a dead pid makes the post fail and nothing else.
+        // SAFETY: a null source is the default event source.
         let event = unsafe { CGEventCreateKeyboardEvent(std::ptr::null_mut(), key, down) };
         if event.is_null() {
             return;
         }
+        // SAFETY: `event` is the non-null event created above and is released once,
+        // after its last use. A dead pid makes the post fail and nothing else.
         unsafe {
             CGEventSetFlags(event, flags);
             CGEventPostToPid(pid, event);
