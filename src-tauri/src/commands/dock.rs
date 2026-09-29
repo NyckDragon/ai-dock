@@ -153,22 +153,7 @@ fn fullscreen_app_active() -> bool {
 #[cfg(target_os = "linux")]
 fn fullscreen_app_active() -> bool {
     // Without Hyprland there is no fullscreen signal. A failed query must not hide the dock.
-    let Some(hyprctl) = session_tool("hyprctl") else {
-        return false;
-    };
-    let Ok(output) = std::process::Command::new(hyprctl).args(["activewindow", "-j"]).output() else {
-        return false;
-    };
-    if !output.status.success() {
-        return false;
-    }
-    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) else {
-        return false;
-    };
-    let fullscreen = json.get("fullscreen").and_then(serde_json::Value::as_i64).unwrap_or(0);
-    let pid = json.get("pid").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
-    let class = json.get("class").and_then(serde_json::Value::as_str).unwrap_or("");
-    hypr_fullscreen_hides_dock(fullscreen, hypr_window_is_ours(pid, class))
+    super::linux::hyprland::active_window().is_some_and(|window| super::linux::hyprland::hides_dock(&window))
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -201,132 +186,30 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
     }
 }
 
-/// `set_always_on_top` is only a hint on Wayland. The live window is floated
-/// and pinned by its address, so a wrong class name cannot leave it tiled.
-/// The class rule is recorded once and does not write hyprland.conf.
+/// `set_always_on_top` is only a hint on Wayland, so Hyprland floats, pins and
+/// raises the live window by its address. Float and pin are sent only when missing.
 #[cfg(target_os = "linux")]
 fn reassert_topmost(window: &tauri::WebviewWindow) {
+    use super::linux::hyprland::{self, Dispatch};
+
     let _ = window.set_always_on_top(true);
-    let Some(hyprctl) = session_tool("hyprctl") else {
+    let Some(client) = hyprland::own_window() else {
         return;
     };
-    let Some(client) = our_hypr_client(&hyprctl) else {
+    let Some(address) = hyprland::address(&client) else {
         return;
     };
-    place_hypr_dock(&hyprctl, &client);
-    remember_hypr_class_rules(&hyprctl, &client);
-}
-
-#[cfg(target_os = "linux")]
-fn our_hypr_client(hyprctl: &std::path::Path) -> Option<serde_json::Value> {
-    let output = std::process::Command::new(hyprctl)
-        .args(["clients", "-j"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    if !hyprland::flag(&client, "floating") {
+        hyprland::dispatch(Dispatch::Float, address);
     }
-    let clients: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).ok()?;
-    let pid = std::process::id() as u64;
-    clients.into_iter().find(|client| client.get("pid").and_then(|value| value.as_u64()) == Some(pid))
-}
-
-#[cfg(target_os = "linux")]
-fn place_hypr_dock(hyprctl: &std::path::Path, client: &serde_json::Value) {
-    let Some(address) = client.get("address").and_then(|value| value.as_str()) else {
-        return;
-    };
-    if address.is_empty() || address == "0x0" {
-        return;
+    if !hyprland::flag(&client, "pinned") {
+        hyprland::dispatch(Dispatch::Pin, address);
     }
-    let window = format!("address:{address}");
-    for action in ["setfloating", "pin"] {
-        let _ = std::process::Command::new(hyprctl)
-            .args(["dispatch", action, &window])
-            .output();
-    }
-    let _ = std::process::Command::new(hyprctl)
-        .args(["dispatch", "alterzorder", &format!("top,{window}")])
-        .output();
-}
-
-#[cfg(target_os = "linux")]
-fn remember_hypr_class_rules(hyprctl: &std::path::Path, client: &serde_json::Value) {
-    use std::sync::Mutex;
-    static APPLIED: Mutex<String> = Mutex::new(String::new());
-    let Some(class) = client.get("class").and_then(|value| value.as_str()).filter(|class| !class.is_empty()) else {
-        return;
-    };
-    let Ok(mut applied) = APPLIED.lock() else {
-        return;
-    };
-    if *applied == class {
-        return;
-    }
-    let escaped = hypr_class_regex(class);
-    for rule in hypr_dock_rules(&escaped) {
-        let _ = std::process::Command::new(hyprctl)
-            .args(["keyword", "windowrulev2", &rule])
-            .output();
-    }
-    *applied = class.to_string();
-}
-
-#[cfg(target_os = "linux")]
-fn hypr_class_regex(class: &str) -> String {
-    const SPECIAL: &[char] = &['\\', '.', '^', '$', '|', '(', ')', '[', ']', '*', '+', '?', '{', '}'];
-    let mut escaped = String::with_capacity(class.len());
-    for ch in class.chars() {
-        if SPECIAL.contains(&ch) {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-    escaped
-}
-
-#[cfg(target_os = "linux")]
-fn hypr_dock_rules(class_regex: &str) -> [String; 2] {
-    [
-        format!("float, class:^({class_regex})$"),
-        format!("pin, class:^({class_regex})$"),
-    ]
+    hyprland::dispatch(Dispatch::Top, address);
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn reassert_topmost(_window: &tauri::WebviewWindow) {}
-
-/// The tray does not inherit a login PATH, so Hyprland's tool is a file first.
-#[cfg(target_os = "linux")]
-fn session_tool(name: &str) -> Option<std::path::PathBuf> {
-    let system = std::path::PathBuf::from("/usr/bin").join(name);
-    if system.is_file() {
-        return Some(system);
-    }
-    if let Some(home) = dirs::home_dir() {
-        let local = home.join(".local").join("bin").join(name);
-        if local.is_file() {
-            return Some(local);
-        }
-    }
-    let output = std::process::Command::new("which").arg(name).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
-    path.is_file().then_some(path)
-}
-
-/// Hyprland leaves a maximized window at `fullscreen` 0. 1 and 2 are the
-/// fullscreen states. The dock's own window must not hide itself.
-fn hypr_fullscreen_hides_dock(fullscreen: i64, own_window: bool) -> bool {
-    !own_window && matches!(fullscreen, 1 | 2)
-}
-
-#[cfg(target_os = "linux")]
-fn hypr_window_is_ours(pid: u32, class: &str) -> bool {
-    (pid != 0 && pid == std::process::id()) || class == "app.aidock.desktop" || class == "AI Dock"
-}
 
 /// Keeps the dock on top. Returns true when it was hidden for a full-screen app.
 #[tauri::command]
@@ -423,39 +306,4 @@ pub fn set_dock_state(
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::hypr_fullscreen_hides_dock;
-
-    #[test]
-    fn fullscreen_modes_hide_the_dock() {
-        assert!(hypr_fullscreen_hides_dock(1, false));
-        assert!(hypr_fullscreen_hides_dock(2, false));
-    }
-
-    #[test]
-    fn maximized_window_is_not_fullscreen() {
-        assert!(!hypr_fullscreen_hides_dock(0, false));
-    }
-
-    #[test]
-    fn our_window_does_not_hide_the_dock() {
-        assert!(!hypr_fullscreen_hides_dock(1, true));
-        assert!(!hypr_fullscreen_hides_dock(2, true));
-    }
-}
-
-#[cfg(all(test, target_os = "linux"))]
-mod hypr_rule_tests {
-    use super::{hypr_class_regex, hypr_dock_rules};
-
-    #[test]
-    fn dots_in_the_class_are_literal() {
-        assert_eq!(hypr_class_regex("app.aidock.desktop"), "app\\.aidock\\.desktop");
-        let rules = hypr_dock_rules("app\\.aidock\\.desktop");
-        assert_eq!(rules[0], "float, class:^(app\\.aidock\\.desktop)$");
-        assert_eq!(rules[1], "pin, class:^(app\\.aidock\\.desktop)$");
-    }
 }
