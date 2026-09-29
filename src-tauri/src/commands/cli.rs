@@ -11,12 +11,9 @@ use super::providers::ProviderSetupStatus;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+#[cfg(target_os = "windows")]
 fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
-    let mut command = Command::new(program);
-    command.args(args);
-    #[cfg(target_os = "windows")]
-    command.creation_flags(CREATE_NO_WINDOW);
-    command.output()
+    Command::new(program).args(args).creation_flags(CREATE_NO_WINDOW).output()
 }
 
 #[cfg(target_os = "windows")]
@@ -37,27 +34,16 @@ fn npm_available() -> bool {
         .unwrap_or(false)
 }
 
-/// Same two absolute npm installs as setup. A bare `npm` is not on the tray PATH.
-#[cfg(target_os = "linux")]
-fn linux_npm() -> Option<PathBuf> {
-    let system = PathBuf::from("/usr/bin/npm");
-    if system.is_file() {
-        return Some(system);
-    }
-    let local = dirs::home_dir()?.join(".local").join("bin").join("npm");
-    local.is_file().then_some(local)
-}
-
 /// The global npm bin places `claude` beside `npm`. That is the install this button removes.
 #[cfg(target_os = "linux")]
 fn npm_claude() -> Option<PathBuf> {
-    let claude = linux_npm()?.parent()?.join("claude");
+    let claude = super::linux::tool("npm")?.parent()?.join("claude");
     claude.is_file().then_some(claude)
 }
 
 #[cfg(target_os = "linux")]
 fn npm_available() -> bool {
-    linux_npm().is_some()
+    super::linux::tool("npm").is_some()
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -86,7 +72,7 @@ pub async fn uninstall_provider_cli() -> Result<ProviderSetupStatus, String> {
         }
         #[cfg(target_os = "linux")]
         {
-            let Some(npm) = linux_npm() else {
+            let Some(npm) = super::linux::tool("npm") else {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "npm"));
             };
             Command::new(npm)

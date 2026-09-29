@@ -69,12 +69,9 @@ fn string(value: Option<&Value>) -> Option<String> {
     value.and_then(Value::as_str).map(str::to_string)
 }
 
+#[cfg(target_os = "windows")]
 fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
-    let mut command = Command::new(program);
-    command.args(args);
-    #[cfg(target_os = "windows")]
-    command.creation_flags(CREATE_NO_WINDOW);
-    command.output()
+    Command::new(program).args(args).creation_flags(CREATE_NO_WINDOW).output()
 }
 
 async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
@@ -332,21 +329,16 @@ fn npm_available() -> bool {
 /// locations are checked as files before `which` is asked.
 #[cfg(target_os = "linux")]
 fn provider_executable() -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-    if let Some(home) = home_dir() {
-        candidates.push(home.join(".local").join("bin").join("claude"));
-        candidates.push(home.join(".claude").join("local").join("claude"));
-    }
-    candidates.push(PathBuf::from("/usr/bin/claude"));
-    if let Some(found) = candidates.into_iter().find(|path| path.is_file()) {
-        return Some(found);
-    }
-    let output = Command::new("which").arg("claude").output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
-    path.is_file().then_some(path)
+    home_dir()
+        .into_iter()
+        .flat_map(|home| {
+            [
+                home.join(".local").join("bin").join("claude"),
+                home.join(".claude").join("local").join("claude"),
+            ]
+        })
+        .find(|path| path.is_file())
+        .or_else(|| super::linux::tool("claude"))
 }
 
 #[cfg(target_os = "linux")]
@@ -359,20 +351,9 @@ fn provider_version(executable: &PathBuf) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-/// A bare `npm` is invisible to the tray. Only the two absolute installs count.
-#[cfg(target_os = "linux")]
-fn linux_npm() -> Option<PathBuf> {
-    let system = PathBuf::from("/usr/bin/npm");
-    if system.is_file() {
-        return Some(system);
-    }
-    let local = home_dir()?.join(".local").join("bin").join("npm");
-    local.is_file().then_some(local)
-}
-
 #[cfg(target_os = "linux")]
 fn npm_available() -> bool {
-    linux_npm().is_some()
+    super::linux::tool("npm").is_some()
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -417,7 +398,7 @@ pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
         }
         #[cfg(target_os = "linux")]
         {
-            let Some(npm) = linux_npm() else {
+            let Some(npm) = super::linux::tool("npm") else {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "npm"));
             };
             Command::new(npm)
@@ -496,32 +477,12 @@ fn spawn_login_terminal(executable: &std::path::Path) -> Result<(), ()> {
         ("wezterm", vec!["start".into(), "--".into(), program.into()]),
     ];
     for (name, args) in attempts {
-        let Some(bin) = linux_tool(name) else { continue };
+        let Some(bin) = super::linux::tool(name) else { continue };
         if Command::new(bin).args(args).spawn().is_ok() {
             return Ok(());
         }
     }
     Err(())
-}
-
-#[cfg(target_os = "linux")]
-fn linux_tool(name: &str) -> Option<PathBuf> {
-    let system = PathBuf::from("/usr/bin").join(name);
-    if system.is_file() {
-        return Some(system);
-    }
-    if let Some(home) = home_dir() {
-        let local = home.join(".local").join("bin").join(name);
-        if local.is_file() {
-            return Some(local);
-        }
-    }
-    let output = Command::new("which").arg(name).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
-    path.is_file().then_some(path)
 }
 
 #[cfg(target_os = "linux")]
