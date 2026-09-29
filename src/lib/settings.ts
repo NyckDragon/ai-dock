@@ -1,4 +1,5 @@
 import type { CompactMode, Settings } from "../types";
+import { currentPlatform } from "./platform";
 import { readJson, readRaw, removeKeys, writeJson } from "./storage";
 
 const STORAGE_SETTINGS = "ai-dock-settings";
@@ -15,8 +16,10 @@ const LEGACY = {
 export const PROVIDER_IDS = ["claude", "codex", "cursor", "antigravity"];
 export const REFRESH_CHOICES = [1, 2, 5, 10, 15];
 const SETTINGS_VERSION = 2;
-export const GLOBAL_SHORTCUT = "CommandOrControl+Alt+Space";
-export const GLOBAL_SHORTCUT_LABEL = "Ctrl + Alt + Espaço";
+// macOS already uses ⌥⌘Space (Finder search), ⌃⌥Space (input sources) and ⇧⌘Space (Siri).
+const MAC = currentPlatform() === "macos";
+export const GLOBAL_SHORTCUT = MAC ? "Control+Alt+Command+Space" : "CommandOrControl+Alt+Space";
+export const GLOBAL_SHORTCUT_LABEL = MAC ? "⌃ + ⌥ + ⌘ + Espaço" : "Ctrl + Alt + Espaço";
 
 export const DEFAULT_SETTINGS: Settings = {
   side: "right",

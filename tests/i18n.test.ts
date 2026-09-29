@@ -33,7 +33,7 @@ test("module-level strings rendered through t() have translations", () => {
     ...[...settings.matchAll(/\{ id: "\w+", title: "([^"]+)", description: "([^"]+)" \}/g)].flatMap((m) => [m[1], m[2]]),
     ...[...settings.matchAll(/\{ id: "\w+", label: "([^"]+)" \}/g)].map((m) => m[1]),
     ...[...(onboarding.match(/const STEPS = \[([^\]]+)\]/)?.[1] || "").matchAll(/"([^"]+)"/g)].map((m) => m[1]),
-    settingsLib.match(/GLOBAL_SHORTCUT_LABEL = "([^"]+)"/)?.[1] || ""
+    ...(settingsLib.match(/GLOBAL_SHORTCUT_LABEL = MAC \? "([^"]+)" : "([^"]+)"/)?.slice(1) || [""])
   ];
   assert.ok(keys.length >= 12);
   assert.deepEqual(keys.filter((key) => !(key in EN)), []);
