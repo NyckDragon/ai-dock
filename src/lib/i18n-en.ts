@@ -193,7 +193,7 @@ export const EN: Record<string, string> = {
   "Iniciar com o Mac": "Start at login",
   "Atalho global": "Global shortcut",
   "Ctrl + Alt + Espaço": "Ctrl + Alt + Space",
-  "⌘ + ⌥ + Espaço": "⌘ + ⌥ + Space",
+  "⌃ + ⌥ + ⌘ + Espaço": "⌃ + ⌥ + ⌘ + Space",
   "abre a busca de prompts de qualquer lugar.": "opens prompt search from anywhere.",
   "Não foi possível registrar {shortcut}. Outro app pode estar usando esse atalho.":
     "Could not register {shortcut}. Another app may be using that shortcut.",

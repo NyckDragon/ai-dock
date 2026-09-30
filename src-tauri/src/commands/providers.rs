@@ -10,6 +10,7 @@ use tauri::AppHandle;
 
 use super::{antigravity, claude_web, cursor};
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Serialize)]
@@ -68,7 +69,7 @@ fn string(value: Option<&Value>) -> Option<String> {
     value.and_then(Value::as_str).map(str::to_string)
 }
 
-fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
+fn run_hidden(program: impl AsRef<std::ffi::OsStr>, args: &[&str]) -> std::io::Result<std::process::Output> {
     let mut command = Command::new(program);
     command.args(args);
     #[cfg(target_os = "windows")]
@@ -167,11 +168,36 @@ fn claude_credentials_path() -> Option<PathBuf> {
         .map(|p| p.join(".credentials.json"))
 }
 
-/// Plan from Claude Code's credentials (`subscriptionType`, `rateLimitTier`), when present.
-fn claude_code_plan() -> Option<String> {
+fn claude_credentials_file() -> Option<Value> {
     let raw = fs::read_to_string(claude_credentials_path()?).ok()?;
-    let json = serde_json::from_str::<Value>(&raw).ok()?;
-    let oauth = json.get("claudeAiOauth")?;
+    serde_json::from_str(&raw).ok()
+}
+
+/// On macOS Claude Code keeps the same JSON in the login Keychain instead of the file.
+fn claude_credentials() -> Option<Value> {
+    #[cfg(target_os = "macos")]
+    {
+        claude_credentials_file().or_else(|| serde_json::from_str(&super::macos::claude_code_keychain()?).ok())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        claude_credentials_file()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn claude_login_in_keychain() -> bool {
+    super::macos::claude_code_keychain_exists()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn claude_login_in_keychain() -> bool {
+    false
+}
+
+/// Plan from Claude Code's credentials (`subscriptionType`, `rateLimitTier`), when present.
+fn claude_code_plan(credentials: Option<&Value>) -> Option<String> {
+    let oauth = credentials?.get("claudeAiOauth")?;
     claude_web::plan_label(
         oauth.get("rateLimitTier").and_then(Value::as_str),
         &[],
@@ -179,25 +205,26 @@ fn claude_code_plan() -> Option<String> {
     )
 }
 
-fn claude_oauth_token() -> Option<String> {
+fn claude_oauth_token(credentials: Option<&Value>) -> Option<String> {
     env::var("CLAUDE_CODE_OAUTH_TOKEN")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .or_else(|| {
-            claude_credentials_path()
-                .and_then(|path| fs::read_to_string(path).ok())
-                .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-                .and_then(|json| {
-                    json.get("claudeAiOauth")
-                        .and_then(|oauth| oauth.get("accessToken"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                })
+            credentials?
+                .get("claudeAiOauth")?
+                .get("accessToken")?
+                .as_str()
+                .map(str::to_string)
         })
 }
 
 async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
-    let Some(access_token) = claude_oauth_token() else {
+    // The Keychain read can wait on the system prompt, so it stays off the async workers.
+    let credentials = tauri::async_runtime::spawn_blocking(claude_credentials)
+        .await
+        .ok()
+        .flatten();
+    let Some(access_token) = claude_oauth_token(credentials.as_ref()) else {
         return disconnected(
             "claude",
             "Claude",
@@ -255,7 +282,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         id: "claude".into(),
         name: "Claude".into(),
         connected: true,
-        plan: claude_code_plan().or_else(|| Some("Code".into())),
+        plan: claude_code_plan(credentials.as_ref()).or_else(|| Some("Code".into())),
         windows,
         error: None,
     }
@@ -313,9 +340,10 @@ fn provider_executable() -> Option<PathBuf> {
             candidates.push(home.join(".local").join("bin").join("claude"));
             candidates.push(home.join(".claude").join("local").join("claude"));
         }
-        candidates.push(PathBuf::from("/opt/homebrew/bin/claude"));
-        candidates.push(PathBuf::from("/usr/local/bin/claude"));
         if let Some(found) = candidates.into_iter().find(|path| path.is_file()) {
+            return Some(found);
+        }
+        if let Some(found) = super::macos::homebrew_tool("claude") {
             return Some(found);
         }
         let output = Command::new("/usr/bin/which").arg("claude").output().ok()?;
@@ -365,9 +393,7 @@ fn npm_available() -> bool {
     }
     #[cfg(target_os = "macos")]
     {
-        return ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
-            .into_iter()
-            .any(|path| PathBuf::from(path).is_file());
+        return super::macos::homebrew_tool("npm").is_some();
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
@@ -384,7 +410,7 @@ pub fn provider_setup_status() -> ProviderSetupStatus {
     let executable = provider_executable();
     ProviderSetupStatus {
         installed: executable.is_some(),
-        authenticated: claude_oauth_token().is_some(),
+        authenticated: claude_oauth_token(claude_credentials_file().as_ref()).is_some() || claude_login_in_keychain(),
         version: executable.as_ref().and_then(provider_version),
         npm_available: npm_available(),
     }
@@ -406,9 +432,7 @@ pub async fn install_provider_cli() -> Result<ProviderSetupStatus, String> {
         }
         #[cfg(target_os = "macos")]
         {
-            let npm = ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"]
-                .into_iter()
-                .find(|path| PathBuf::from(path).is_file())
+            let npm = super::macos::homebrew_tool("npm")
                 .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "npm"))?;
             run_hidden(npm, &["install", "-g", "@anthropic-ai/claude-code"])
         }
@@ -474,9 +498,9 @@ pub fn open_provider_setup() -> Result<(), String> {
         let _ = command_line;
         let script = format!(
             "tell application \"Terminal\" to do script \"{}\"",
-            executable.display().to_string().replace('\\', "\\\\").replace('"', "\\\"")
+            applescript_string(&shell_quote(&executable.display().to_string()))
         );
-        return Command::new("osascript")
+        return Command::new("/usr/bin/osascript")
             .args(["-e", &script])
             .spawn()
             .map(|_| ())
@@ -487,6 +511,18 @@ pub fn open_provider_setup() -> Result<(), String> {
         let _ = command_line;
         Err("Não foi possível abrir o Claude para autenticação.".to_string())
     }
+}
+
+/// Terminal runs the text through the login shell, so a home folder with a
+/// space or a quote has to reach it as one single-quoted word.
+#[cfg(any(target_os = "macos", test))]
+fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn applescript_string(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn format_unix(timestamp: i64) -> String {
@@ -542,6 +578,26 @@ pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn terminal_command_keeps_a_path_with_spaces_and_quotes_whole() {
+        assert_eq!(shell_quote("/Users/Ana Maria/.local/bin/claude"), "'/Users/Ana Maria/.local/bin/claude'");
+        assert_eq!(shell_quote("/Users/o'neil/claude"), "'/Users/o'\\''neil/claude'");
+        assert_eq!(applescript_string("'a \"b\" \\c'"), "'a \\\"b\\\" \\\\c'");
+    }
+
+    #[test]
+    fn claude_token_and_plan_come_from_the_same_credentials() {
+        let credentials = json!({
+            "claudeAiOauth": { "accessToken": "token", "subscriptionType": "max", "rateLimitTier": "default_claude_max_5x" }
+        });
+        if !std::env::var("CLAUDE_CODE_OAUTH_TOKEN").is_ok_and(|value| !value.trim().is_empty()) {
+            assert_eq!(claude_oauth_token(Some(&credentials)).as_deref(), Some("token"));
+            assert_eq!(claude_oauth_token(None), None);
+        }
+        assert_eq!(claude_code_plan(Some(&credentials)).as_deref(), Some("Max 5x"));
+        assert_eq!(claude_code_plan(None), None);
+    }
 
     #[test]
     fn percent_accepts_numeric_json_values_only() {
