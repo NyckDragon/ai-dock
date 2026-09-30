@@ -16,6 +16,9 @@ pub struct ActivitySession {
     detail: String,
     state: String,
     since: u64,
+    /// Antigravity quota pool ("gemini" or "claude-gpt"), when the running model is known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pool: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -153,6 +156,7 @@ fn codex_desktop_activity() -> Option<ProviderActivity> {
             detail: if waiting { "Precisa da sua ação".into() } else { "Executando tarefa".into() },
             state: if waiting { "waiting".into() } else { "working".into() },
             since: started_ms.max(1),
+            pool: None,
         });
     }
 
@@ -223,6 +227,7 @@ fn codex_rollout_activity() -> ProviderActivity {
             detail: if waiting { "Precisa da sua ação".into() } else { "Executando tarefa".into() },
             state: if waiting { "waiting".into() } else { "working".into() },
             since: modified,
+            pool: None,
         }],
     }
 }
@@ -317,6 +322,7 @@ fn cursor_activity() -> ProviderActivity {
             detail,
             state: if blocked { "waiting".into() } else { "working".into() },
             since,
+            pool: None,
         });
     }
 
@@ -388,15 +394,79 @@ fn antigravity_activity() -> ProviderActivity {
             detail: "Executando tarefa".into(),
             state: "working".into(),
             since: modified,
+            pool: None,
         }],
     }
 }
 
+/// One session per running quota pool, so the dock lights only the Antigravity slot in use.
+fn split_by_pool(activity: &mut ProviderActivity, pools: &[&str]) {
+    let Some(base) = activity.sessions.first().cloned() else { return };
+    activity.sessions = pools
+        .iter()
+        .map(|pool| ActivitySession {
+            id: format!("{}:{pool}", base.id),
+            pool: Some((*pool).to_string()),
+            ..base.clone()
+        })
+        .collect();
+}
+
 #[tauri::command]
 pub async fn get_provider_activity() -> Vec<ProviderActivity> {
-    tauri::async_runtime::spawn_blocking(|| {
+    let mut activities = tauri::async_runtime::spawn_blocking(|| {
         vec![codex_activity(), cursor_activity(), antigravity_activity()]
     })
     .await
-    .unwrap_or_default()
+    .unwrap_or_default();
+
+    // The language server is only asked while a transcript shows work, so an idle dock costs nothing.
+    if let Some(antigravity) = activities
+        .iter_mut()
+        .find(|activity| activity.provider_id == "antigravity" && activity.state != "idle")
+    {
+        if let Some(pools) = super::antigravity::running_pools().await {
+            split_by_pool(antigravity, &pools);
+        }
+    }
+    activities
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn working_antigravity() -> ProviderActivity {
+        ProviderActivity {
+            provider_id: "antigravity".into(),
+            state: "working".into(),
+            confidence: "inferred".into(),
+            sessions: vec![ActivitySession {
+                id: "brain-1".into(),
+                title: "Antigravity".into(),
+                detail: "Executando tarefa".into(),
+                state: "working".into(),
+                since: 42,
+                pool: None,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_running_pool_tags_the_session() {
+        let mut activity = working_antigravity();
+        split_by_pool(&mut activity, &["gemini"]);
+        assert_eq!(activity.sessions.len(), 1);
+        assert_eq!(activity.sessions[0].pool.as_deref(), Some("gemini"));
+        assert_eq!(activity.sessions[0].since, 42);
+    }
+
+    #[test]
+    fn two_running_pools_give_one_session_each() {
+        let mut activity = working_antigravity();
+        split_by_pool(&mut activity, &["gemini", "claude-gpt"]);
+        let pools: Vec<_> = activity.sessions.iter().map(|session| session.pool.as_deref()).collect();
+        assert_eq!(pools, vec![Some("gemini"), Some("claude-gpt")]);
+        assert_ne!(activity.sessions[0].id, activity.sessions[1].id);
+    }
 }

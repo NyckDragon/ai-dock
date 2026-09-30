@@ -1,4 +1,4 @@
-import type { HeadlineWindow, PercentDisplay, ProviderUsage, Settings, UsageWindow } from "../types";
+import type { HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage, Settings, UsageWindow } from "../types";
 import { t } from "./i18n.ts";
 
 export type QuotaTone = "good" | "warning" | "danger" | "empty";
@@ -95,6 +95,19 @@ export function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
 
 export function baseProviderId(slotId: string) {
   return slotId.startsWith("antigravity-") ? "antigravity" : slotId;
+}
+
+const SLOT_POOL: Record<string, string> = { "antigravity-gemini": "gemini", "antigravity-gpt": "claude-gpt" };
+
+/** An Antigravity slot shows only the sessions of its own quota pool; a session with no known pool shows on both. */
+export function activityForSlot(activities: ProviderActivity[], slotId: string): ProviderActivity | undefined {
+  const activity = activities.find((item) => item.providerId === baseProviderId(slotId));
+  const pool = SLOT_POOL[slotId];
+  if (!activity || !pool) return activity;
+  const sessions = activity.sessions.filter((session) => !session.pool || session.pool === pool);
+  if (sessions.length === activity.sessions.length) return activity;
+  if (!sessions.length) return undefined;
+  return { ...activity, sessions, state: sessions.some((session) => session.state === "waiting") ? "waiting" : "working" };
 }
 
 const HOUR = 60 * 60 * 1000;

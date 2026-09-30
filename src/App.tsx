@@ -21,6 +21,7 @@ import { useProviders } from "./hooks/useProviders";
 import { formatAge } from "./lib/format";
 import { resolveLanguage, setLocale, t } from "./lib/i18n";
 import {
+  activityForSlot,
   arrangeProviders,
   baseProviderId,
   compactSlots,
@@ -93,7 +94,7 @@ export default function App() {
     [providers, settings.providerOrder, settings.hiddenProviders]
   );
   const slots = useMemo(() => compactSlots(visibleProviders), [visibleProviders]);
-  const activityFor = (id: string) => activities.find((activity) => activity.providerId === baseProviderId(id));
+  const activityFor = (id: string) => activityForSlot(activities, id);
 
   // Dialogs (native folder picker, confirm) blur the window; they must not close the panel.
   const dialogDepthRef = useRef(0);

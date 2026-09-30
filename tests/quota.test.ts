@@ -1,8 +1,48 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { displayKind, displayWord, featuredWindow, percentLabel, providerHeadroom, shownPercent, windowPace } from "../src/lib/quota.ts";
+import {
+  activityForSlot,
+  displayKind,
+  displayWord,
+  featuredWindow,
+  percentLabel,
+  providerHeadroom,
+  shownPercent,
+  windowPace
+} from "../src/lib/quota.ts";
 import { formatPace } from "../src/lib/format.ts";
+import type { ActivitySession, ProviderActivity } from "../src/types.ts";
+
+function antigravity(...pools: Array<ActivitySession["pool"]>): ProviderActivity[] {
+  return [
+    {
+      providerId: "antigravity",
+      state: "working",
+      confidence: "inferred",
+      sessions: pools.map((pool, index) => ({ id: "s" + index, title: "Antigravity", detail: "", state: "working", since: 1, pool }))
+    }
+  ];
+}
+
+test("a Gemini session lights only the Gemini slot", () => {
+  const activities = antigravity("gemini");
+  assert.equal(activityForSlot(activities, "antigravity-gemini")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-gpt"), undefined);
+  assert.equal(activityForSlot(activities, "antigravity")?.sessions.length, 1);
+});
+
+test("sessions in both pools light both slots, each with its own", () => {
+  const activities = antigravity("gemini", "claude-gpt");
+  assert.deepEqual(activityForSlot(activities, "antigravity-gemini")?.sessions.map((s) => s.pool), ["gemini"]);
+  assert.deepEqual(activityForSlot(activities, "antigravity-gpt")?.sessions.map((s) => s.pool), ["claude-gpt"]);
+});
+
+test("an unknown pool still lights both Antigravity slots", () => {
+  const activities = antigravity(undefined);
+  assert.equal(activityForSlot(activities, "antigravity-gemini")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-gpt")?.state, "working");
+});
 
 test("native display: Claude shows consumed percentage, like claude.ai", () => {
   assert.equal(displayKind("native", "claude"), "used");

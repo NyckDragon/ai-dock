@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import type { CSSProperties, Ref } from "react";
 import { t } from "../lib/i18n";
-import { baseProviderId, displayWord, percentLabel, providerHeadroom, quotaTone, shownPercent } from "../lib/quota";
+import { activityForSlot, baseProviderId, displayWord, percentLabel, providerHeadroom, quotaTone, shownPercent } from "../lib/quota";
 import type { CompactMode, DockSide, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { statusFor } from "../hooks/useProviderStatus";
 import { ProviderIcon } from "./ProviderIcon";
@@ -142,8 +142,7 @@ export function DockPill({
   onOpen?: (slotId?: string) => void;
   onHoverSlot?: (slotId: string) => void;
 }) {
-  const activityFor = (slotId: string) =>
-    activities.find((activity) => activity.providerId === baseProviderId(slotId));
+  const activityFor = (slotId: string) => activityForSlot(activities, slotId);
   const Chevron = side === "right" ? ChevronLeft : ChevronRight;
 
   return (
