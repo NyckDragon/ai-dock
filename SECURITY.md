@@ -4,7 +4,7 @@ AI Dock runs locally on Windows, macOS and Linux and reads provider data only fr
 
 ## What we read
 
-- **Claude Code:** `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`
+- **Claude Code:** `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`. On the macOS beta, when that file is missing, the login Keychain item `Claude Code-credentials` that Claude Code writes, read only after macOS asks you once
 - **Codex:** `%USERPROFILE%\.codex\auth.json` or `CODEX_HOME`
 - **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` on Windows, `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS, or `~/.config/Cursor/User/globalStorage/state.vscdb` on Linux, opened read-only
 - **Antigravity:** local process/language-server state

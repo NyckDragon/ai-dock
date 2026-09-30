@@ -4,8 +4,8 @@ Dock lateral para Windows 11, com beta no macOS e no Linux, que mostra **quanto 
 
 [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
-[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -27,15 +27,17 @@ O binário **ainda não é assinado**, então o SmartScreen do Windows pode avis
 
 ### macOS em teste
 
-Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.1/AI-Dock-macOS-beta-aarch64.dmg). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1), separado do release 0.7.0 de Windows.
+Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.2/AI.Dock_0.7.0_aarch64.dmg). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2), separado do release 0.7.0 de Windows.
 
 O app não é assinado nem notarizado. O Gatekeeper avisa na primeira abertura: clique com o botão direito em AI Dock → Abrir.
+
+No Mac o atalho dos prompts é **Control + Option + Command + Espaço**, porque o macOS já usa Command + Option + Espaço e Control + Option + Espaço. Se você usa o Claude Code, o macOS pergunta uma vez se o AI Dock pode ler o login dele no Keychain.
 
 Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-dock/issues) com o que quebrou: borda esquerda e direita, dois monitores, troca de Space, bandeja, atalho, iniciar ao entrar, a cota dos quatro provedores, sumir em tela cheia, o dock voltar para a frente, e colar depois de permitir Acessibilidade. Não há binário Intel.
 
 ### Linux em teste
 
-Omarchy (Hyprland). [Baixe o AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.1/AI.Dock_0.7.0_amd64.AppImage). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1), separado do release 0.7.0 de Windows.
+Omarchy (Hyprland). [Baixe o AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.2/AI.Dock_0.7.0_amd64.AppImage). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2), separado do release 0.7.0 de Windows.
 
 O AppImage não é assinado. Dê permissão de execução e abra. Se reclamar do FUSE, instale `fuse2`, ou extraia com `--appimage-extract` e rode `./squashfs-root/AppRun`.
 
@@ -51,7 +53,7 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 - **Custos locais.** Tokens e custo estimado na API das suas sessões do Claude Code e do Codex CLI, por dia, ferramenta, modelo e projeto, lidos dos logs locais.
 - **Atividade dos agentes.** Veja quando Codex, Cursor ou Antigravity estão trabalhando e receba uma notificação quando um agente espera você.
 - **Notificações** de quota baixa (80% e 95% de uso), limite renovado, instabilidade no serviço e provider que parou de atualizar (e quando volta). Pause de 30 min até "amanhã" em Configurações ou na bandeja.
-- **Prompts do Obsidian.** Busca, favoritos, recentes, `{{variáveis}}` preenchidas antes de copiar, atalho global **Ctrl + Alt + Espaço** e opção de colar direto no app em que você estava.
+- **Prompts do Obsidian.** Busca, favoritos, recentes, `{{variáveis}}` preenchidas antes de copiar, atalho global **Ctrl + Alt + Espaço** (**Control + Option + Command + Espaço** no Mac) e opção de colar direto no app em que você estava.
 - Interface em português e inglês; tema claro, escuro ou do sistema; iniciar com o Windows, com o Mac ou com o Linux.
 
 ## Providers

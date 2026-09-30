@@ -4,8 +4,8 @@ A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how
 
 [![Version](https://img.shields.io/badge/version-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
-[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -27,15 +27,17 @@ The binary is **not code-signed yet**, so Windows SmartScreen may warn the first
 
 ### macOS beta
 
-Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.1/AI-Dock-macOS-beta-aarch64.dmg). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.1), separate from the Windows 0.7.0 release.
+Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.2/AI.Dock_0.7.0_aarch64.dmg). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2), separate from the Windows 0.7.0 release.
 
 The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
+
+On the Mac the prompt shortcut is **Control + Option + Command + Space**, because macOS already uses Command + Option + Space and Control + Option + Space. If you use Claude Code, macOS asks once whether AI Dock may read its login from the Keychain.
 
 Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issues) with what broke: dock on the left and right edges, two monitors, switching Spaces, the tray, the shortcut, starting at login, quota for the four providers, hiding for a full-screen app, the dock coming back to the front, and pasting after Accessibility is allowed. There is no Intel build.
 
 ### Linux beta
 
-Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.1/AI.Dock_0.7.0_amd64.AppImage). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.1), separate from the Windows 0.7.0 release.
+Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.2/AI.Dock_0.7.0_amd64.AppImage). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2), separate from the Windows 0.7.0 release.
 
 The AppImage is unsigned. Make it executable and run it. If it complains about FUSE, install `fuse2`, or extract it with `--appimage-extract` and run `./squashfs-root/AppRun`.
 
@@ -51,7 +53,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 - **Local costs.** Tokens and the estimated API cost of your Claude Code and Codex CLI sessions, per day, tool, model and project, read from their local logs.
 - **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
 - **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
-- **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette, and optional paste straight into the app you were in.
+- **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette (**Control + Option + Command + Space** on the Mac), and optional paste straight into the app you were in.
 - English and Portuguese UI; light, dark or system theme; start with Windows, with the Mac, or with Linux.
 
 ## Providers
