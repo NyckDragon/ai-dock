@@ -2,7 +2,7 @@
 
 A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
-[![Version](https://img.shields.io/badge/version-0.7.0-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.1-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
 [![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2)
 [![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2)
@@ -27,7 +27,7 @@ The binary is **not code-signed yet**, so Windows SmartScreen may warn the first
 
 ### macOS beta
 
-Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.2/AI.Dock_0.7.0_aarch64.dmg). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2), separate from the Windows 0.7.0 release.
+Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.2/AI.Dock_0.7.0_aarch64.dmg). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2), separate from the Windows 0.7.1 release.
 
 The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
 
@@ -37,7 +37,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 
 ### Linux beta
 
-Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.2/AI.Dock_0.7.0_amd64.AppImage). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2), separate from the Windows 0.7.0 release.
+Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.2/AI.Dock_0.7.0_amd64.AppImage). It is also on the [pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2), separate from the Windows 0.7.1 release.
 
 The AppImage is unsigned. Make it executable and run it. If it complains about FUSE, install `fuse2`, or extract it with `--appimage-extract` and run `./squashfs-root/AppRun`.
 
