@@ -7,6 +7,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-01
+
+### Fixed
+
+- **Antigravity:** só o ícone do modelo em uso mostra "trabalhando". Antes, uma tarefa com Gemini acendia também o ícone Claude + GPT. O AI Dock pergunta ao próprio Antigravity quais conversas estão rodando e com qual modelo; se ele não responder, os dois ícones acendem como antes.
+
 ### Changed
 
 - Autoria: LICENSE, README (seção Autor), `Cargo.toml`, `package.json` e o instalador do Windows (publisher/copyright) passam a mostrar **Nycolas Monteiro (NyckDragon)**. A licença continua MIT.

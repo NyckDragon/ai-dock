@@ -1,6 +1,13 @@
 use regex::Regex;
 use serde_json::{json, Value};
-use std::{env, path::PathBuf, process::Command, time::Duration};
+use std::{
+    collections::HashMap,
+    env,
+    path::PathBuf,
+    process::Command,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -16,6 +23,12 @@ struct Discovery {
     app_running: bool,
     servers: Vec<LanguageServer>,
 }
+
+/// The language server that last answered, so activity can ask it without a new discovery.
+static ENDPOINT: Mutex<Option<(String, u16, String)>> = Mutex::new(None);
+/// Model id to label, with the time it was read. The list changes only when Antigravity updates.
+static MODEL_LABELS: Mutex<Option<(Instant, HashMap<String, String>)>> = Mutex::new(None);
+const LABELS_MAX_AGE: Duration = Duration::from_secs(10 * 60);
 
 struct LanguageServer {
     ports: Vec<u16>,
@@ -332,6 +345,7 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
             let payload = document.get("response").unwrap_or(&document);
             let windows = parse_quota_summary(payload);
             if !windows.is_empty() {
+                remember_endpoint(scheme, port, token);
                 let plan = ls_call(scheme, port, token, "GetUserStatus")
                     .await
                     .and_then(|doc| extract_plan(&doc));
@@ -343,6 +357,7 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
             if let Some(document) = ls_call(scheme, port, token, method).await {
                 let windows = parse_legacy_model_quotas(&document);
                 if !windows.is_empty() {
+                    remember_endpoint(scheme, port, token);
                     let plan = extract_plan(&document).or_else(|| {
                         // Some legacy endpoints only carry quota rows. Ask status separately for plan metadata.
                         None
@@ -354,6 +369,130 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
     }
 
     None
+}
+
+fn remember_endpoint(scheme: &str, port: u16, csrf: &str) {
+    if let Ok(mut endpoint) = ENDPOINT.lock() {
+        *endpoint = Some((scheme.to_string(), port, csrf.to_string()));
+    }
+}
+
+/// Quota pools ("gemini", "claude-gpt") of the conversations the language server
+/// reports as running. None when the server cannot be asked or names no model,
+/// so the caller keeps showing Antigravity as a whole.
+pub(crate) async fn running_pools() -> Option<Vec<&'static str>> {
+    let (scheme, port, csrf) = ENDPOINT.lock().ok()?.clone()?;
+    let Some(trajectories) = ls_call(&scheme, port, &csrf, "GetAllCascadeTrajectories").await else {
+        // A restarted Antigravity listens on a new port; the next quota refresh finds it.
+        if let Ok(mut endpoint) = ENDPOINT.lock() {
+            *endpoint = None;
+        }
+        return None;
+    };
+    let running = running_models(&trajectories);
+    if running.is_empty() {
+        return None;
+    }
+
+    // The selected model is only needed for a conversation without a finished step.
+    let cached = if running.iter().all(Option::is_some) {
+        cached_labels(&running)
+    } else {
+        None
+    };
+    let (labels, selected) = match cached {
+        Some(labels) => (labels, None),
+        None => {
+            let status = ls_call(&scheme, port, &csrf, "GetUserStatus").await?;
+            let labels = model_labels(&status);
+            if let Ok(mut guard) = MODEL_LABELS.lock() {
+                *guard = Some((Instant::now(), labels.clone()));
+            }
+            (labels, selected_model(&status))
+        }
+    };
+
+    let mut pools = vec![];
+    for model in running {
+        // A conversation's first turn has no finished step yet: it runs on the model picked in the UI.
+        let Some(model) = model.or_else(|| selected.clone()) else { continue };
+        if let Some(pool) = pool_for_model(&model, &labels) {
+            if !pools.contains(&pool) {
+                pools.push(pool);
+            }
+        }
+    }
+    (!pools.is_empty()).then_some(pools)
+}
+
+fn cached_labels(models: &[Option<String>]) -> Option<HashMap<String, String>> {
+    let guard = MODEL_LABELS.lock().ok()?;
+    let (read_at, labels) = guard.as_ref()?;
+    let known = models.iter().flatten().all(|model| labels.contains_key(model));
+    (read_at.elapsed() < LABELS_MAX_AGE && known).then(|| labels.clone())
+}
+
+/// Model of each running conversation, from its latest finished step. None for a
+/// conversation that has no such step yet.
+fn running_models(document: &Value) -> Vec<Option<String>> {
+    let Some(summaries) = document.get("trajectorySummaries").and_then(Value::as_object) else {
+        return vec![];
+    };
+    summaries
+        .values()
+        .filter(|summary| summary.get("status").and_then(Value::as_str) == Some("CASCADE_RUN_STATUS_RUNNING"))
+        .map(|summary| {
+            ["latestNotifyUserStep", "latestTaskBoundaryStep"].iter().find_map(|key| {
+                let metadata = summary.get(*key)?.pointer("/step/metadata")?;
+                metadata
+                    .pointer("/requestedModel/model")
+                    .or_else(|| metadata.get("generatorModel"))
+                    .and_then(Value::as_str)
+                    .filter(|model| !model.is_empty())
+                    .map(str::to_string)
+            })
+        })
+        .collect()
+}
+
+fn model_configs(document: &Value) -> Option<&Value> {
+    ["/userStatus/cascadeModelConfigData", "/response/userStatus/cascadeModelConfigData", "/cascadeModelConfigData"]
+        .iter()
+        .find_map(|pointer| document.pointer(pointer))
+}
+
+/// Model ids are placeholders such as `MODEL_PLACEHOLDER_M26` that Antigravity renumbers,
+/// so the server's own list turns them into labels.
+fn model_labels(document: &Value) -> HashMap<String, String> {
+    model_configs(document)
+        .and_then(|data| data.get("clientModelConfigs"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|config| {
+            let model = config.pointer("/modelOrAlias/model").and_then(Value::as_str)?;
+            let label = config.get("label").and_then(Value::as_str)?;
+            Some((model.to_string(), label.to_string()))
+        })
+        .collect()
+}
+
+fn selected_model(document: &Value) -> Option<String> {
+    model_configs(document)?
+        .pointer("/defaultOverrideModelConfig/modelOrAlias/model")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn pool_for_model(model: &str, labels: &HashMap<String, String>) -> Option<&'static str> {
+    let name = labels.get(model).map(String::as_str).unwrap_or(model).to_lowercase();
+    if name.contains("gemini") {
+        Some("gemini")
+    } else if name.contains("claude") || name.contains("gpt") {
+        Some("claude-gpt")
+    } else {
+        None
+    }
 }
 
 fn connected(plan: Option<String>, windows: Vec<UsageWindow>) -> ProviderUsage {
@@ -557,6 +696,67 @@ fn extract_plan(document: &Value) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn trajectory(status: &str, model: Option<&str>) -> Value {
+        let mut summary = json!({ "status": status, "stepCount": 4 });
+        if let Some(model) = model {
+            summary["latestTaskBoundaryStep"] =
+                json!({ "step": { "metadata": { "requestedModel": { "model": model } } } });
+        }
+        summary
+    }
+
+    #[test]
+    fn only_running_conversations_name_a_model() {
+        let document = json!({
+            "trajectorySummaries": {
+                "a": trajectory("CASCADE_RUN_STATUS_RUNNING", Some("MODEL_PLACEHOLDER_M26")),
+                "b": trajectory("CASCADE_RUN_STATUS_IDLE", Some("MODEL_PLACEHOLDER_M16")),
+                "c": trajectory("CASCADE_RUN_STATUS_RUNNING", None)
+            }
+        });
+        let mut models = running_models(&document);
+        models.sort();
+        assert_eq!(models, vec![None, Some("MODEL_PLACEHOLDER_M26".to_string())]);
+        assert!(running_models(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn the_notify_step_and_generator_model_also_name_the_model() {
+        let document = json!({
+            "trajectorySummaries": {
+                "a": {
+                    "status": "CASCADE_RUN_STATUS_RUNNING",
+                    "latestNotifyUserStep": { "step": { "metadata": { "generatorModel": "MODEL_PLACEHOLDER_M71" } } },
+                    "latestTaskBoundaryStep": { "step": { "metadata": { "requestedModel": { "model": "MODEL_PLACEHOLDER_M16" } } } }
+                }
+            }
+        });
+        assert_eq!(running_models(&document), vec![Some("MODEL_PLACEHOLDER_M71".to_string())]);
+    }
+
+    #[test]
+    fn placeholder_ids_map_to_pools_through_the_server_labels() {
+        let status = json!({
+            "userStatus": {
+                "cascadeModelConfigData": {
+                    "clientModelConfigs": [
+                        { "label": "Gemini 3.1 Pro (High)", "modelOrAlias": { "model": "MODEL_PLACEHOLDER_M16" } },
+                        { "label": "Claude Sonnet 4.6 (Thinking)", "modelOrAlias": { "model": "MODEL_PLACEHOLDER_M35" } },
+                        { "label": "GPT-OSS 120B (Medium)", "modelOrAlias": { "model": "MODEL_PLACEHOLDER_M40" } }
+                    ],
+                    "defaultOverrideModelConfig": { "modelOrAlias": { "model": "MODEL_PLACEHOLDER_M35" } }
+                }
+            }
+        });
+        let labels = model_labels(&status);
+        assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M16", &labels), Some("gemini"));
+        assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M35", &labels), Some("claude-gpt"));
+        assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M40", &labels), Some("claude-gpt"));
+        assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M99", &labels), None);
+        assert_eq!(pool_for_model("gemini-3.6-flash", &labels), Some("gemini"));
+        assert_eq!(selected_model(&status).as_deref(), Some("MODEL_PLACEHOLDER_M35"));
+    }
 
     fn by_id<'a>(windows: &'a [UsageWindow], id: &str) -> &'a UsageWindow {
         windows

@@ -92,6 +92,8 @@ export type ActivitySession = {
   detail: string;
   state: ActivityState;
   since: number;
+  /** Antigravity quota pool, when the running model is known. */
+  pool?: "gemini" | "claude-gpt";
 };
 
 export type ProviderActivity = {
