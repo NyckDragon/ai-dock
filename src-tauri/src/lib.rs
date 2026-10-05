@@ -3,6 +3,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 
 mod commands;
+mod kora;
 
 fn reveal(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -57,6 +58,9 @@ pub fn run() {
             commands::status::get_provider_status,
             commands::costs::get_local_costs,
             commands::status::open_status_page,
+            kora::kora_status,
+            kora::kora_list_tasks,
+            kora::kora_list_jobs,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
