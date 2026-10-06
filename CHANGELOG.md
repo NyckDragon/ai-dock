@@ -7,6 +7,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Tauri 2.12 (app e plugins) atualizado pelo Dependabot. O pacote npm e o crate Rust sobem juntos, porque o build recusa versões diferentes entre os dois.
+
 ## [0.7.1] - 2026-10-01
 
 ### Fixed
