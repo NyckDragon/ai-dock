@@ -43,7 +43,12 @@ jobs:
             libssl-dev \
             libfuse2 \
             patchelf \
-            squashfs-tools
+            squashfs-tools \
+            xvfb \
+            xauth \
+            openbox \
+            dbus-x11 \
+            xdotool
           getconf GNU_LIBC_VERSION
 
       - name: Install Rust stable
@@ -53,7 +58,7 @@ jobs:
         run: npm ci
 
       - name: Build Linux AppImage (Tauri 2.12+)
-# Windows uses icon.ico, but AppImage needs a square PNG declared explicitly.
+        # Windows uses icon.ico; Linux AppImage needs a square PNG.
         run: npm run tauri:build -- --bundles appimage --config '{"bundle":{"icon":["icons/icon.png"]}}'
 
       - name: Validate AppImage launcher permissions
@@ -90,6 +95,43 @@ jobs:
             fi
           done
           sha256sum "$image"
+
+      - name: Smoke-test application window under Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          (( ${#images[@]} == 1 ))
+          image="$(realpath "${images[0]}")"
+          chmod +x "$image"
+          # This is a generic X11 smoke test; it is not a substitute for
+          # testing on Omarchy/Hyprland, the currently supported Linux desktop.
+          xvfb-run -a -s "-screen 0 1280x800x24" dbus-run-session -- bash -c '
+            set -euo pipefail
+            openbox >/tmp/ai-dock-openbox.log 2>&1 &
+            wm_pid=$!
+            trap "kill $wm_pid 2>/dev/null || true" EXIT
+            sleep 2
+            WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 "$1" >/tmp/ai-dock-smoke.log 2>&1 &
+            app_pid=$!
+            trap "kill $app_pid $wm_pid 2>/dev/null || true" EXIT
+            for n in $(seq 1 15); do
+              if ! kill -0 "$app_pid" 2>/dev/null; then
+                echo "AI Dock exited before presenting a window" >&2
+                cat /tmp/ai-dock-smoke.log >&2
+                exit 1
+              fi
+              if xdotool search --name "AI Dock" >/dev/null 2>&1; then
+                echo "AI Dock started and created a window under Xvfb."
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "AI Dock did not expose an X11 window within 30 seconds" >&2
+            cat /tmp/ai-dock-smoke.log >&2
+            exit 1
+          ' bash "$image"
 
       - name: Upload test AppImage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
