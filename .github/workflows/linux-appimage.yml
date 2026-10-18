@@ -53,7 +53,8 @@ jobs:
         run: npm ci
 
       - name: Build Linux AppImage (Tauri 2.12+)
-        run: npm run tauri:build -- --bundles appimage
+# Windows uses icon.ico, but AppImage needs a square PNG declared explicitly.
+        run: npm run tauri:build -- --bundles appimage --config '{"bundle":{"icon":["icons/icon.png"]}}'
 
       - name: Validate AppImage launcher permissions
         shell: bash
