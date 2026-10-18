@@ -1,0 +1,99 @@
+name: Linux AppImage compatibility
+
+# Build a test artifact only; publishing a Linux beta remains a separate decision.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/linux-appimage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: Linux AppImage compatibility
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      # Work around legacy linuxdeploy stripping problems.
+      NO_STRIP: "true"
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            libfuse2 \
+            patchelf \
+            squashfs-tools
+          getconf GNU_LIBC_VERSION
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Linux AppImage (Tauri 2.12+)
+        run: npm run tauri:build -- --bundles appimage
+
+      - name: Validate AppImage launcher permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if (( ${#images[@]} != 1 )); then
+            echo "Expected one AppImage, found ${#images[@]}." >&2
+            exit 1
+          fi
+          image="${images[0]}"
+          chmod +x "$image"
+          offset="$("$image" --appimage-offset)"
+          if [[ ! "$offset" =~ ^[0-9]+$ ]]; then
+            echo "Could not determine SquashFS offset: $offset" >&2
+            exit 1
+          fi
+
+          # Inspect the modes stored in SquashFS. --appimage-extract may
+          # recreate files with different modes and hide this regression.
+          listing="$(unsquashfs -lln -o "$offset" "$image" AppRun AppRun.wrapped)"
+          printf '%s\n' "$listing"
+          for launcher in AppRun AppRun.wrapped; do
+            mode="$(printf '%s\n' "$listing" | awk -v name="/$launcher" '$NF ~ name "$" { print $1 }')"
+            if [[ -z "$mode" ]]; then
+              echo "Missing bundled launcher: $launcher" >&2
+              exit 1
+            fi
+            if [[ "${mode:7:1}" != "r" || "${mode:9:1}" != "x" ]]; then
+              echo "Non-owner users cannot read/execute $launcher ($mode)." >&2
+              exit 1
+            fi
+          done
+          sha256sum "$image"
+
+      - name: Upload test AppImage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-dock-linux-appimage-test
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
