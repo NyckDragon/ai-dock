@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     process::Command,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(target_os = "windows")]
@@ -695,10 +695,11 @@ fn remember_endpoints(endpoints: HashMap<String, Endpoint>) {
     }
 }
 
-/// Quota pools ("gemini", "claude-gpt", "argon") of the conversations the language
-/// server of this account reports as running. None when the server cannot be asked
-/// or names no model, so the caller keeps showing the account as a whole.
-pub(crate) async fn running_pools(slot_id: &str) -> Option<Vec<&'static str>> {
+/// Quota pools ("gemini", "claude-gpt", "argon") of the other conversations this
+/// account's language server reports as running and recently changed. `active` is the
+/// conversation the caller already named from its own files. None when the server
+/// cannot be asked or names no other model.
+pub(crate) async fn running_pools(slot_id: &str, active: Option<&str>) -> Option<Vec<&'static str>> {
     let (scheme, port, csrf) = ENDPOINTS.lock().ok()?.as_ref()?.get(slot_id)?.clone();
     let Some(trajectories) = ls_call(&scheme, port, &csrf, "GetAllCascadeTrajectories").await else {
         // A restarted Antigravity listens on a new port; the next quota refresh finds it.
@@ -709,7 +710,9 @@ pub(crate) async fn running_pools(slot_id: &str) -> Option<Vec<&'static str>> {
         }
         return None;
     };
-    let running = running_models(&trajectories);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64;
+    let running = running_models(&trajectories, active, now);
+    debug_log(slot_id, active, &trajectories);
     if running.is_empty() {
         return None;
     }
@@ -745,6 +748,44 @@ pub(crate) async fn running_pools(slot_id: &str) -> Option<Vec<&'static str>> {
     (!pools.is_empty()).then_some(pools)
 }
 
+/// Development builds write what the language server reported, without credentials,
+/// so a wrong pool can be traced. Release builds write nothing.
+fn debug_log(slot_id: &str, active: Option<&str>, trajectories: &Value) {
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    let Some(folder) = dirs::data_local_dir().map(|dir| dir.join("AI Dock")) else { return };
+    let mut lines = vec![format!("slot={slot_id} active={active:?}")];
+    if let Some(summaries) = trajectories.get("trajectorySummaries").and_then(Value::as_object) {
+        for (id, summary) in summaries {
+            let model = |key: &str| {
+                summary
+                    .pointer(&format!("/{key}/step/metadata/requestedModel/model"))
+                    .or_else(|| summary.pointer(&format!("/{key}/step/metadata/generatorModel")))
+                    .and_then(Value::as_str)
+                    .unwrap_or("-")
+                    .to_string()
+            };
+            lines.push(format!(
+                "{id} status={} modified={} notify={} task={}",
+                summary.get("status").and_then(Value::as_str).unwrap_or("-"),
+                summary.get("lastModifiedTime").and_then(Value::as_str).unwrap_or("-"),
+                model("latestNotifyUserStep"),
+                model("latestTaskBoundaryStep"),
+            ));
+        }
+    }
+    if let Ok(guard) = MODEL_LABELS.lock() {
+        if let Some((_, labels)) = guard.as_ref() {
+            let mut known: Vec<_> = labels.iter().map(|(id, label)| format!("{id}={label}")).collect();
+            known.sort();
+            lines.push(format!("labels: {}", known.join(", ")));
+        }
+    }
+    let _ = std::fs::create_dir_all(&folder);
+    let _ = std::fs::write(folder.join(format!("antigravity-{slot_id}.log")), lines.join("\n") + "\n");
+}
+
 fn cached_labels(models: &[Option<String>]) -> Option<HashMap<String, String>> {
     let guard = MODEL_LABELS.lock().ok()?;
     let (read_at, labels) = guard.as_ref()?;
@@ -752,15 +793,28 @@ fn cached_labels(models: &[Option<String>]) -> Option<HashMap<String, String>> {
     (read_at.elapsed() < LABELS_MAX_AGE && known).then(|| labels.clone())
 }
 
-/// Model of each running conversation, from its latest finished step. None for a
-/// conversation that has no such step yet.
-fn running_models(document: &Value) -> Vec<Option<String>> {
+/// A conversation still marked running but untouched for this long is stuck (for
+/// example, after its quota ran out) and is not working now.
+const RUNNING_MAX_IDLE_SECS: i64 = 120;
+
+/// Model of each running conversation other than `active`, from its latest finished
+/// step. None for a conversation that has no such step yet.
+fn running_models(document: &Value, active: Option<&str>, now: i64) -> Vec<Option<String>> {
     let Some(summaries) = document.get("trajectorySummaries").and_then(Value::as_object) else {
         return vec![];
     };
     summaries
-        .values()
+        .iter()
+        .filter(|(id, _)| Some(id.as_str()) != active)
+        .map(|(_, summary)| summary)
         .filter(|summary| summary.get("status").and_then(Value::as_str) == Some("CASCADE_RUN_STATUS_RUNNING"))
+        .filter(|summary| {
+            summary
+                .get("lastModifiedTime")
+                .and_then(Value::as_str)
+                .and_then(super::costs::parse_epoch)
+                .map_or(true, |modified| now - modified <= RUNNING_MAX_IDLE_SECS)
+        })
         .map(|summary| {
             ["latestNotifyUserStep", "latestTaskBoundaryStep"].iter().find_map(|key| {
                 let metadata = summary.get(*key)?.pointer("/step/metadata")?;
@@ -1078,10 +1132,25 @@ mod tests {
                 "c": trajectory("CASCADE_RUN_STATUS_RUNNING", None)
             }
         });
-        let mut models = running_models(&document);
+        let mut models = running_models(&document, None, 0);
         models.sort();
         assert_eq!(models, vec![None, Some("MODEL_PLACEHOLDER_M26".to_string())]);
-        assert!(running_models(&json!({})).is_empty());
+        assert!(running_models(&json!({}), None, 0).is_empty());
+    }
+
+    #[test]
+    fn stuck_and_active_conversations_are_left_out() {
+        let mut stuck = trajectory("CASCADE_RUN_STATUS_RUNNING", Some("MODEL_PLACEHOLDER_M417"));
+        stuck["lastModifiedTime"] = json!("2026-10-22T10:00:00Z");
+        let mut fresh = trajectory("CASCADE_RUN_STATUS_RUNNING", Some("MODEL_PLACEHOLDER_M26"));
+        fresh["lastModifiedTime"] = json!("2026-10-22T11:59:30.250Z");
+        let active = trajectory("CASCADE_RUN_STATUS_RUNNING", Some("MODEL_PLACEHOLDER_M16"));
+        let document = json!({ "trajectorySummaries": { "stuck": stuck, "fresh": fresh, "active": active } });
+        let noon = super::super::costs::parse_epoch("2026-10-22T12:00:00Z").unwrap();
+        assert_eq!(
+            running_models(&document, Some("active"), noon),
+            vec![Some("MODEL_PLACEHOLDER_M26".to_string())]
+        );
     }
 
     #[test]
@@ -1095,7 +1164,7 @@ mod tests {
                 }
             }
         });
-        assert_eq!(running_models(&document), vec![Some("MODEL_PLACEHOLDER_M71".to_string())]);
+        assert_eq!(running_models(&document, None, 0), vec![Some("MODEL_PLACEHOLDER_M71".to_string())]);
     }
 
     #[test]

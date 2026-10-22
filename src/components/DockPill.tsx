@@ -83,7 +83,7 @@ function ConcentricRingsGauge({
   activityState,
   activityIndicator,
   pulseActiveBar,
-  activeModel
+  activePools
 }: {
   provider: ProviderUsage;
   display: PercentDisplay;
@@ -91,7 +91,8 @@ function ConcentricRingsGauge({
   activityState: string;
   activityIndicator?: ActivityIndicator;
   pulseActiveBar?: boolean;
-  activeModel?: string;
+  /** Pools with a running conversation; empty when the pool is unknown, so every pool lights. */
+  activePools: string[];
 }) {
   const pools = antigravityPools(provider, headline, display);
   const remaining = providerHeadroom(provider, headline);
@@ -124,11 +125,7 @@ function ConcentricRingsGauge({
           const isRingActive =
             activityState === "working" &&
             activityIndicator !== "none" &&
-            (!activeModel ||
-              pool.id === activeModel ||
-              (activeModel === "argon" && pool.id.includes("argon")) ||
-              (activeModel === "gemini" && pool.id.includes("gemini")) ||
-              (activeModel === "claude-gpt" && (pool.id.includes("claude") || pool.id.includes("gpt"))));
+            (activePools.length === 0 || activePools.includes(pool.id));
 
           return (
             <g key={pool.id}>
@@ -173,7 +170,7 @@ function HorizontalBarsGauge({
   activityState,
   activityIndicator,
   pulseActiveBar,
-  activeModel
+  activePools
 }: {
   provider: ProviderUsage;
   display: PercentDisplay;
@@ -181,7 +178,8 @@ function HorizontalBarsGauge({
   activityState: string;
   activityIndicator?: ActivityIndicator;
   pulseActiveBar?: boolean;
-  activeModel?: string;
+  /** Pools with a running conversation; empty when the pool is unknown, so every pool lights. */
+  activePools: string[];
 }) {
   const pools = antigravityPools(provider, headline, display);
   const remaining = providerHeadroom(provider, headline);
@@ -229,11 +227,7 @@ function HorizontalBarsGauge({
             const isBarActive =
               activityState === "working" &&
               activityIndicator !== "none" &&
-              (!activeModel ||
-                bar.id === activeModel ||
-                (activeModel === "argon" && bar.id.includes("argon")) ||
-                (activeModel === "gemini" && bar.id.includes("gemini")) ||
-                (activeModel === "claude-gpt" && (bar.id.includes("claude") || bar.id.includes("gpt"))));
+              (activePools.length === 0 || activePools.includes(bar.id));
 
             return (
               <div
@@ -283,7 +277,9 @@ function PillSlot({
   const isWorking = activity?.state === "working" && effectiveIndicator !== "none";
   const isWaiting = activity?.state === "waiting";
   const activityState = isWaiting ? "waiting" : isWorking ? "working" : "idle";
-  const activeModel = activity?.sessions?.[0]?.pool;
+  const activePools = (activity?.sessions ?? []).flatMap((session) => (session.pool ? [session.pool] : []));
+  // The first session is the conversation writing now; its pool sets the number shown.
+  const activeModel = activePools[0];
 
   const isUnifiedAntigravity =
     provider.id.startsWith("antigravity") &&
@@ -351,7 +347,7 @@ function PillSlot({
           activityState={activityState}
           activityIndicator={effectiveIndicator}
           pulseActiveBar={pulseActiveBar}
-          activeModel={activeModel}
+          activePools={activePools}
         />
         {!hideBarsNumber ? <span className="slot-value">{label}</span> : null}
       </>
@@ -366,7 +362,7 @@ function PillSlot({
           activityState={activityState}
           activityIndicator={effectiveIndicator}
           pulseActiveBar={pulseActiveBar}
-          activeModel={activeModel}
+          activePools={activePools}
         />
         <span className="slot-value">{label}</span>
       </>

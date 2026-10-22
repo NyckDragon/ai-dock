@@ -93,7 +93,7 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 }
 
 /// Seconds since the epoch for an RFC 3339 timestamp ("2026-09-26T14:03:11.123Z" or "+03:00").
-fn parse_epoch(text: &str) -> Option<i64> {
+pub(crate) fn parse_epoch(text: &str) -> Option<i64> {
     let bytes = text.as_bytes();
     if bytes.len() < 19 {
         return None;

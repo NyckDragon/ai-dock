@@ -456,12 +456,7 @@ fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderAc
         .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| "Antigravity".into());
 
-    let detail = match detected_pool.as_deref() {
-        Some("argon") => "Executando tarefa (Argon)".into(),
-        Some("gemini") => "Executando tarefa (Gemini)".into(),
-        Some("claude-gpt") => "Executando tarefa (Claude / GPT)".into(),
-        _ => "Executando tarefa".into(),
-    };
+    let detail = pool_detail(detected_pool.as_deref()).into();
 
     ProviderActivity {
         provider_id: slot_id.into(),
@@ -479,12 +474,22 @@ fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderAc
 }
 
 /// One session per running quota pool, so the dock lights only the Antigravity slot in use.
+fn pool_detail(pool: Option<&str>) -> &'static str {
+    match pool {
+        Some("argon") => "Executando tarefa (Argon)",
+        Some("gemini") => "Executando tarefa (Gemini)",
+        Some("claude-gpt") => "Executando tarefa (Claude / GPT)",
+        _ => "Executando tarefa",
+    }
+}
+
 fn split_by_pool(activity: &mut ProviderActivity, pools: &[&str]) {
     let Some(base) = activity.sessions.first().cloned() else { return };
     activity.sessions = pools
         .iter()
         .map(|pool| ActivitySession {
             id: format!("{}:{pool}", base.id),
+            detail: pool_detail(Some(pool)).into(),
             pool: Some((*pool).to_string()),
             ..base.clone()
         })
@@ -517,7 +522,20 @@ pub async fn get_provider_activity() -> Vec<ProviderActivity> {
         .iter_mut()
         .filter(|activity| activity.provider_id.starts_with("antigravity") && activity.state != "idle")
     {
-        if let Some(pools) = antigravity::running_pools(&activity.provider_id).await {
+        // The conversation writing now is named by its own file; the server adds the other running ones.
+        let active = activity.sessions.first().map(|session| (session.id.clone(), session.pool.clone()));
+        let (active_id, active_pool) = match &active {
+            Some((id, Some(pool))) => (Some(id.as_str()), Some(pool.as_str())),
+            _ => (None, None),
+        };
+        let others = antigravity::running_pools(&activity.provider_id, active_id).await.unwrap_or_default();
+        let mut pools: Vec<&str> = active_pool.into_iter().collect();
+        for pool in others {
+            if !pools.contains(&pool) {
+                pools.push(pool);
+            }
+        }
+        if !pools.is_empty() {
             split_by_pool(activity, &pools);
         }
     }

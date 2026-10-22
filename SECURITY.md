@@ -59,7 +59,7 @@ The frontend provider cache stores only non-sensitive quota/provider metadata.
 
 The app does not intentionally log tokens, cookies, session keys or OAuth credentials.
 
-Development builds write a small `boot.log` with dock placement diagnostics. Release builds do not write it. Credential values must never be added to those messages.
+Development builds write a small `boot.log` with dock placement diagnostics and an `antigravity-<account>.log` with the conversation ids, status, time and model ids the Antigravity language server reports. Release builds write neither. Credential values must never be added to those messages.
 
 ## Network boundaries
 
