@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **macOS e Linux no `main`:** o código dos betas (`macos-beta` e `linux-beta`) entra no `main`, e o CI monta o `.dmg` (Apple Silicon) e o AppImage junto com o Windows. O AppImage passa a ser montado no Ubuntu 22.04 (glibc 2.35), com checagem das permissões do `AppRun` e um teste que abre o app numa tela virtual. No Mac e no Linux, o Antigravity também acha a pasta de cada conta pelo `--user-data-dir`.
+
 - **Antigravity com várias contas:** cada conta aberta (pasta própria com `--user-data-dir`) ganha o seu ícone, com cota, reset, e-mail e atividade. Pastas `Antigravity-Conta2`, `Antigravity-Conta3`… na pasta do usuário ou na raiz do `C:\`/`D:\` aparecem também com o Antigravity fechado. Dá para renomear cada conta nas Configurações.
 - **Antigravity Argon:** o grupo de cota Argon aparece junto com Gemini e Claude + GPT.
 - **Visual em barras:** novo visual recolhido "Barras" e, para o Antigravity, barrinhas empilhadas (padrão), anéis concêntricos ou um ícone por grupo. A barra do modelo em uso pulsa enquanto o agente trabalha.

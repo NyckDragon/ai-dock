@@ -6,6 +6,10 @@ pub mod cli;
 pub mod costs;
 pub mod dock;
 pub mod focus;
+#[cfg(target_os = "linux")]
+pub(crate) mod linux;
+#[cfg(target_os = "macos")]
+pub(crate) mod macos;
 pub mod obsidian;
 pub mod providers;
 pub mod status;

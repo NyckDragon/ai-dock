@@ -168,7 +168,15 @@ fn open_url(url: &str) -> Result<(), String> {
             .map(|_| ())
             .map_err(|_| "Não foi possível abrir o navegador.".to_string())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Não foi possível abrir o navegador.".to_string())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         std::process::Command::new("xdg-open")
             .arg(url)

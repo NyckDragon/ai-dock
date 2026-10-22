@@ -2,7 +2,6 @@ use regex::Regex;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    env,
     path::PathBuf,
     process::Command,
     sync::Mutex,
@@ -10,11 +9,12 @@ use std::{
 };
 
 #[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::{env, os::windows::process::CommandExt};
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
 use std::sync::RwLock;
 
+#[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const LS_SERVICE: &str = "exa.language_server_pb.LanguageServerService";
 
@@ -265,7 +265,7 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
         return vec![disconnected(
             "antigravity",
             "Antigravity",
-            "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
+            missing_install_message(),
         )];
     }
 
@@ -326,12 +326,29 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
     usages
 }
 
+#[cfg(target_os = "windows")]
+fn missing_install_message() -> &'static str {
+    "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe."
+}
+
+#[cfg(target_os = "macos")]
+fn missing_install_message() -> &'static str {
+    "Antigravity não foi encontrado em /Applications/Antigravity.app."
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn missing_install_message() -> &'static str {
+    "Antigravity não foi encontrado neste computador."
+}
+
+#[cfg(target_os = "windows")]
 fn install_root() -> Option<PathBuf> {
     env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("Programs").join("antigravity"))
 }
 
+#[cfg(target_os = "windows")]
 fn antigravity_exe() -> Option<PathBuf> {
     let root = install_root()?;
     for name in ["Antigravity.exe", "antigravity.exe"] {
@@ -363,6 +380,7 @@ fn command_flag(command_line: &str, flag: &str) -> Option<String> {
         .map(|value| value.as_str().trim_matches('"').to_string())
 }
 
+#[cfg(target_os = "windows")]
 fn discover() -> Discovery {
     let installed = antigravity_exe().is_some();
     let script = r#"
@@ -519,49 +537,300 @@ $all | Where-Object {
             }
         }
 
-        let state_root = user_data_dir
-            .and_then(|udd| {
-                let path = PathBuf::from(&udd);
-                if let Some(parent_dir) = path.parent() {
-                    let cand = parent_dir.join(".gemini").join("antigravity");
-                    if cand.is_dir() {
-                        return Some(cand);
-                    }
-                    if parent_dir.is_dir() {
-                        return Some(parent_dir.to_path_buf());
-                    }
-                }
-                let cand = path.join(".gemini").join("antigravity");
-                if cand.is_dir() {
-                    return Some(cand);
-                }
-                Some(path)
-            })
-            .or_else(|| {
-                dirs::home_dir().map(|h| h.join(".gemini").join("antigravity"))
-            });
-
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root,
+            state_root: state_root_from(user_data_dir),
         });
     }
 
-    servers.sort_by_key(|s| {
-        let is_default = s.state_root.as_ref().is_some_and(|r| {
-            dirs::home_dir().is_some_and(|h| r.starts_with(&h))
-        });
-        if is_default { 0 } else { 1 }
-    });
-
+    sort_default_first(&mut servers);
     Discovery {
         installed,
         app_running,
         servers,
     }
+}
+
+/// The `.gemini/antigravity` folder of the account an app instance runs with. An
+/// instance started with `--user-data-dir` keeps its state next to that folder;
+/// one started without it uses the home folder.
+fn state_root_from(user_data_dir: Option<String>) -> Option<PathBuf> {
+    user_data_dir
+        .map(|udd| {
+            let path = PathBuf::from(&udd);
+            if let Some(parent_dir) = path.parent() {
+                let cand = parent_dir.join(".gemini").join("antigravity");
+                if cand.is_dir() {
+                    return cand;
+                }
+                if parent_dir.is_dir() {
+                    return parent_dir.to_path_buf();
+                }
+            }
+            let cand = path.join(".gemini").join("antigravity");
+            if cand.is_dir() {
+                return cand;
+            }
+            path
+        })
+        .or_else(|| dirs::home_dir().map(|h| h.join(".gemini").join("antigravity")))
+}
+
+/// The main account (state under the home folder) comes first.
+fn sort_default_first(servers: &mut [LanguageServer]) {
+    servers.sort_by_key(|s| {
+        let is_default = s
+            .state_root
+            .as_ref()
+            .is_some_and(|r| dirs::home_dir().is_some_and(|h| r.starts_with(&h)));
+        if is_default { 0 } else { 1 }
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn antigravity_exe() -> Option<PathBuf> {
+    let direct = PathBuf::from("/usr/bin/antigravity");
+    if direct.is_file() {
+        return Some(direct);
+    }
+    if let Some(found) = named_executable(std::path::Path::new("/opt/Antigravity")) {
+        return Some(found);
+    }
+    dirs::home_dir().and_then(|home| named_executable(&home.join(".local")))
+}
+
+/// The installers drop the binary in a shallow directory. A full walk of
+/// ~/.local would wander into unrelated caches.
+#[cfg(target_os = "linux")]
+fn named_executable(root: &std::path::Path) -> Option<PathBuf> {
+    if !root.is_dir() {
+        return None;
+    }
+    for name in ["antigravity", "Antigravity"] {
+        let candidate = root.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        for nested in ["bin", "share", "opt"] {
+            let candidate = root.join(nested).join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn discover() -> Discovery {
+    let installed = antigravity_exe().is_some();
+    let Some(listing) = run_hidden("ps", &["-eo", "pid=,ppid=,args="]) else {
+        return Discovery { installed, ..Default::default() };
+    };
+    let processes: Vec<(u32, u32, String)> = listing
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let pid = fields.next()?.parse::<u32>().ok()?;
+            let ppid = fields.next()?.parse::<u32>().ok()?;
+            let args = fields.collect::<Vec<_>>().join(" ");
+            if pid == 0 || args.is_empty() {
+                return None;
+            }
+            Some((pid, ppid, args))
+        })
+        .filter(|(_, _, args)| args.to_lowercase().contains("antigravity"))
+        .collect();
+    if processes.is_empty() {
+        return Discovery { installed, ..Default::default() };
+    }
+
+    let app_running = processes.iter().any(|(_, _, args)| {
+        let lower = args.to_lowercase();
+        lower.contains("antigravity")
+            && !lower.contains("language_server")
+            && !lower.contains("language-server")
+    });
+    let sockets = run_hidden("ss", &["-H", "-ltnp"]).unwrap_or_default();
+    let mut servers = vec![];
+    for (pid, ppid, command_line) in &processes {
+        let (pid, command_line) = (*pid, command_line.as_str());
+        let lower_command = command_line.to_lowercase();
+        let looks_like_server = lower_command.contains("language_server") || lower_command.contains("language-server");
+        let belongs_to_antigravity = lower_command.contains("antigravity");
+        if !looks_like_server || !belongs_to_antigravity {
+            continue;
+        }
+
+        let csrf_token = command_flag(command_line, "csrf_token")
+            .or_else(|| command_flag(command_line, "csrf-token"))
+            .unwrap_or_default();
+        let extension_csrf_token = command_flag(command_line, "extension_server_csrf_token")
+            .or_else(|| command_flag(command_line, "extension-server-csrf-token"))
+            .unwrap_or_else(|| csrf_token.clone());
+        let extension_port = command_flag(command_line, "extension_server_port")
+            .or_else(|| command_flag(command_line, "extension-server-port"))
+            .and_then(|value| value.parse::<u16>().ok());
+        let mut ports = listening_ports(&sockets, pid);
+        ports.sort_unstable();
+        ports.dedup();
+        if ports.is_empty() && extension_port.is_none() {
+            continue;
+        }
+        // The account's data folder is a flag of the app process that started this server.
+        let mut parent = *ppid;
+        let mut user_data_dir = None;
+        for _ in 0..10 {
+            let Some((_, next, args)) = processes.iter().find(|(id, _, _)| *id == parent) else { break };
+            if let Some(dir) = command_flag(args, "user-data-dir") {
+                user_data_dir = Some(dir);
+                break;
+            }
+            parent = *next;
+        }
+        servers.push(LanguageServer {
+            ports,
+            extension_port,
+            csrf_token,
+            extension_csrf_token,
+            state_root: state_root_from(user_data_dir),
+        });
+    }
+
+    sort_default_first(&mut servers);
+    Discovery {
+        installed,
+        app_running,
+        servers,
+    }
+}
+
+/// `ss -ltnp` lists listeners as `127.0.0.1:port` with `pid=N` when the
+/// caller can see the process. Ports on other addresses are not the local quota API.
+#[cfg(target_os = "linux")]
+fn listening_ports(ss_output: &str, pid: u32) -> Vec<u16> {
+    let marker = format!("pid={pid}");
+    ss_output
+        .lines()
+        .filter(|line| line.contains(&marker))
+        .filter_map(|line| {
+            let local = line.split_whitespace().nth(3)?;
+            let (address, port) = local.rsplit_once(':')?;
+            let address = address.trim_matches(|ch| ch == '[' || ch == ']');
+            if matches!(address, "127.0.0.1" | "0.0.0.0" | "::1" | "::" | "*") {
+                port.parse::<u16>().ok()
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn discover() -> Discovery {
+    let mut installed = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join("Applications").join("Antigravity.app"))
+        .is_some_and(|path| path.is_dir())
+        || PathBuf::from("/Applications/Antigravity.app").is_dir();
+
+    let Some(raw) = run_hidden("/bin/ps", &["-axww", "-o", "pid=,ppid=,command="]) else {
+        return Discovery { installed, ..Default::default() };
+    };
+    let processes: Vec<(u32, u32, String)> = raw
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let pid = fields.next()?.parse::<u32>().ok()?;
+            let ppid = fields.next()?.parse::<u32>().ok()?;
+            let command = fields.collect::<Vec<_>>().join(" ");
+            (pid != 0 && !command.is_empty()).then_some((pid, ppid, command))
+        })
+        .collect();
+
+    let mut app_running = false;
+    let mut servers = vec![];
+    for (pid, ppid, command) in &processes {
+        let (pid, command) = (*pid, command.as_str());
+        let lower = command.to_lowercase();
+        if lower.contains("antigravity.app") || lower.contains("/antigravity") {
+            app_running = true;
+        }
+        let looks_like_server = lower.contains("language_server") || lower.contains("language-server");
+        if !looks_like_server || !lower.contains("antigravity") {
+            continue;
+        }
+        let csrf_token = command_flag(command, "csrf_token")
+            .or_else(|| command_flag(command, "csrf-token"))
+            .unwrap_or_default();
+        let extension_csrf_token = command_flag(command, "extension_server_csrf_token")
+            .or_else(|| command_flag(command, "extension-server-csrf-token"))
+            .unwrap_or_else(|| csrf_token.clone());
+        let extension_port = command_flag(command, "extension_server_port")
+            .or_else(|| command_flag(command, "extension-server-port"))
+            .and_then(|value| value.parse::<u16>().ok());
+        let lsof = run_hidden(
+            "/usr/sbin/lsof",
+            &["-nP", "-a", "-iTCP", "-sTCP:LISTEN", "-p", &pid.to_string()],
+        )
+        .unwrap_or_default();
+        let mut ports = Vec::new();
+        for row in lsof.lines() {
+            if !row.contains("(LISTEN)") {
+                continue;
+            }
+            if let Some(port) = row.split_whitespace().find_map(|part| {
+                let (address, port) = part.rsplit_once(':')?;
+                if address.contains('.') || address.contains(':') {
+                    port.parse::<u16>().ok()
+                } else {
+                    None
+                }
+            }) {
+                ports.push(port);
+            }
+        }
+        ports.sort_unstable();
+        ports.dedup();
+        if ports.is_empty() && extension_port.is_none() {
+            continue;
+        }
+        // The account's data folder is a flag of the app process that started this server.
+        let mut parent = *ppid;
+        let mut user_data_dir = None;
+        for _ in 0..10 {
+            let Some((_, next, args)) = processes.iter().find(|(id, _, _)| *id == parent) else { break };
+            if let Some(dir) = command_flag(args, "user-data-dir") {
+                user_data_dir = Some(dir);
+                break;
+            }
+            parent = *next;
+        }
+        servers.push(LanguageServer {
+            ports,
+            extension_port,
+            csrf_token,
+            extension_csrf_token,
+            state_root: state_root_from(user_data_dir),
+        });
+    }
+    if app_running {
+        installed = true;
+    }
+    sort_default_first(&mut servers);
+    Discovery {
+        installed,
+        app_running,
+        servers,
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn discover() -> Discovery {
+    Discovery::default()
 }
 
 fn local_client() -> reqwest::Client {
