@@ -26,16 +26,19 @@ test("changelog contains the current app version", () => {
   assert.match(changelog, new RegExp(`^## \\[${pkg.version.replace(/\\./g, "\\\\.")}\\]`, "m"));
 });
 
+// shields.io reads "-" as a separator, so a pre-release suffix is written "--" in the badge.
+const badgeVersion = pkg.version.replace(/-/g, "--");
+
 test("README version badge matches the current app version", () => {
   assert.ok(
-    readme.includes(`version-${pkg.version}-`),
+    readme.includes(`version-${badgeVersion}-`),
     `README version badge should reference ${pkg.version}`
   );
 });
 
 test("Portuguese README version badge matches the current app version", () => {
   assert.ok(
-    readmePt.includes(`vers%C3%A3o-${pkg.version}-`),
+    readmePt.includes(`vers%C3%A3o-${badgeVersion}-`),
     `README.pt-BR version badge should reference ${pkg.version}`
   );
 });

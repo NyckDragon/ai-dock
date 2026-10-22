@@ -1,0 +1,373 @@
+name: Build
+
+# Every pull request, every push to main and every v* tag builds and checks all
+# three systems: the Windows installer and portable exe, the macOS dmg (Apple
+# Silicon) and the Linux AppImage. A merge to main whose version has no release
+# yet publishes one release with the three, as a pre-release when the version
+# has a suffix such as 0.8.0-beta.1.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend logic tests
+        run: npm run test:frontend
+
+      - name: Typecheck and build the frontend
+        run: npm run build
+
+  rust-tests:
+    name: Rust tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # Tauri embeds the built frontend, so it must exist before cargo compiles.
+      - name: Build the frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  build-windows:
+    name: Build Windows installer
+    needs: [checks, rust-tests]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Build AI Dock for Windows
+        run: npm run tauri:build -- --bundles nsis
+
+      - name: Prepare portable executable
+        shell: pwsh
+        run: Copy-Item "src-tauri/target/release/ai-dock.exe" "src-tauri/target/release/AI-Dock-Portable.exe"
+
+      - name: Upload Windows builds
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-dock-windows-${{ github.sha }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/AI-Dock-Portable.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos:
+    name: Build macOS dmg
+    needs: [checks, rust-tests]
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+
+      # Tauri embeds the built frontend, so it must exist before cargo compiles.
+      - name: Build the frontend
+        run: npm run build
+
+      # The macOS code paths only compile here.
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Build AI Dock for macOS
+        run: npm run tauri:build -- --bundles dmg
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-dock-macos-${{ github.sha }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux AppImage
+    needs: [checks, rust-tests]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      # linuxdeploy's strip does not understand newer ELF sections.
+      NO_STRIP: "true"
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            libfuse2 patchelf squashfs-tools xvfb xauth openbox dbus-x11 xdotool
+          getconf GNU_LIBC_VERSION
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Build AI Dock for Linux
+        run: npm run tauri:build -- --bundles appimage
+
+      # The AppImage catalog runs AppRun under firejail as another user, so both
+      # launchers must be readable and executable by everyone (catalog PR #8937).
+      - name: Check AppImage launcher permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          (( ${#images[@]} == 1 ))
+          image="${images[0]}"
+          chmod +x "$image"
+          offset="$("$image" --appimage-offset)"
+          listing="$(unsquashfs -lln -o "$offset" "$image" AppRun AppRun.wrapped)"
+          printf '%s\n' "$listing"
+          for launcher in AppRun AppRun.wrapped; do
+            mode="$(printf '%s\n' "$listing" | awk -v name="/$launcher" '$NF ~ name "$" { print $1 }')"
+            if [[ -z "$mode" || "${mode:7:1}" != "r" || "${mode:9:1}" != "x" ]]; then
+              echo "$launcher is not readable and executable by everyone (${mode:-missing})." >&2
+              exit 1
+            fi
+          done
+          sha256sum "$image"
+
+      # A plain X11 session, not Hyprland: it proves the AppImage starts and opens
+      # its window, not how the dock behaves on Omarchy.
+      - name: Start the AppImage under Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$(realpath src-tauri/target/release/bundle/appimage/*.AppImage)"
+          xvfb-run -a -s "-screen 0 1280x800x24" dbus-run-session -- bash -c '
+            set -euo pipefail
+            openbox >/tmp/openbox.log 2>&1 &
+            wm_pid=$!
+            trap "kill $wm_pid 2>/dev/null || true" EXIT
+            sleep 2
+            WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 "$1" >/tmp/ai-dock.log 2>&1 &
+            app_pid=$!
+            trap "kill $app_pid $wm_pid 2>/dev/null || true" EXIT
+            for _ in $(seq 1 15); do
+              if ! kill -0 "$app_pid" 2>/dev/null; then
+                echo "AI Dock exited before opening a window." >&2
+                cat /tmp/ai-dock.log >&2
+                exit 1
+              fi
+              if xdotool search --name "AI Dock" >/dev/null 2>&1; then
+                echo "AI Dock opened its window."
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "AI Dock opened no window in 30 seconds." >&2
+            cat /tmp/ai-dock.log >&2
+            exit 1
+          ' bash "$image"
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-dock-linux-${{ github.sha }}
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Read app version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            package.json
+            CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      - name: Decide release tag
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="v$(node -p "require('./package.json').version")"
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+          # A merge to main only publishes a version that has no release yet.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already exists; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Release notes from CHANGELOG
+        if: steps.tag.outputs.publish == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          version="${TAG#v}"
+          # The section between "## [version]" and the next "## [".
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "See CHANGELOG.md." > release-notes.md; fi
+          cat release-notes.md
+
+      - name: Download the builds
+        if: steps.tag.outputs.publish == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ai-dock-*-${{ github.sha }}
+          path: release
+
+      - name: Publish GitHub Release
+        if: steps.tag.outputs.publish == 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          # 0.8.0-beta.1 is a pre-release and leaves the latest stable release as Latest.
+          prerelease: ${{ contains(steps.tag.outputs.name, '-') }}
+          make_latest: ${{ !contains(steps.tag.outputs.name, '-') }}
+          files: |
+            release/**/*.exe
+            release/**/*.dmg
+            release/**/*.AppImage
