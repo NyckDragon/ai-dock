@@ -7,8 +7,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Antigravity com várias contas:** cada conta aberta (pasta própria com `--user-data-dir`) ganha o seu ícone, com cota, reset, e-mail e atividade. Pastas `Antigravity-Conta2`, `Antigravity-Conta3`… na pasta do usuário ou na raiz do `C:\`/`D:\` aparecem também com o Antigravity fechado. Dá para renomear cada conta nas Configurações.
+- **Antigravity Argon:** o grupo de cota Argon aparece junto com Gemini e Claude + GPT.
+- **Visual em barras:** novo visual recolhido "Barras" e, para o Antigravity, barrinhas empilhadas (padrão), anéis concêntricos ou um ícone por grupo. A barra do modelo em uso pulsa enquanto o agente trabalha.
+- **Indicador de atividade:** luz giratória, pulso suave, branco fixo ou desligado.
+- **Posição:** arraste o dock para cima ou para baixo pela borda e trave a posição nas Configurações.
+- **Aba Custos:** tokens do Antigravity, filtro por ferramenta e período de 3 dias. A tabela de preços guardada no PC aparece na hora e se atualiza em segundo plano.
+
 ### Changed
 
+- Configurações com menus de seleção e painel expandido um pouco mais largo.
 - Tauri 2.12 (app e plugins) atualizado pelo Dependabot. O pacote npm e o crate Rust sobem juntos, porque o build recusa versões diferentes entre os dois.
 
 ## [0.7.1] - 2026-10-01

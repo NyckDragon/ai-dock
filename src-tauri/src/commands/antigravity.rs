@@ -13,9 +13,158 @@ use std::{
 use std::os::windows::process::CommandExt;
 
 use super::providers::{disconnected, ProviderUsage, UsageWindow};
+use std::sync::RwLock;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const LS_SERVICE: &str = "exa.language_server_pb.LanguageServerService";
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct AntigravityInstanceInfo {
+    pub slot_id: String,
+    pub email: Option<String>,
+    pub state_root: PathBuf,
+}
+
+static DISCOVERED_INSTANCES: RwLock<Vec<AntigravityInstanceInfo>> = RwLock::new(Vec::new());
+
+pub fn detect_profile_slot(root: Option<&PathBuf>) -> (String, String) {
+    let Some(r) = root else {
+        return ("antigravity".into(), "Principal".into());
+    };
+    let s = r.to_string_lossy();
+
+    // Look for Conta{N} or Account{N} with optional space or hyphen
+    if let Ok(re) = Regex::new(r#"(?i)(?:conta|account)[-_ ]?(\d+)"#) {
+        if let Some(cap) = re.captures(&s) {
+            if let Some(num_str) = cap.get(1) {
+                if let Ok(num) = num_str.as_str().parse::<u32>() {
+                    return (format!("antigravity-{}", num), format!("Conta {}", num));
+                }
+            }
+        }
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        if r.starts_with(&home) {
+            return ("antigravity".into(), "Principal".into());
+        }
+    }
+
+    ("antigravity".into(), "Principal".into())
+}
+
+
+pub fn format_antigravity_name(slot_id: &str, has_multiple: bool) -> String {
+    if !has_multiple {
+        return "Antigravity".to_string();
+    }
+    match slot_id {
+        "antigravity" => "Antigravity · Conta 1 (Principal)".to_string(),
+        other => {
+            if let Some(num) = other.strip_prefix("antigravity-") {
+                format!("Antigravity · Conta {num}")
+            } else {
+                format!("Antigravity · {other}")
+            }
+        }
+    }
+}
+
+fn slot_numeric_order(id: &str) -> u32 {
+    if id == "antigravity" {
+        return 1;
+    }
+    if let Some(num_str) = id.strip_prefix("antigravity-") {
+        if let Ok(n) = num_str.parse::<u32>() {
+            return n;
+        }
+    }
+    999
+}
+
+/// The email Antigravity itself reported for this account earlier in this run.
+/// AI Dock never reads the account's credential files to find it.
+fn known_email(slot_id: &str) -> Option<String> {
+    DISCOVERED_INSTANCES
+        .read()
+        .ok()?
+        .iter()
+        .find(|item| item.slot_id == slot_id)
+        .and_then(|item| item.email.clone())
+}
+
+pub fn get_antigravity_instances() -> Vec<AntigravityInstanceInfo> {
+    let mut all_instances = Vec::new();
+    let mut seen_slots = std::collections::HashSet::new();
+
+    // 1. Primary instance candidate
+    if let Some(home) = dirs::home_dir() {
+        let root = home.join(".gemini").join("antigravity");
+        if root.is_dir() {
+            let email = known_email("antigravity");
+            seen_slots.insert("antigravity".to_string());
+            all_instances.push(AntigravityInstanceInfo {
+                slot_id: "antigravity".into(),
+                email,
+                state_root: root,
+            });
+        }
+    }
+
+    // 2. Secondary profile candidates 2..=16
+    for i in 2..=16 {
+        let mut candidates = Vec::new();
+        #[cfg(target_os = "windows")]
+        {
+            candidates.push(PathBuf::from(format!(r"D:\Antigravity-Conta{i}\.gemini\antigravity")));
+            candidates.push(PathBuf::from(format!(r"C:\Antigravity-Conta{i}\.gemini\antigravity")));
+            candidates.push(PathBuf::from(format!(r"D:\Antigravity-Account{i}\.gemini\antigravity")));
+            candidates.push(PathBuf::from(format!(r"C:\Antigravity-Account{i}\.gemini\antigravity")));
+            candidates.push(PathBuf::from(format!(r"D:\Antigravity-Conta{i}")));
+            candidates.push(PathBuf::from(format!(r"C:\Antigravity-Conta{i}")));
+        }
+        if let Some(ref home) = dirs::home_dir() {
+            candidates.push(home.join(format!("Antigravity-Conta{i}")).join(".gemini").join("antigravity"));
+            candidates.push(home.join(format!("Antigravity-Account{i}")).join(".gemini").join("antigravity"));
+            candidates.push(home.join(format!(".antigravity-conta{i}")).join(".gemini").join("antigravity"));
+            candidates.push(home.join(format!(".antigravity-account{i}")).join(".gemini").join("antigravity"));
+            candidates.push(home.join(format!("Antigravity-Conta{i}")));
+            candidates.push(home.join(format!("Antigravity-Account{i}")));
+        }
+        for cand in candidates {
+            if cand.is_dir() {
+                let actual_root = if cand.join(".gemini").join("antigravity").is_dir() {
+                    cand.join(".gemini").join("antigravity")
+                } else {
+                    cand
+                };
+                let slot_id = format!("antigravity-{i}");
+                if seen_slots.insert(slot_id.clone()) {
+                    let email = known_email(&slot_id);
+                    all_instances.push(AntigravityInstanceInfo {
+                        slot_id,
+                        email,
+                        state_root: actual_root,
+                    });
+                }
+                break;
+            }
+        }
+    }
+
+    // 3. Merge running instances from DISCOVERED_INSTANCES (e.g. ad-hoc paths)
+    if let Ok(cached) = DISCOVERED_INSTANCES.read() {
+        for item in cached.iter() {
+            if seen_slots.insert(item.slot_id.clone()) {
+                all_instances.push(item.clone());
+            }
+        }
+    }
+
+    all_instances.sort_by_key(|inst| slot_numeric_order(&inst.slot_id));
+    all_instances
+}
 
 #[derive(Default)]
 struct Discovery {
@@ -24,8 +173,10 @@ struct Discovery {
     servers: Vec<LanguageServer>,
 }
 
-/// The language server that last answered, so activity can ask it without a new discovery.
-static ENDPOINT: Mutex<Option<(String, u16, String)>> = Mutex::new(None);
+type Endpoint = (String, u16, String);
+
+/// The language server that last answered for each account, so activity can ask it without a new discovery.
+static ENDPOINTS: Mutex<Option<HashMap<String, Endpoint>>> = Mutex::new(None);
 /// Model id to label, with the time it was read. The list changes only when Antigravity updates.
 static MODEL_LABELS: Mutex<Option<(Instant, HashMap<String, String>)>> = Mutex::new(None);
 const LABELS_MAX_AGE: Duration = Duration::from_secs(10 * 60);
@@ -35,40 +186,144 @@ struct LanguageServer {
     extension_port: Option<u16>,
     csrf_token: String,
     extension_csrf_token: String,
+    state_root: Option<PathBuf>,
 }
 
-pub(crate) async fn usage() -> ProviderUsage {
+pub(crate) async fn usage() -> Vec<ProviderUsage> {
     let discovery = tauri::async_runtime::spawn_blocking(discover)
         .await
         .unwrap_or_default();
 
+    let mut snapshots: Vec<Snapshot> = Vec::new();
     for server in &discovery.servers {
         if let Some(snapshot) = try_language_server(server).await {
-            return snapshot;
+            let is_duplicate = snapshots
+                .iter()
+                .any(|other| other.root.is_some() && other.root == snapshot.root);
+            if !is_duplicate {
+                snapshots.push(snapshot);
+            }
         }
     }
 
-    if discovery.app_running {
-        return disconnected(
-            "antigravity",
-            "Antigravity",
-            "Antigravity foi detectado e está aberto, mas esta sessão não expôs uma quota local legível. Clique em Atualizar depois que a tela principal terminar de carregar.",
-        );
+    let known_instances = get_antigravity_instances();
+    let has_multiple_profiles = known_instances.len() > 1 || snapshots.len() > 1;
+
+    let mut active_by_slot: HashMap<String, (ProviderUsage, Option<String>, PathBuf)> = HashMap::new();
+    let mut endpoints = HashMap::new();
+
+    for Snapshot { mut usage, email, root, endpoint } in snapshots {
+        // Priority 1: Match against known instances by email
+        let matched_slot = email.as_ref().and_then(|em| {
+            let em_lower = em.to_lowercase();
+            known_instances.iter().find(|ki| {
+                ki.email.as_deref().map(|e| e.to_lowercase()) == Some(em_lower.clone())
+            }).map(|ki| ki.slot_id.clone())
+        });
+
+        let slot_id = matched_slot.unwrap_or_else(|| {
+            let (detected_id, _) = detect_profile_slot(root.as_ref());
+            detected_id
+        });
+
+        let effective_email = email.or_else(|| {
+            known_instances
+                .iter()
+                .find(|ki| ki.slot_id == slot_id)
+                .and_then(|ki| ki.email.clone())
+        });
+
+        usage.id = slot_id.clone();
+        usage.email = effective_email.clone();
+        usage.name = format_antigravity_name(&slot_id, has_multiple_profiles);
+        endpoints.insert(slot_id.clone(), endpoint);
+
+        if let Some(r) = root {
+            active_by_slot.insert(slot_id, (usage, effective_email, r));
+        }
     }
 
-    if discovery.installed {
-        return disconnected(
+    remember_endpoints(endpoints);
+
+    if active_by_slot.is_empty() && known_instances.is_empty() {
+        if discovery.app_running {
+            return vec![disconnected(
+                "antigravity",
+                "Antigravity",
+                "Antigravity foi detectado e está aberto, mas esta sessão não expôs uma quota local legível. Clique em Atualizar depois que a tela principal terminar de carregar.",
+            )];
+        }
+
+        if discovery.installed {
+            return vec![disconnected(
+                "antigravity",
+                "Antigravity",
+                "Antigravity foi encontrado neste PC. Abra o Antigravity, aguarde alguns segundos e clique em Atualizar.",
+            )];
+        }
+
+        return vec![disconnected(
             "antigravity",
             "Antigravity",
-            "Antigravity foi encontrado neste PC. Abra o Antigravity, aguarde alguns segundos e clique em Atualizar.",
-        );
+            "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
+        )];
     }
 
-    disconnected(
-        "antigravity",
-        "Antigravity",
-        "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
-    )
+    let mut usages = Vec::new();
+    let mut updated_instances = Vec::new();
+    let mut processed_slots = std::collections::HashSet::new();
+
+    // 1. Build usages from known instances on disk
+    for info in &known_instances {
+        processed_slots.insert(info.slot_id.clone());
+        if let Some((active_usage, live_email, live_root)) = active_by_slot.remove(&info.slot_id) {
+            updated_instances.push(AntigravityInstanceInfo {
+                slot_id: info.slot_id.clone(),
+                email: live_email.or_else(|| info.email.clone()),
+                state_root: live_root,
+            });
+            usages.push(active_usage);
+        } else {
+            // Instance configured on disk but not currently running
+            let email = info.email.clone();
+            let name = format_antigravity_name(&info.slot_id, has_multiple_profiles);
+            updated_instances.push(AntigravityInstanceInfo {
+                slot_id: info.slot_id.clone(),
+                email: email.clone(),
+                state_root: info.state_root.clone(),
+            });
+            usages.push(ProviderUsage {
+                id: info.slot_id.clone(),
+                name,
+                connected: false,
+                plan: None,
+                email,
+                windows: vec![],
+                error: Some("Antigravity fechado".into()),
+            });
+        }
+    }
+
+    // 2. Include any active instances not part of static candidate paths
+    for (slot_id, (mut active_usage, live_email, live_root)) in active_by_slot {
+        if !processed_slots.contains(&slot_id) {
+            active_usage.name = format_antigravity_name(&slot_id, has_multiple_profiles);
+            updated_instances.push(AntigravityInstanceInfo {
+                slot_id,
+                email: live_email,
+                state_root: live_root,
+            });
+            usages.push(active_usage);
+        }
+    }
+
+    usages.sort_by_key(|u| slot_numeric_order(&u.id));
+
+    if let Ok(mut lock) = DISCOVERED_INSTANCES.write() {
+        *lock = updated_instances;
+    }
+
+    usages
 }
 
 fn install_root() -> Option<PathBuf> {
@@ -171,7 +426,7 @@ $all | Where-Object {
         .unwrap_or_default();
     let mut servers = vec![];
 
-    for process in processes {
+    for process in &processes {
         let command_line = process
             .get("CommandLine")
             .and_then(Value::as_str)
@@ -240,17 +495,67 @@ $all | Where-Object {
         ports.sort_unstable();
         ports.dedup();
 
-        if ports.is_empty() && extension_port.is_none() {
-            continue;
+        let ppid = process
+            .get("ParentProcessId")
+            .and_then(Value::as_u64)
+            .unwrap_or_default() as u32;
+
+        let mut current_pid = ppid;
+        let mut user_data_dir = None;
+        for _ in 0..10 {
+            if current_pid == 0 {
+                break;
+            }
+            if let Some(p) = processes.iter().find(|pr| pr.get("ProcessId").and_then(Value::as_u64) == Some(current_pid as u64)) {
+                if let Some(cmd) = p.get("CommandLine").and_then(Value::as_str) {
+                    if let Some(udd) = command_flag(cmd, "user-data-dir") {
+                        user_data_dir = Some(udd);
+                        break;
+                    }
+                }
+                current_pid = p.get("ParentProcessId").and_then(Value::as_u64).unwrap_or(0) as u32;
+            } else {
+                break;
+            }
         }
+
+        let state_root = user_data_dir
+            .and_then(|udd| {
+                let path = PathBuf::from(&udd);
+                if let Some(parent_dir) = path.parent() {
+                    let cand = parent_dir.join(".gemini").join("antigravity");
+                    if cand.is_dir() {
+                        return Some(cand);
+                    }
+                    if parent_dir.is_dir() {
+                        return Some(parent_dir.to_path_buf());
+                    }
+                }
+                let cand = path.join(".gemini").join("antigravity");
+                if cand.is_dir() {
+                    return Some(cand);
+                }
+                Some(path)
+            })
+            .or_else(|| {
+                dirs::home_dir().map(|h| h.join(".gemini").join("antigravity"))
+            });
 
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
+            state_root,
         });
     }
+
+    servers.sort_by_key(|s| {
+        let is_default = s.state_root.as_ref().is_some_and(|r| {
+            dirs::home_dir().is_some_and(|h| r.starts_with(&h))
+        });
+        if is_default { 0 } else { 1 }
+    });
 
     Discovery {
         installed,
@@ -330,7 +635,14 @@ fn remaining_fraction(bucket: &Value) -> Option<f64> {
     None
 }
 
-async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
+struct Snapshot {
+    usage: ProviderUsage,
+    email: Option<String>,
+    root: Option<PathBuf>,
+    endpoint: Endpoint,
+}
+
+async fn try_language_server(server: &LanguageServer) -> Option<Snapshot> {
     let mut attempts: Vec<(&str, u16, &str)> = vec![];
     for port in &server.ports {
         attempts.push(("https", *port, &server.csrf_token));
@@ -345,11 +657,15 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
             let payload = document.get("response").unwrap_or(&document);
             let windows = parse_quota_summary(payload);
             if !windows.is_empty() {
-                remember_endpoint(scheme, port, token);
-                let plan = ls_call(scheme, port, token, "GetUserStatus")
-                    .await
-                    .and_then(|doc| extract_plan(&doc));
-                return Some(connected(plan, windows));
+                let user_status = ls_call(scheme, port, token, "GetUserStatus").await;
+                let plan = user_status.as_ref().and_then(|doc| extract_plan(doc));
+                let email = user_status.as_ref().and_then(|doc| extract_email(doc));
+                return Some(Snapshot {
+                    usage: connected(plan, email.clone(), windows),
+                    email,
+                    root: server.state_root.clone(),
+                    endpoint: (scheme.to_string(), port, token.to_string()),
+                });
             }
         }
 
@@ -357,12 +673,14 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
             if let Some(document) = ls_call(scheme, port, token, method).await {
                 let windows = parse_legacy_model_quotas(&document);
                 if !windows.is_empty() {
-                    remember_endpoint(scheme, port, token);
-                    let plan = extract_plan(&document).or_else(|| {
-                        // Some legacy endpoints only carry quota rows. Ask status separately for plan metadata.
-                        None
+                    let plan = extract_plan(&document);
+                    let email = extract_email(&document);
+                    return Some(Snapshot {
+                        usage: connected(plan, email.clone(), windows),
+                        email,
+                        root: server.state_root.clone(),
+                        endpoint: (scheme.to_string(), port, token.to_string()),
                     });
-                    return Some(connected(plan, windows));
                 }
             }
         }
@@ -371,21 +689,23 @@ async fn try_language_server(server: &LanguageServer) -> Option<ProviderUsage> {
     None
 }
 
-fn remember_endpoint(scheme: &str, port: u16, csrf: &str) {
-    if let Ok(mut endpoint) = ENDPOINT.lock() {
-        *endpoint = Some((scheme.to_string(), port, csrf.to_string()));
+fn remember_endpoints(endpoints: HashMap<String, Endpoint>) {
+    if let Ok(mut guard) = ENDPOINTS.lock() {
+        *guard = Some(endpoints);
     }
 }
 
-/// Quota pools ("gemini", "claude-gpt") of the conversations the language server
-/// reports as running. None when the server cannot be asked or names no model,
-/// so the caller keeps showing Antigravity as a whole.
-pub(crate) async fn running_pools() -> Option<Vec<&'static str>> {
-    let (scheme, port, csrf) = ENDPOINT.lock().ok()?.clone()?;
+/// Quota pools ("gemini", "claude-gpt", "argon") of the conversations the language
+/// server of this account reports as running. None when the server cannot be asked
+/// or names no model, so the caller keeps showing the account as a whole.
+pub(crate) async fn running_pools(slot_id: &str) -> Option<Vec<&'static str>> {
+    let (scheme, port, csrf) = ENDPOINTS.lock().ok()?.as_ref()?.get(slot_id)?.clone();
     let Some(trajectories) = ls_call(&scheme, port, &csrf, "GetAllCascadeTrajectories").await else {
         // A restarted Antigravity listens on a new port; the next quota refresh finds it.
-        if let Ok(mut endpoint) = ENDPOINT.lock() {
-            *endpoint = None;
+        if let Ok(mut guard) = ENDPOINTS.lock() {
+            if let Some(endpoints) = guard.as_mut() {
+                endpoints.remove(slot_id);
+            }
         }
         return None;
     };
@@ -484,9 +804,19 @@ fn selected_model(document: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Pool of a model id seen in a conversation file, named through the labels the
+/// language server reported last. None while those labels are unknown.
+pub(crate) fn pool_for_known_model(model: &str) -> Option<&'static str> {
+    let guard = MODEL_LABELS.lock().ok()?;
+    let (_, labels) = guard.as_ref()?;
+    pool_for_model(model, labels)
+}
+
 fn pool_for_model(model: &str, labels: &HashMap<String, String>) -> Option<&'static str> {
     let name = labels.get(model).map(String::as_str).unwrap_or(model).to_lowercase();
-    if name.contains("gemini") {
+    if name.contains("argon") {
+        Some("argon")
+    } else if name.contains("gemini") {
         Some("gemini")
     } else if name.contains("claude") || name.contains("gpt") {
         Some("claude-gpt")
@@ -495,12 +825,13 @@ fn pool_for_model(model: &str, labels: &HashMap<String, String>) -> Option<&'sta
     }
 }
 
-fn connected(plan: Option<String>, windows: Vec<UsageWindow>) -> ProviderUsage {
+fn connected(plan: Option<String>, email: Option<String>, windows: Vec<UsageWindow>) -> ProviderUsage {
     ProviderUsage {
         id: "antigravity".into(),
         name: "Antigravity".into(),
         connected: true,
         plan,
+        email,
         windows,
         error: None,
     }
@@ -521,7 +852,9 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_lowercase();
-        let family = if group_name.contains("gemini") {
+        let family = if group_name.contains("argon") {
+            "Argon"
+        } else if group_name.contains("gemini") {
             "Gemini"
         } else if group_name.contains("claude") || group_name.contains("gpt") {
             "Claude + GPT"
@@ -567,7 +900,13 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
                 .and_then(Value::as_str)
                 .or_else(|| bucket.pointer("/remaining/resetTime").and_then(Value::as_str))
                 .map(str::to_string);
-            let prefix = if family == "Gemini" { "gemini" } else { "claude-gpt" };
+            let prefix = if family == "Argon" {
+                "argon"
+            } else if family == "Gemini" {
+                "gemini"
+            } else {
+                "claude-gpt"
+            };
             upsert_window(
                 &mut windows,
                 UsageWindow {
@@ -601,6 +940,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
 
     let mut gemini: Option<(f64, Option<String>)> = None;
     let mut claude_gpt: Option<(f64, Option<String>)> = None;
+    let mut argon: Option<(f64, Option<String>)> = None;
 
     for config in configs {
         let label = config
@@ -628,7 +968,9 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             .map(str::to_string);
         let value = (remaining * 100.0).clamp(0.0, 100.0);
 
-        let slot = if lower.contains("gemini") {
+        let slot = if lower.contains("argon") {
+            &mut argon
+        } else if lower.contains("gemini") {
             &mut gemini
         } else if lower.contains("claude") || lower.contains("gpt") {
             &mut claude_gpt
@@ -658,6 +1000,14 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             reset_at,
         });
     }
+    if let Some((remaining_percent, reset_at)) = argon {
+        windows.push(UsageWindow {
+            id: "argon-session".into(),
+            label: "Argon · 5h".into(),
+            remaining_percent,
+            reset_at,
+        });
+    }
     sort_windows(&mut windows);
     windows
 }
@@ -678,7 +1028,9 @@ fn sort_windows(windows: &mut [UsageWindow]) {
         "gemini-weekly" => 1,
         "claude-gpt-session" => 2,
         "claude-gpt-weekly" => 3,
-        _ => 4,
+        "argon-session" => 4,
+        "argon-weekly" => 5,
+        _ => 6,
     });
 }
 
@@ -690,6 +1042,17 @@ fn extract_plan(document: &Value) -> Option<String> {
         .or_else(|| document.pointer("/response/userStatus/planStatus/planInfo/planName"))
         .and_then(Value::as_str)
         .map(|value| value.trim_start_matches("Google AI ").to_string())
+}
+
+fn extract_email(document: &Value) -> Option<String> {
+    document
+        .pointer("/userStatus/email")
+        .or_else(|| document.pointer("/response/userStatus/email"))
+        .or_else(|| document.pointer("/userStatus/name"))
+        .or_else(|| document.pointer("/response/userStatus/name"))
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]
@@ -755,6 +1118,7 @@ mod tests {
         assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M40", &labels), Some("claude-gpt"));
         assert_eq!(pool_for_model("MODEL_PLACEHOLDER_M99", &labels), None);
         assert_eq!(pool_for_model("gemini-3.6-flash", &labels), Some("gemini"));
+        assert_eq!(pool_for_model("argon-high", &labels), Some("argon"));
         assert_eq!(selected_model(&status).as_deref(), Some("MODEL_PLACEHOLDER_M35"));
     }
 
@@ -815,6 +1179,17 @@ mod tests {
                             "remainingFraction": 0.20
                         }
                     ]
+                },
+                {
+                    "displayName": "Gemini 4 Argon",
+                    "buckets": [
+                        {
+                            "bucketId": "gemini-argon-wtu-weekly",
+                            "displayName": "Gemini 4 Argon Weekly Limit",
+                            "remainingFraction": 0.85,
+                            "resetTime": "2026-10-24T04:19:12Z"
+                        }
+                    ]
                 }
             ]
         });
@@ -827,7 +1202,8 @@ mod tests {
                 "gemini-session",
                 "gemini-weekly",
                 "claude-gpt-session",
-                "claude-gpt-weekly"
+                "claude-gpt-weekly",
+                "argon-weekly"
             ]
         );
         assert_percent(by_id(&windows, "gemini-session").remaining_percent, 75.0);
@@ -838,6 +1214,11 @@ mod tests {
         );
         assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 55.0);
         assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 20.0);
+        assert_percent(by_id(&windows, "argon-weekly").remaining_percent, 85.0);
+        assert_eq!(
+            by_id(&windows, "argon-weekly").reset_at.as_deref(),
+            Some("2026-10-24T04:19:12Z")
+        );
     }
 
     #[test]
@@ -962,5 +1343,40 @@ mod tests {
         assert_percent(by_id(&windows, "gemini-session").remaining_percent, 0.0);
         assert_percent(by_id(&windows, "claude-gpt-weekly").remaining_percent, 34.0);
         assert_percent(by_id(&windows, "claude-gpt-session").remaining_percent, 63.0);
+    }
+
+    #[test]
+    fn detect_profile_slot_maps_roots_deterministically() {
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from(r"C:\Users\Example"));
+        let p_home = home.join(".gemini").join("antigravity");
+        assert_eq!(detect_profile_slot(Some(&p_home)), ("antigravity".into(), "Principal".into()));
+
+        let c2 = PathBuf::from(r"D:\Antigravity-Conta2\.gemini\antigravity");
+        assert_eq!(detect_profile_slot(Some(&c2)), ("antigravity-2".into(), "Conta 2".into()));
+
+        let c3 = PathBuf::from(r"D:\Antigravity-Conta3\.gemini\antigravity");
+        assert_eq!(detect_profile_slot(Some(&c3)), ("antigravity-3".into(), "Conta 3".into()));
+
+        let c4 = PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity");
+        assert_eq!(detect_profile_slot(Some(&c4)), ("antigravity-4".into(), "Conta 4".into()));
+
+        let acc4 = PathBuf::from(r"C:\Antigravity-Account4");
+        assert_eq!(detect_profile_slot(Some(&acc4)), ("antigravity-4".into(), "Conta 4".into()));
+    }
+
+    #[test]
+    fn format_antigravity_name_produces_consistent_labels() {
+        assert_eq!(format_antigravity_name("antigravity", false), "Antigravity");
+        assert_eq!(format_antigravity_name("antigravity", true), "Antigravity · Conta 1 (Principal)");
+        assert_eq!(format_antigravity_name("antigravity-2", true), "Antigravity · Conta 2");
+        assert_eq!(format_antigravity_name("antigravity-3", true), "Antigravity · Conta 3");
+        assert_eq!(format_antigravity_name("antigravity-4", true), "Antigravity · Conta 4");
+    }
+
+    #[test]
+    fn slot_numeric_order_sorts_correctly() {
+        let mut slots = vec!["antigravity-4", "antigravity", "antigravity-3", "antigravity-2"];
+        slots.sort_by_key(|s| slot_numeric_order(s));
+        assert_eq!(slots, vec!["antigravity", "antigravity-2", "antigravity-3", "antigravity-4"]);
     }
 }

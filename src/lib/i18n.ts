@@ -45,7 +45,9 @@ const DYNAMIC: [RegExp, string][] = [
   [/^Claude Web recusou a consulta \(HTTP 403\): (.+)$/, "Claude Web refused the request (HTTP 403): {1}"],
   [/^A instalação do Claude Code falhou: (.+)$/, "The Claude Code install failed: {1}"],
   [/^A desinstalação falhou: (.+)$/, "The uninstall failed: {1}"],
-  [/^Tela (\d+)$/, "Display {1}"]
+  [/^Tela (\d+)$/, "Display {1}"],
+  [/^Antigravity · Conta 1 \(Principal\)$/, "Antigravity · Account 1 (Main)"],
+  [/^Antigravity · Conta (\d+)$/, "Antigravity · Account {1}"]
 ];
 
 /** Translates a message that came from the Rust side (errors, provider notes). */

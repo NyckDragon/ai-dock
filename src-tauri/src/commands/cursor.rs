@@ -178,6 +178,7 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
         } else {
             membership
         },
+        email: None,
         windows,
         error: None,
     }

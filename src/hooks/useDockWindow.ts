@@ -4,8 +4,8 @@ import type { DockMode, Settings } from "../types";
 
 export type PeekPhase = "closed" | "opening" | "open" | "closing";
 
-const PEEK_EXTRA = 180;
-const PEEK_MIN = 420;
+const PEEK_EXTRA = 280;
+const PEEK_MIN = 600;
 const PEEK_CLOSE_MS = 170;
 const HIDE_DELAY_MS = 700;
 const HIDE_AFTER_START_MS = 2500;
@@ -27,7 +27,8 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   const placementRef = useRef({ settings, anchorHeight });
   placementRef.current = { settings, anchorHeight };
 
-  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const inFlightRef = useRef(false);
+  const pendingModeRef = useRef<DockMode | null>(null);
   const peekNativeRef = useRef(false);
   const peekTargetRef = useRef<string | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -36,20 +37,31 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   const observerRef = useRef<ResizeObserver | null>(null);
 
   const place = useCallback((mode: DockMode) => {
-    const { settings: current, anchorHeight: anchor } = placementRef.current;
-    const height = mode === "peek" ? Math.max(anchor + PEEK_EXTRA, PEEK_MIN) : anchor;
-    const run = () =>
-      setDock({
-        side: current.side,
-        mode,
-        monitorIndex: current.monitorIndex,
-        height,
-        anchorHeight: anchor,
-        verticalOffset: current.verticalOffset
-      });
-    const next = queueRef.current.then(run, run);
-    queueRef.current = next.catch(() => undefined);
-    return next;
+    pendingModeRef.current = mode;
+    if (inFlightRef.current) return Promise.resolve();
+    inFlightRef.current = true;
+
+    const step = async () => {
+      while (pendingModeRef.current != null) {
+        const nextMode = pendingModeRef.current;
+        pendingModeRef.current = null;
+        const { settings: current, anchorHeight: anchor } = placementRef.current;
+        const height = nextMode === "peek" ? Math.max(anchor + PEEK_EXTRA, PEEK_MIN) : anchor;
+        try {
+          await setDock({
+            side: current.side,
+            mode: nextMode,
+            monitorIndex: current.monitorIndex,
+            height,
+            anchorHeight: anchor,
+            verticalOffset: current.verticalOffset
+          });
+        } catch {}
+      }
+      inFlightRef.current = false;
+    };
+
+    return step();
   }, []);
 
   const pillRef = useCallback((node: HTMLDivElement | null) => {

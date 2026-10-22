@@ -19,7 +19,7 @@ import { usePrompts } from "./hooks/usePrompts";
 import { statusFor, useProviderStatus } from "./hooks/useProviderStatus";
 import { useProviders } from "./hooks/useProviders";
 import { formatAge } from "./lib/format";
-import { resolveLanguage, setLocale, t } from "./lib/i18n";
+import { resolveLanguage, setLocale, t, tr } from "./lib/i18n";
 import {
   activityForSlot,
   arrangeProviders,
@@ -85,15 +85,27 @@ export default function App() {
   const activities = useActivity(expanded);
   const promptState = usePrompts(settings.obsidianPath, expanded);
   const statuses = useProviderStatus();
-  useNotifications(providers, activities, statuses, settings);
-  const costs = useCosts(expanded && view === "costs" && !settingsOpen, costDays);
+
+  const displayProviders = useMemo(() => {
+    return providers.map((p) => {
+      const alias = settings.providerAliases?.[p.id]?.trim();
+      return { ...p, name: alias || tr(p.name) };
+    });
+    // The locale is a dependency because tr() reads it.
+  }, [providers, settings.providerAliases, locale]);
+
+  useNotifications(displayProviders, activities, statuses, settings);
+  const costs = useCosts(true, costDays);
   const dock = useDockWindow(settings, expanded);
 
   const visibleProviders = useMemo(
-    () => arrangeProviders(providers, settings),
-    [providers, settings.providerOrder, settings.hiddenProviders]
+    () => arrangeProviders(displayProviders, settings),
+    [displayProviders, settings.providerOrder, settings.hiddenProviders]
   );
-  const slots = useMemo(() => compactSlots(visibleProviders), [visibleProviders]);
+  const slots = useMemo(
+    () => compactSlots(visibleProviders, settings.antigravityGroupMode),
+    [visibleProviders, settings.antigravityGroupMode]
+  );
   const activityFor = (id: string) => activityForSlot(activities, id);
 
   // Dialogs (native folder picker, confirm) blur the window; they must not close the panel.
@@ -443,10 +455,18 @@ export default function App() {
             showSign={settings.showSign}
             display={settings.display}
             headline={settings.headline}
+            antigravityGroupMode={settings.antigravityGroupMode}
+            activityIndicator={settings.activityIndicator}
+            pulseActiveBar={settings.pulseActiveBar}
+            hideBarsNumber={settings.hideBarsNumber}
             activities={activities}
             statuses={statuses}
             side={settings.side}
             loading={loading}
+            lockPosition={settings.lockPosition}
+            verticalOffset={settings.verticalOffset}
+            onOffsetChange={(verticalOffset) => setSettings((current) => ({ ...current, verticalOffset }))}
+            onOffsetCommit={(verticalOffset) => update({ verticalOffset })}
             onOpen={openPanel}
             onHoverSlot={(id) => {
               // An old reading gets a quiet refresh while the peek opens.
@@ -549,7 +569,8 @@ export default function App() {
               onTab={setSettingsTab}
               settings={settings}
               update={update}
-              providers={providers}
+              providers={displayProviders}
+              rawProviders={providers}
               activities={activities}
               monitors={monitors}
               autostart={autostart}

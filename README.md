@@ -45,12 +45,12 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 
 ## Features
 
-- **Always on top, out of the way.** Docks to the left or right edge of any display, at the height you pick. No taskbar icon. Auto-hides to a thin strip, and hides during full-screen apps.
-- **Quota at a glance.** Four collapsed styles (ring, square, numbers, classic) colored by how much is left. Hover a provider for a peek with every window, reset countdown and plan.
+- **Always on top, out of the way.** Docks to the left or right edge of any display. Drag it vertically along the edge to adjust height, and lock position in Settings. No taskbar icon. Auto-hides to a thin strip, and hides during full-screen apps.
+- **Quota at a glance.** Five collapsed styles (ring, square, bars, numbers, classic) colored by how much is left. Hover a provider for a peek with every window, reset countdown and plan.
 - **Pace.** "Runs out in 2h 10min" or "19% under pace" for each window, plus a trend line for the last 24 hours, 7 days or 30 days.
 - **Real plan names**, such as Claude Max 5x or Max 20x, when the provider reports them.
 - **Service status.** Incidents from the official status pages of Claude, OpenAI (Codex) and Cursor show on the dock and in the cards, with a link to the status page.
-- **Local costs.** Tokens and the estimated API cost of your Claude Code and Codex CLI sessions, per day, tool, model and project, read from their local logs.
+- **Local costs.** Tokens and the estimated API cost of your Claude Code, Codex CLI and Antigravity sessions, per day, tool, model and project, read from their local logs.
 - **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
 - **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
 - **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette (**Control + Option + Command + Space** on the Mac), and optional paste straight into the app you were in.
@@ -63,7 +63,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 | **Claude** | The local Claude Code OAuth login, **or** the claude.ai session you sign in to inside AI Dock (or a cookie you paste by hand) | Chrome/Edge cookies, Claude Desktop's internal session |
 | **Codex** | `~/.codex/auth.json` (or `CODEX_HOME`) and the ChatGPT usage endpoint | — |
 | **Cursor** | The signed-in editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (read-only) and `cursor.com/api/usage-summary` | Your account password or browser |
-| **Antigravity** | The local language server of the installed app | Your Google account on the web |
+| **Antigravity** | The local language server of the installed app (supports multiple concurrent instances and accounts) | Your Google account on the web |
 
 ### Connecting Claude
 
@@ -73,9 +73,15 @@ After that AI Dock **renews the session on its own**: it keeps the cookies claud
 
 Manual alternative: claude.ai DevTools → Application → Cookies → copy the whole table (or the `Cookie` header) and paste it in **Paste the cookie manually**. Never paste it in an issue.
 
+### Antigravity & Multiple Accounts
+
+AI Dock finds your main Antigravity account on its own. If you run more accounts, each in its own data folder (started with `--user-data-dir`), AI Dock finds every running instance and shows its quotas, resets, agent activity and pools (Gemini, Claude + GPT, Argon) on its own icon.
+
+Name the folders `Antigravity-Conta2`, `Antigravity-Conta3`… (or `Antigravity-Account2`…), in your user folder or at the root of `C:\` or `D:\`, and AI Dock also lists those accounts while they are closed and numbers them by the folder. The email of each account comes from Antigravity itself while it is open; AI Dock does not read the account's credential files. Rename any account in **Settings → Connections**.
+
 ### Costs
 
-The **Costs** tab reads the JSONL logs Claude Code (`~/.claude/projects`) and the Codex CLI (`~/.codex/sessions`) already write on your PC, and prices each model with the public [LiteLLM price table](https://github.com/BerriAI/litellm). Subscriptions are not billed per token, so the number is **what the same usage would cost on the API**, not what you pay. Models missing from the table are counted in tokens only and marked with `+`.
+The **Costs** tab reads the JSONL logs Claude Code (`~/.claude/projects`), the Codex CLI (`~/.codex/sessions`) and Antigravity (`~/.gemini/antigravity/brain`) already write on your PC, and prices each model with the public [LiteLLM price table](https://github.com/BerriAI/litellm). Subscriptions are not billed per token, so the number is **what the same usage would cost on the API**, not what you pay. Models missing from the table are counted in tokens only and marked with `+`.
 
 ## Privacy
 

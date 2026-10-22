@@ -134,9 +134,10 @@ fn u64_at(value: &Value, key: &str) -> u64 {
 }
 
 fn project_name(cwd: Option<&str>) -> String {
-    cwd.map(|path| path.trim_end_matches(['/', '\\']))
-        .and_then(|path| path.rsplit(['/', '\\']).next())
-        .filter(|name| !name.is_empty())
+    let clean = cwd.map(|path| path.trim().trim_matches('"').trim_matches('\'').trim_end_matches(['/', '\\']));
+    clean.and_then(|path| path.rsplit(['/', '\\']).next())
+        .map(|name| name.trim().trim_matches('"').trim_matches('\''))
+        .filter(|name| !name.is_empty() && *name != "n" && *name != "r" && *name != "\\n" && *name != "\\r")
         .unwrap_or("(sem projeto)")
         .to_string()
 }
@@ -184,71 +185,240 @@ fn parse_claude_line(line: &str) -> Option<Record> {
 /// `token_count` event carries the usage of the last response.
 fn parse_codex_file(path: &Path) -> Vec<Record> {
     let Ok(file) = File::open(path) else { return vec![] };
+    let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut records = Vec::new();
     let mut model = String::from("desconhecido");
     let mut project = String::from("(sem projeto)");
     let mut last_total: Option<Value> = None;
+    let mut line = String::with_capacity(4096);
 
-    for line in BufReader::new(file).lines().map_while(Result::ok) {
-        if !(line.contains("token_count") || line.contains("turn_context") || line.contains("session_meta")) {
-            continue;
-        }
-        let Ok(value) = serde_json::from_str::<Value>(&line) else { continue };
-        let payload = value.get("payload").unwrap_or(&Value::Null);
-        match value.get("type").and_then(Value::as_str) {
-            Some("turn_context") | Some("session_meta") => {
-                if let Some(name) = payload.get("model").and_then(Value::as_str) {
-                    model = name.to_string();
-                }
-                if let Some(cwd) = payload.get("cwd").and_then(Value::as_str) {
-                    project = project_name(Some(cwd));
+    while reader.read_line(&mut line).unwrap_or(0) > 0 {
+        if line.contains("token_count") || line.contains("turn_context") || line.contains("session_meta") {
+            if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                let payload = value.get("payload").unwrap_or(&Value::Null);
+                match value.get("type").and_then(Value::as_str) {
+                    Some("turn_context") | Some("session_meta") => {
+                        if let Some(name) = payload.get("model").and_then(Value::as_str) {
+                            model = name.to_string();
+                        }
+                        if let Some(cwd) = payload.get("cwd").and_then(Value::as_str) {
+                            project = project_name(Some(cwd));
+                        }
+                    }
+                    Some("event_msg") if payload.get("type").and_then(Value::as_str) == Some("token_count") => {
+                        let Some(info) = payload.get("info").filter(|info| !info.is_null()) else {
+                            line.clear();
+                            continue;
+                        };
+                        // Rate-limit updates repeat the same totals; only a new total is a new response.
+                        let total = info.get("total_token_usage").cloned();
+                        if total.is_some() && total == last_total {
+                            line.clear();
+                            continue;
+                        }
+                        last_total = total;
+                        let Some(last) = info.get("last_token_usage") else {
+                            line.clear();
+                            continue;
+                        };
+                        let input = u64_at(last, "input_tokens");
+                        let cached = u64_at(last, "cached_input_tokens").min(input);
+                        let tokens = Tokens {
+                            input: input - cached,
+                            output: u64_at(last, "output_tokens"),
+                            cache_write: 0,
+                            cache_read: cached,
+                        };
+                        if tokens != Tokens::default() {
+                            if let Some(epoch) = value.get("timestamp").and_then(Value::as_str).and_then(parse_epoch) {
+                                records.push(Record {
+                                    epoch,
+                                    provider: "codex",
+                                    model: model.clone(),
+                                    project: project.clone(),
+                                    tokens,
+                                    dedupe: None,
+                                });
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
-            Some("event_msg") if payload.get("type").and_then(Value::as_str) == Some("token_count") => {
-                let Some(info) = payload.get("info").filter(|info| !info.is_null()) else { continue };
-                // Rate-limit updates repeat the same totals; only a new total is a new response.
-                let total = info.get("total_token_usage").cloned();
-                if total.is_some() && total == last_total {
-                    continue;
-                }
-                last_total = total;
-                let Some(last) = info.get("last_token_usage") else { continue };
-                let input = u64_at(last, "input_tokens");
-                let cached = u64_at(last, "cached_input_tokens").min(input);
-                let tokens = Tokens {
-                    input: input - cached,
-                    output: u64_at(last, "output_tokens"),
-                    cache_write: 0,
-                    cache_read: cached,
-                };
-                if tokens == Tokens::default() {
-                    continue;
-                }
-                let Some(epoch) = value.get("timestamp").and_then(Value::as_str).and_then(parse_epoch) else {
-                    continue;
-                };
-                records.push(Record {
-                    epoch,
-                    provider: "codex",
-                    model: model.clone(),
-                    project: project.clone(),
-                    tokens,
-                    dedupe: None,
-                });
-            }
-            _ => {}
         }
+        line.clear();
     }
     records
 }
 
 fn parse_claude_file(path: &Path) -> Vec<Record> {
     let Ok(file) = File::open(path) else { return vec![] };
-    BufReader::new(file)
-        .lines()
-        .map_while(Result::ok)
-        .filter_map(|line| parse_claude_line(&line))
-        .collect()
+    let mut reader = BufReader::with_capacity(64 * 1024, file);
+    let mut records = Vec::new();
+    let mut line = String::with_capacity(4096);
+    while reader.read_line(&mut line).unwrap_or(0) > 0 {
+        if let Some(record) = parse_claude_line(&line) {
+            records.push(record);
+        }
+        line.clear();
+    }
+    records
+}
+
+/// A conversation that never logged a model change is not priced as any particular model.
+const UNKNOWN_ANTIGRAVITY_MODEL: &str = "Antigravity";
+
+fn clean_antigravity_model(raw: &str) -> String {
+    let trimmed = raw
+        .trim()
+        .trim_matches(|c| c == '"' || c == '\'' || c == '\\' || c == '.' || c == '\r' || c == '\n')
+        .trim();
+    if trimmed.is_empty() {
+        return UNKNOWN_ANTIGRAVITY_MODEL.to_string();
+    }
+    trimmed.to_string()
+}
+
+fn parse_antigravity_file(path: &Path) -> Vec<Record> {
+    let Ok(file) = File::open(path) else { return vec![] };
+    let mut reader = BufReader::with_capacity(64 * 1024, file);
+    let mut records: Vec<Record> = Vec::new();
+    let mut model = String::from(UNKNOWN_ANTIGRAVITY_MODEL);
+    let mut project = String::from("(sem projeto)");
+    let path_str = path.to_string_lossy().to_string();
+    let mut line = String::with_capacity(4096);
+
+    while reader.read_line(&mut line).unwrap_or(0) > 0 {
+        if line.contains("<USER_SETTINGS_CHANGE>") && line.contains("`Model Selection`") {
+            if let Some(idx) = line.find("`Model Selection` from ") {
+                let after = &line[idx + "`Model Selection` from ".len()..];
+                if let Some(to_idx) = after.find(" to ") {
+                    let rest = &after[to_idx + 4..];
+                    let end_idx = rest.find(". No need")
+                        .or_else(|| rest.find(r#".\n"#))
+                        .or_else(|| rest.find(r#".\r"#))
+                        .or_else(|| rest.find(r#".\"#))
+                        .or_else(|| rest.find(r#"\n"#))
+                        .or_else(|| rest.find('"'))
+                        .unwrap_or(rest.len());
+                    let raw = &rest[..end_idx];
+                    let cleaned = clean_antigravity_model(raw);
+                    if !cleaned.is_empty() {
+                        model = cleaned;
+                    }
+                }
+            }
+        }
+
+        if project == "(sem projeto)" {
+            if line.contains("Active Workspaces:") || line.contains("Command Working Directory:") {
+                if let Ok(v) = serde_json::from_str::<Value>(&line) {
+                    if let Some(content) = v.get("content").and_then(Value::as_str) {
+                        if let Some(idx) = content.find("Active Workspaces:") {
+                            let after = &content[idx + "Active Workspaces:".len()..];
+                            for ws_line in after.lines() {
+                                let trimmed = ws_line.trim();
+                                if let Some(stripped) = trimmed.strip_prefix('-') {
+                                    let ws = stripped.trim();
+                                    let p = project_name(Some(ws));
+                                    if p != "(sem projeto)" {
+                                        project = p;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if project == "(sem projeto)" {
+                            if let Some(idx) = content.find("Command Working Directory:") {
+                                let after = &content[idx + "Command Working Directory:".len()..];
+                                let cwd = after.lines().next().unwrap_or("").trim();
+                                let p = project_name(Some(cwd));
+                                if p != "(sem projeto)" {
+                                    project = p;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if project == "(sem projeto)" && line.contains(r#""tool_calls""#) {
+                if let Ok(v) = serde_json::from_str::<Value>(&line) {
+                    if let Some(calls) = v.get("tool_calls").and_then(Value::as_array) {
+                        for call in calls {
+                            if let Some(args) = call.get("args") {
+                                for key in ["Cwd", "DirectoryPath", "AbsolutePath", "TargetFile"] {
+                                    if let Some(path_val) = args.get(key).and_then(Value::as_str) {
+                                        let p = path_val.trim_matches('"').trim();
+                                        let norm = p.replace('\\', "/");
+                                        let mut segments: Vec<&str> = norm.split('/').filter(|s| !s.is_empty()).collect();
+                                        if !segments.is_empty() {
+                                            if key == "Cwd" || key == "DirectoryPath" {
+                                                let cand = segments.pop().unwrap_or("");
+                                                let p = project_name(Some(cand));
+                                                if p != "(sem projeto)" {
+                                                    project = p;
+                                                    break;
+                                                }
+                                            } else if segments.len() > 1 {
+                                                segments.pop();
+                                                let cand = segments.pop().unwrap_or("");
+                                                let p = project_name(Some(cand));
+                                                if p != "(sem projeto)" {
+                                                    project = p;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if project != "(sem projeto)" {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if project != "(sem projeto)" {
+                for r in &mut records {
+                    if r.project == "(sem projeto)" {
+                        r.project = project.clone();
+                    }
+                }
+            }
+        }
+
+        if line.contains("input_tokens") && line.contains("PLANNER_RESPONSE") {
+            if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                let input = u64_at(&value, "input_tokens");
+                let output = u64_at(&value, "output_tokens");
+                let cached = u64_at(&value, "cache_read_tokens");
+                let tokens = Tokens {
+                    input,
+                    output,
+                    cache_write: 0,
+                    cache_read: cached,
+                };
+                if tokens != Tokens::default() {
+                    if let Some(epoch) = value.get("created_at").and_then(Value::as_str).and_then(parse_epoch) {
+                        let step_index = value.get("step_index").and_then(Value::as_u64).unwrap_or(0);
+                        records.push(Record {
+                            epoch,
+                            provider: "antigravity",
+                            model: model.clone(),
+                            project: project.clone(),
+                            tokens,
+                            dedupe: Some(format!("{path_str}:{step_index}")),
+                        });
+                    }
+                }
+            }
+        }
+        line.clear();
+    }
+    records
 }
 
 fn claude_roots() -> Vec<PathBuf> {
@@ -274,6 +444,23 @@ fn codex_roots() -> Vec<PathBuf> {
     roots
 }
 
+fn antigravity_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        let p = home.join(".gemini").join("antigravity").join("brain");
+        if p.is_dir() {
+            roots.push(p);
+        }
+    }
+    for instance in super::antigravity::get_antigravity_instances() {
+        let brain = instance.state_root.join("brain");
+        if brain.is_dir() && !roots.contains(&brain) {
+            roots.push(brain);
+        }
+    }
+    roots
+}
+
 type FileCache = HashMap<PathBuf, (SystemTime, u64, Vec<Record>)>;
 
 fn file_cache() -> &'static Mutex<FileCache> {
@@ -285,12 +472,14 @@ fn file_cache() -> &'static Mutex<FileCache> {
 fn scan(since_epoch: i64) -> (Vec<Record>, usize) {
     let since = UNIX_EPOCH + Duration::from_secs(since_epoch.max(0) as u64);
     let mut seen = HashSet::new();
+    let mut files = 0;
     let mut records = Vec::new();
     let Ok(mut cache) = file_cache().lock() else { return (records, 0) };
 
-    let sources: [(Vec<PathBuf>, fn(&Path) -> Vec<Record>, &str); 2] = [
+    let sources: [(Vec<PathBuf>, fn(&Path) -> Vec<Record>, &str); 3] = [
         (claude_roots(), parse_claude_file, "jsonl"),
         (codex_roots(), parse_codex_file, "jsonl"),
+        (antigravity_roots(), parse_antigravity_file, "jsonl"),
     ];
     for (roots, parse, extension) in sources {
         for root in roots.iter().filter(|root| root.is_dir()) {
@@ -301,9 +490,11 @@ fn scan(since_epoch: i64) -> (Vec<Record>, usize) {
                 }
                 let Ok(meta) = entry.metadata() else { continue };
                 let Ok(modified) = meta.modified() else { continue };
-                if modified < since || !seen.insert(path.to_path_buf()) {
+                // Old files stay in the cache for a wider range; a file reached twice counts once.
+                if !seen.insert(path.to_path_buf()) || modified < since {
                     continue;
                 }
+                files += 1;
                 let fresh = cache
                     .get(path)
                     .is_some_and(|(time, size, _)| *time == modified && *size == meta.len());
@@ -317,7 +508,7 @@ fn scan(since_epoch: i64) -> (Vec<Record>, usize) {
         }
     }
     cache.retain(|path, _| seen.contains(path));
-    (records, seen.len())
+    (records, files)
 }
 
 // Prices ---------------------------------------------------------------------
@@ -358,6 +549,14 @@ fn price_memory() -> &'static Mutex<Option<(SystemTime, HashMap<String, Price>, 
     PRICES.get_or_init(|| Mutex::new(None))
 }
 
+async fn download_prices() -> Option<(HashMap<String, Price>, String)> {
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(5)).build().ok()?;
+    let text = client.get(PRICES_URL).send().await.ok()?.error_for_status().ok()?.text().await.ok()?;
+    let document: Value = serde_json::from_str(&text).ok()?;
+    let prices = parse_prices(&document);
+    (!prices.is_empty()).then_some((prices, text))
+}
+
 async fn load_prices() -> (HashMap<String, Price>, &'static str) {
     if let Ok(guard) = price_memory().lock() {
         if let Some((loaded, prices, source)) = guard.as_ref() {
@@ -368,48 +567,55 @@ async fn load_prices() -> (HashMap<String, Price>, &'static str) {
     }
 
     let path = prices_file();
+    let from_disk = path
+        .as_ref()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .map(|document| parse_prices(&document))
+        .filter(|prices| !prices.is_empty());
+
     let cached_age = path
         .as_ref()
         .and_then(|p| fs::metadata(p).ok())
         .and_then(|m| m.modified().ok())
         .and_then(|m| m.elapsed().ok());
 
-    let mut result: Option<(HashMap<String, Price>, &'static str)> = None;
-    if cached_age.map_or(true, |age| age >= PRICES_MAX_AGE) {
-        let downloaded = async {
-            let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build().ok()?;
-            let text = client.get(PRICES_URL).send().await.ok()?.error_for_status().ok()?.text().await.ok()?;
-            let document: Value = serde_json::from_str(&text).ok()?;
-            let prices = parse_prices(&document);
-            (!prices.is_empty()).then_some((prices, text))
+    if let Some(prices) = from_disk {
+        if let Ok(mut guard) = price_memory().lock() {
+            *guard = Some((SystemTime::now(), prices.clone(), "cached"));
         }
-        .await;
-        if let Some((prices, text)) = downloaded {
-            if let Some(path) = &path {
-                if let Some(parent) = path.parent() {
-                    let _ = fs::create_dir_all(parent);
+        if cached_age.map_or(false, |age| age >= PRICES_MAX_AGE) {
+            tauri::async_runtime::spawn(async move {
+                if let Some((new_prices, text)) = download_prices().await {
+                    if let Some(path) = prices_file() {
+                        if let Some(parent) = path.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let _ = fs::write(path, text);
+                    }
+                    if let Ok(mut guard) = price_memory().lock() {
+                        *guard = Some((SystemTime::now(), new_prices, "online"));
+                    }
                 }
-                let _ = fs::write(path, text);
-            }
-            result = Some((prices, "online"));
+            });
         }
+        return (prices, "cached");
     }
-    let (prices, source) = result.unwrap_or_else(|| {
-        let from_disk = path
-            .and_then(|p| fs::read_to_string(p).ok())
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .map(|document| parse_prices(&document))
-            .filter(|prices| !prices.is_empty());
-        match from_disk {
-            Some(prices) => (prices, "cached"),
-            None => (HashMap::new(), "none"),
-        }
-    });
 
-    if let Ok(mut guard) = price_memory().lock() {
-        *guard = Some((SystemTime::now(), prices.clone(), source));
+    if let Some((prices, text)) = download_prices().await {
+        if let Some(path) = &path {
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(path, text);
+        }
+        if let Ok(mut guard) = price_memory().lock() {
+            *guard = Some((SystemTime::now(), prices.clone(), "online"));
+        }
+        return (prices, "online");
     }
-    (prices, source)
+
+    (HashMap::new(), "none")
 }
 
 /// Price for a model name as logged, trying the common spellings LiteLLM uses.
@@ -419,11 +625,33 @@ fn price_for(prices: &HashMap<String, Price>, model: &str) -> Option<Price> {
         .trim_end_matches("[1m]")
         .trim_start_matches("anthropic/")
         .trim_start_matches("openai/")
+        .trim_start_matches("google/")
+        .trim_start_matches("gemini/")
         .to_string();
-    let undated = regex::Regex::new(r"-\d{8}$").ok()?.replace(&base, "").to_string();
-    [base.clone(), undated.clone(), format!("anthropic/{undated}"), format!("openai/{base}")]
-        .iter()
-        .find_map(|name| prices.get(name).copied())
+    let undated = if let Some(idx) = base.rfind('-') {
+        let suffix = &base[idx + 1..];
+        if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
+            base[..idx].to_string()
+        } else {
+            base.clone()
+        }
+    } else {
+        base.clone()
+    };
+    let candidates = [
+        base.clone(),
+        undated.clone(),
+        format!("anthropic/{undated}"),
+        format!("openai/{base}"),
+        format!("gemini/{base}"),
+        format!("google/{base}"),
+        format!("databricks/databricks-{base}"),
+        if base.contains("flash") { "gemini-2.5-flash".to_string() } else { base.clone() },
+        if base.contains("pro") || base.contains("argon") { "gemini-2.5-pro".to_string() } else { base.clone() },
+        if base.contains("opus") { "claude-3-opus-20240229".to_string() } else { base.clone() },
+        if base.contains("sonnet") { "claude-3-5-sonnet-20241022".to_string() } else { base.clone() },
+    ];
+    candidates.iter().find_map(|name| prices.get(name).copied())
 }
 
 fn cost(price: Price, tokens: &Tokens) -> f64 {
@@ -613,5 +841,27 @@ mod tests {
         assert!((priced.cost_usd.unwrap() - 6.0).abs() < 1e-9);
         let unpriced = entries.iter().find(|e| e.model == "unknown-model").unwrap();
         assert_eq!(unpriced.cost_usd, None);
+    }
+
+    #[test]
+    fn parses_antigravity_transcripts_and_extracts_tokens_and_model() {
+        let dir = std::env::temp_dir().join(format!("ai_dock_test_{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("transcript.jsonl");
+        let content = r#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-10-18T12:00:00Z","content":"<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 3.8 Flash (High).\n</USER_SETTINGS_CHANGE>\nCommand Working Directory: /home/user/my-project"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-18T12:00:05Z","input_tokens":1500,"output_tokens":350,"cache_read_tokens":100}
+"#;
+        fs::write(&path, content).unwrap();
+        let records = parse_antigravity_file(&path);
+        let _ = fs::remove_dir_all(&dir);
+
+        assert_eq!(records.len(), 1);
+        let r = &records[0];
+        assert_eq!(r.provider, "antigravity");
+        assert_eq!(r.model, "Gemini 3.8 Flash (High)");
+        assert_eq!(r.project, "my-project");
+        assert_eq!(r.tokens.input, 1500);
+        assert_eq!(r.tokens.output, 350);
+        assert_eq!(r.tokens.cache_read, 100);
     }
 }

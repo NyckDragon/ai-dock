@@ -28,6 +28,8 @@ pub(crate) struct ProviderUsage {
     pub(crate) name: String,
     pub(crate) connected: bool,
     pub(crate) plan: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) email: Option<String>,
     pub(crate) windows: Vec<UsageWindow>,
     pub(crate) error: Option<String>,
 }
@@ -47,6 +49,7 @@ pub(crate) fn disconnected(id: &str, name: &str, error: impl Into<String>) -> Pr
         name: name.to_string(),
         connected: false,
         plan: None,
+        email: None,
         windows: vec![],
         error: Some(error.into()),
     }
@@ -154,6 +157,7 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
         name: "Codex".into(),
         connected: true,
         plan: string(usage.get("plan_type")),
+        email: None,
         windows,
         error: None,
     }
@@ -256,6 +260,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
         name: "Claude".into(),
         connected: true,
         plan: claude_code_plan().or_else(|| Some("Code".into())),
+        email: None,
         windows,
         error: None,
     }
@@ -445,7 +450,9 @@ pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
         cursor::usage(&client),
         antigravity::usage(),
     );
-    vec![claude, codex, cursor, antigravity]
+    let mut providers = vec![claude, codex, cursor];
+    providers.extend(antigravity);
+    providers
 }
 
 #[cfg(test)]

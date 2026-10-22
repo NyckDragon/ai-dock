@@ -1,4 +1,4 @@
-use super::cursor;
+use super::{antigravity, cursor};
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
 use std::{
@@ -11,14 +11,14 @@ use walkdir::WalkDir;
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivitySession {
-    id: String,
-    title: String,
-    detail: String,
-    state: String,
-    since: u64,
-    /// Antigravity quota pool ("gemini" or "claude-gpt"), when the running model is known.
+    pub id: String,
+    pub title: String,
+    pub detail: String,
+    pub state: String,
+    pub since: u64,
+    /// Antigravity quota pool ("gemini", "claude-gpt" or "argon"), when the running model is known.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pool: Option<String>,
+    pub pool: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -360,9 +360,71 @@ fn antigravity_state_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn antigravity_activity() -> ProviderActivity {
-    let mut newest: Option<(String, u64)> = None;
-    for root in antigravity_state_roots() {
+/// Quota pool of the model a conversation file names. Placeholder ids such as
+/// `MODEL_PLACEHOLDER_M26` are renumbered by Antigravity, so they are named through
+/// the labels its language server reported; plain model names are read directly.
+fn model_pool(text: &str) -> Option<String> {
+    let known = text
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|word| word.starts_with("MODEL_"))
+        .find_map(antigravity::pool_for_known_model);
+    if let Some(pool) = known {
+        return Some(pool.into());
+    }
+    let lower = text.to_lowercase();
+    let pool = if lower.contains("argon") {
+        "argon"
+    } else if lower.contains("gemini") || lower.contains("flash") {
+        "gemini"
+    } else if lower.contains("claude") || lower.contains("gpt") {
+        "claude-gpt"
+    } else {
+        return None;
+    };
+    Some(pool.into())
+}
+
+fn detect_antigravity_pool(root: &Path, session_id: &str) -> Option<String> {
+    let db_path = root.join("conversations").join(format!("{session_id}.db"));
+    if let Some(conn) = open_read_only(&db_path) {
+        // Query the latest step in gen_metadata
+        let query = "SELECT substr(data, instr(data, X'6d6f64656c5f656e756d12'), 50) FROM gen_metadata ORDER BY idx DESC LIMIT 1";
+        if let Ok(mut stmt) = conn.prepare(query) {
+            if let Ok(blob) = stmt.query_row([], |row| row.get::<_, Vec<u8>>(0)) {
+                if let Some(pool) = model_pool(&String::from_utf8_lossy(&blob)) {
+                    return Some(pool);
+                }
+            }
+        }
+    }
+
+    // Secondary fallback: check antigravity_state.pbtxt for last_selected_agent_model
+    let state_pbtxt = root.join("antigravity_state.pbtxt");
+    if let Ok(content) = fs::read_to_string(&state_pbtxt) {
+        for line in content.lines() {
+            if line.contains("last_selected_agent_model") {
+                if let Some(pool) = model_pool(line) {
+                    return Some(pool);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn conversation_title(root: &Path, session_id: &str) -> Option<String> {
+    let db_path = root.join("conversation_summaries.db");
+    let conn = open_read_only(&db_path)?;
+    let mut stmt = conn
+        .prepare("SELECT title FROM conversation_summaries WHERE conversation_id = ? LIMIT 1")
+        .ok()?;
+    stmt.query_row([session_id], |row| row.get::<_, String>(0)).ok()
+}
+
+fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderActivity {
+    let mut newest: Option<(PathBuf, String, PathBuf, u64)> = None;
+    for root in state_roots {
         let Ok(brains) = fs::read_dir(root.join("brain")) else { continue };
         for brain in brains.flatten() {
             let transcript = brain
@@ -371,30 +433,47 @@ fn antigravity_activity() -> ProviderActivity {
                 .join("logs")
                 .join("transcript.jsonl");
             let Some(modified) = mtime_ms(&transcript) else { continue };
-            if newest.as_ref().map(|(_, current)| modified > *current).unwrap_or(true) {
-                newest = Some((brain.file_name().to_string_lossy().to_string(), modified));
+            if newest.as_ref().map(|(_, _, _, current)| modified > *current).unwrap_or(true) {
+                newest = Some((
+                    root.clone(),
+                    brain.file_name().to_string_lossy().to_string(),
+                    transcript,
+                    modified,
+                ));
             }
         }
     }
 
-    let Some((session_id, modified)) = newest else {
-        return idle("antigravity", "inferred");
+    let Some((root, session_id, _transcript_path, modified)) = newest else {
+        return idle(slot_id, "inferred");
     };
     if now_ms().saturating_sub(modified) > 45_000 {
-        return idle("antigravity", "inferred");
+        return idle(slot_id, "inferred");
     }
 
+    let detected_pool = detect_antigravity_pool(&root, &session_id);
+    let title = conversation_title(&root, &session_id)
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| "Antigravity".into());
+
+    let detail = match detected_pool.as_deref() {
+        Some("argon") => "Executando tarefa (Argon)".into(),
+        Some("gemini") => "Executando tarefa (Gemini)".into(),
+        Some("claude-gpt") => "Executando tarefa (Claude / GPT)".into(),
+        _ => "Executando tarefa".into(),
+    };
+
     ProviderActivity {
-        provider_id: "antigravity".into(),
+        provider_id: slot_id.into(),
         state: "working".into(),
         confidence: "inferred".into(),
         sessions: vec![ActivitySession {
             id: session_id,
-            title: "Antigravity".into(),
-            detail: "Executando tarefa".into(),
+            title,
+            detail,
             state: "working".into(),
             since: modified,
-            pool: None,
+            pool: detected_pool,
         }],
     }
 }
@@ -412,21 +491,34 @@ fn split_by_pool(activity: &mut ProviderActivity, pools: &[&str]) {
         .collect();
 }
 
+fn antigravity_activities() -> Vec<ProviderActivity> {
+    let instances = antigravity::get_antigravity_instances();
+    if instances.is_empty() {
+        return vec![check_instance_activity("antigravity", &antigravity_state_roots())];
+    }
+    instances
+        .into_iter()
+        .map(|inst| check_instance_activity(&inst.slot_id, &[inst.state_root]))
+        .collect()
+}
+
 #[tauri::command]
 pub async fn get_provider_activity() -> Vec<ProviderActivity> {
     let mut activities = tauri::async_runtime::spawn_blocking(|| {
-        vec![codex_activity(), cursor_activity(), antigravity_activity()]
+        let mut list = vec![codex_activity(), cursor_activity()];
+        list.extend(antigravity_activities());
+        list
     })
     .await
     .unwrap_or_default();
 
     // The language server is only asked while a transcript shows work, so an idle dock costs nothing.
-    if let Some(antigravity) = activities
+    for activity in activities
         .iter_mut()
-        .find(|activity| activity.provider_id == "antigravity" && activity.state != "idle")
+        .filter(|activity| activity.provider_id.starts_with("antigravity") && activity.state != "idle")
     {
-        if let Some(pools) = super::antigravity::running_pools().await {
-            split_by_pool(antigravity, &pools);
+        if let Some(pools) = antigravity::running_pools(&activity.provider_id).await {
+            split_by_pool(activity, &pools);
         }
     }
     activities
@@ -450,6 +542,14 @@ mod tests {
                 pool: None,
             }],
         }
+    }
+
+    #[test]
+    fn model_names_in_conversation_files_map_to_pools() {
+        assert_eq!(model_pool("last_selected_agent_model: \"Argon (High)\"").as_deref(), Some("argon"));
+        assert_eq!(model_pool("Gemini 3 Flash (High)").as_deref(), Some("gemini"));
+        assert_eq!(model_pool("Claude Opus 4.6 (Thinking)").as_deref(), Some("claude-gpt"));
+        assert_eq!(model_pool("model_enum MODEL_PLACEHOLDER_M999"), None);
     }
 
     #[test]

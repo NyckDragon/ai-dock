@@ -60,7 +60,7 @@ pub fn place_dock(
 
     let expanded = mode == "expanded";
     let logical_width = match mode {
-        "expanded" => 360.0,
+        "expanded" => 380.0,
         "peek" => 338.0,
         "hidden" => 12.0,
         _ => 58.0,

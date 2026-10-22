@@ -27,10 +27,28 @@ export function QuotaWindowRow({
   const exact = absoluteDate(window.resetAt);
   const label = trLabel(window.label);
 
+  const modelColor =
+    window.id.startsWith("gemini")
+      ? "#38bdf8"
+      : window.id.startsWith("claude-gpt") || window.id.startsWith("third-party")
+        ? "#c084fc"
+        : window.id.startsWith("argon")
+          ? "#34d399"
+          : null;
+
   return (
     <div className={"quota-row" + (compact ? " quota-row--compact" : "")}>
       <div className="quota-row__labels">
-        <span>{label}</span>
+        <span className="quota-row__name">
+          {modelColor ? (
+            <i
+              className="quota-row__dot"
+              style={{ backgroundColor: modelColor, boxShadow: `0 0 5px ${modelColor}` }}
+              aria-hidden="true"
+            />
+          ) : null}
+          {label}
+        </span>
         <strong>
           {value}% <small>{word}</small>
         </strong>
@@ -44,7 +62,12 @@ export function QuotaWindowRow({
         aria-valuenow={value}
         aria-valuetext={value + "% " + word}
       >
-        <i style={{ width: value + "%" }} />
+        <i
+          style={{
+            width: value + "%",
+            backgroundColor: tone === "good" && modelColor ? modelColor : undefined
+          }}
+        />
       </div>
       <div className="quota-row__meta">
         <span title={exact ? t("Reset {date}", { date: exact }) : undefined}>{formatReset(window.resetAt, now)}</span>

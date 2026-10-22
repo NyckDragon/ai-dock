@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function Switch({
@@ -58,6 +59,47 @@ export function Segmented<T extends string | number>({
           {option.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function Select<T extends string | number>({
+  label,
+  description,
+  value,
+  options,
+  onChange,
+  disabled
+}: {
+  label: string;
+  description?: ReactNode;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (next: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={"select-setting-row" + (disabled ? " is-disabled" : "")}>
+      <div className="select-setting-row__copy">
+        <strong>{label}</strong>
+        {description ? <small>{description}</small> : null}
+      </div>
+      <div className="select-wrapper">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value as T)}
+          className="select-input"
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <option key={String(option.value)} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="select-arrow" aria-hidden="true" />
+      </div>
     </div>
   );
 }
