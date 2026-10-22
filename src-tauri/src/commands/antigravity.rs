@@ -658,6 +658,9 @@ async fn try_language_server(server: &LanguageServer) -> Option<Snapshot> {
             let windows = parse_quota_summary(payload);
             if !windows.is_empty() {
                 let user_status = ls_call(scheme, port, token, "GetUserStatus").await;
+                if let Some(status) = &user_status {
+                    remember_labels(status);
+                }
                 let plan = user_status.as_ref().and_then(|doc| extract_plan(doc));
                 let email = user_status.as_ref().and_then(|doc| extract_email(doc));
                 return Some(Snapshot {
@@ -727,11 +730,7 @@ pub(crate) async fn running_pools(slot_id: &str, active: Option<&str>) -> Option
         Some(labels) => (labels, None),
         None => {
             let status = ls_call(&scheme, port, &csrf, "GetUserStatus").await?;
-            let labels = model_labels(&status);
-            if let Ok(mut guard) = MODEL_LABELS.lock() {
-                *guard = Some((Instant::now(), labels.clone()));
-            }
-            (labels, selected_model(&status))
+            (remember_labels(&status), selected_model(&status))
         }
     };
 
@@ -784,6 +783,18 @@ fn debug_log(slot_id: &str, active: Option<&str>, trajectories: &Value) {
     }
     let _ = std::fs::create_dir_all(&folder);
     let _ = std::fs::write(folder.join(format!("antigravity-{slot_id}.log")), lines.join("\n") + "\n");
+}
+
+/// Keeps the model labels from a GetUserStatus answer, so conversation files can be
+/// named from the first quota refresh on.
+fn remember_labels(status: &Value) -> HashMap<String, String> {
+    let labels = model_labels(status);
+    if !labels.is_empty() {
+        if let Ok(mut guard) = MODEL_LABELS.lock() {
+            *guard = Some((Instant::now(), labels.clone()));
+        }
+    }
+    labels
 }
 
 fn cached_labels(models: &[Option<String>]) -> Option<HashMap<String, String>> {
