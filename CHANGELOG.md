@@ -19,6 +19,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Configurações com menus de seleção e painel expandido um pouco mais largo.
+- Vite 8.3.5 e `source-map-js` 1.2.2 (Dependabot), que fecham os 2 alertas do `npm audit`. Só afetam as ferramentas de build, não o app instalado.
 - Tauri 2.12 (app e plugins) atualizado pelo Dependabot. O pacote npm e o crate Rust sobem juntos, porque o build recusa versões diferentes entre os dois.
 
 ## [0.7.1] - 2026-10-01
