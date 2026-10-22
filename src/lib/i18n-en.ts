@@ -202,6 +202,7 @@ export const EN: Record<string, string> = {
   // Settings: general
   "Comportamento": "Behavior",
   "Iniciar com o Windows": "Start with Windows",
+  "Iniciar com o Linux": "Start with Linux",
   "Atalho global": "Global shortcut",
   "Ctrl + Alt + Espaço": "Ctrl + Alt + Space",
   "abre a busca de prompts de qualquer lugar.": "opens prompt search from anywhere.",
@@ -408,6 +409,7 @@ export const EN: Record<string, string> = {
     "Antigravity was found on this PC. Open Antigravity, wait a few seconds and click Refresh.",
   "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.":
     "Antigravity was not found in %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
+  "Antigravity não foi encontrado neste computador.": "Antigravity was not found on this computer.",
   "Falha de rede ao consultar o Claude Web.": "Network failure reaching Claude Web.",
   "A sessão do Claude expirou. Clique em Reconectar e entre no claude.ai de novo.":
     "Your Claude session expired. Click Reconnect and sign in to claude.ai again.",
@@ -417,7 +419,9 @@ export const EN: Record<string, string> = {
   "O Claude Web respondeu em um formato inesperado.": "Claude Web answered in an unexpected format.",
   "Nenhuma organização Claude válida foi encontrada nessa sessão.": "No valid Claude organization was found in this session.",
   "Não foi possível acessar o Gerenciador de Credenciais do Windows.": "Could not access Windows Credential Manager.",
+  "Não foi possível acessar o cofre de segredos do Linux.": "Could not access the Linux secret service.",
   "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.": "Could not save the Claude cookie in Credential Manager.",
+  "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.": "Could not save the Claude cookie in the Linux secret service.",
   "Cole o Cookie completo de uma requisição do claude.ai.": "Paste the full Cookie from a claude.ai request.",
   "Cookie incompleto. Cole o cabeçalho Cookie completo ou o valor inteiro do sessionKey.":
     "Incomplete cookie. Paste the full Cookie header or the whole sessionKey value.",

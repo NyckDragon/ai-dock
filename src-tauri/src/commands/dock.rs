@@ -150,7 +150,13 @@ fn fullscreen_app_active() -> bool {
     result >= 0 && matches!(state, QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+fn fullscreen_app_active() -> bool {
+    // Without Hyprland there is no fullscreen signal. A failed query must not hide the dock.
+    super::linux::hyprland::active_window().is_some_and(|window| super::linux::hyprland::hides_dock(&window))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn fullscreen_app_active() -> bool {
     false
 }
@@ -180,7 +186,29 @@ fn reassert_topmost(window: &tauri::WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+/// `set_always_on_top` is only a hint on Wayland, so Hyprland floats, pins and
+/// raises the live window by its address. Float and pin are sent only when missing.
+#[cfg(target_os = "linux")]
+fn reassert_topmost(window: &tauri::WebviewWindow) {
+    use super::linux::hyprland::{self, Dispatch};
+
+    let _ = window.set_always_on_top(true);
+    let Some(client) = hyprland::own_window() else {
+        return;
+    };
+    let Some(address) = hyprland::address(&client) else {
+        return;
+    };
+    if !hyprland::flag(&client, "floating") {
+        hyprland::dispatch(Dispatch::Float, address);
+    }
+    if !hyprland::flag(&client, "pinned") {
+        hyprland::dispatch(Dispatch::Pin, address);
+    }
+    hyprland::dispatch(Dispatch::Top, address);
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn reassert_topmost(_window: &tauri::WebviewWindow) {}
 
 /// Keeps the dock on top. Returns true when it was hidden for a full-screen app.

@@ -61,11 +61,66 @@ mod imp {
     }
 }
 
+#[cfg(target_os = "linux")]
+mod imp_linux {
+    use std::path::Path;
+    use std::process::Command;
+    use std::sync::Mutex;
+
+    use super::super::linux::{
+        hyprland::{self, Dispatch},
+        tool,
+    };
+
+    static PREVIOUS: Mutex<String> = Mutex::new(String::new());
+
+    pub fn remember() {
+        let Some(window) = hyprland::active_window() else { return };
+        if hyprland::is_ours(&window) {
+            return;
+        }
+        let Some(address) = hyprland::address(&window) else { return };
+        if let Ok(mut previous) = PREVIOUS.lock() {
+            *previous = address.to_string();
+        }
+    }
+
+    fn send_ctrl_v(paste_with: &Path) {
+        let mut command = Command::new(paste_with);
+        if paste_with.ends_with("ydotool") {
+            // Linux input codes: left Ctrl is 29, V is 47. Down then up, like the Windows chord.
+            command.args(["key", "29:1", "47:1", "47:0", "29:0"]);
+        } else {
+            command.args(["-M", "ctrl", "-k", "v", "-m", "ctrl"]);
+        }
+        let _ = command.status();
+    }
+
+    pub async fn give_back(paste: bool) -> bool {
+        let address = PREVIOUS.lock().ok().map(|value| value.clone()).unwrap_or_default();
+        if address.is_empty() || !hyprland::dispatch(Dispatch::Focus, &address) {
+            return false;
+        }
+        if paste {
+            tokio::time::sleep(std::time::Duration::from_millis(90)).await;
+            // wtype and ydotool cover a Hyprland without sendshortcut.
+            if !hyprland::dispatch(Dispatch::Paste, &address) {
+                if let Some(paste_with) = tool("wtype").or_else(|| tool("ydotool")) {
+                    send_ctrl_v(&paste_with);
+                }
+            }
+        }
+        true
+    }
+}
+
 /// Called when the pointer reaches the dock and before the shortcut focuses it.
 #[tauri::command]
 pub fn remember_foreground(app: AppHandle) {
     #[cfg(target_os = "windows")]
     imp::remember(&app);
+    #[cfg(target_os = "linux")]
+    imp_linux::remember();
     #[cfg(not(target_os = "windows"))]
     let _ = app;
 }
@@ -77,7 +132,11 @@ pub async fn return_focus(paste: bool) -> bool {
     {
         imp::give_back(paste).await
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        imp_linux::give_back(paste).await
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         let _ = paste;
         false
