@@ -36,6 +36,11 @@
 .dock-pill:hover { border-color: var(--accent-border); }
 .dock-pill--preview { cursor: default; }
 .dock-pill--preview:hover { border-color: var(--border); }
+.dock-pill--draggable { cursor: grab; }
+.dock-pill--draggable button.dock-pill__brand,
+.dock-pill--draggable button.dock-pill__chevron { cursor: grab; }
+.dock-pill--dragging,
+.dock-pill--dragging * { cursor: grabbing !important; user-select: none !important; }
 
 .dock-pill__brand,
 .dock-pill__chevron {
@@ -180,6 +185,66 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 .gauge--danger { --ring-color: var(--danger); }
 .gauge--empty { --ring-color: var(--text-3); opacity: .55; }
 
+/* Concentric rings gauge */
+.gauge--concentric {
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  padding: 0;
+}
+.gauge__concentric-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.gauge__face--concentric {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gauge-face);
+  display: grid;
+  place-items: center;
+}
+
+/* Horizontal bars gauge */
+.gauge-bars {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+  width: 100%;
+}
+.gauge-bars__icon {
+  display: grid;
+  place-items: center;
+}
+.gauge-bars__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  width: 34px;
+}
+.gauge-bars__track {
+  width: 100%;
+  height: 3.5px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.gauge-bars__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--dur-normal) var(--ease-out);
+}
+
 /* Activity: an arc sweeping around the border while working, amber pulse while it waits for you.
    The gradient angle is animated instead of rotating the element, so square shapes stay put. */
 @property --sweep {
@@ -187,9 +252,14 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   initial-value: 0deg;
   inherits: false;
 }
-.gauge[data-activity="working"]::after,
-.slot-tile[data-activity="working"]::after,
-.slot-chip[data-activity="working"]::after {
+@keyframes sweep { to { --sweep: 360deg; } }
+
+.dock-pill[data-activity-indicator="sweep"] .gauge[data-activity="working"]::after,
+.dock-pill[data-activity-indicator="sweep"] .slot-tile[data-activity="working"]::after,
+.dock-pill[data-activity-indicator="sweep"] .slot-chip[data-activity="working"]::after,
+.gauge[data-activity-indicator="sweep"][data-activity="working"]::after,
+.slot-tile[data-activity-indicator="sweep"][data-activity="working"]::after,
+.slot-chip[data-activity-indicator="sweep"][data-activity="working"]::after {
   content: "";
   position: absolute;
   inset: -4px;
@@ -204,10 +274,97 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   pointer-events: none;
 }
 .gauge--circle[data-activity="working"]::after { border-radius: 50%; }
-@keyframes sweep { to { --sweep: 360deg; } }
+.gauge--concentric[data-activity="working"]::after { inset: -3px; border-radius: 50%; }
+
+/* Pulse activity indicator: calm, soothing sinusoidal breath (2.6s) */
+@keyframes icon-breathe {
+  0%, 100% {
+    transform: scale(0.99);
+    opacity: 0.70;
+    color: var(--text-2);
+    filter: drop-shadow(0 0 0px transparent);
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+    color: #ffffff;
+    filter:
+      brightness(1.6)
+      drop-shadow(0 0 2px #ffffff)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 12px rgba(255, 255, 255, 0.5));
+  }
+}
+.pill-slot[data-activity-indicator="pulse"][data-activity="working"] .provider-icon,
+[data-activity-indicator="pulse"][data-activity="working"] .provider-icon,
+[data-activity-indicator="pulse"] [data-activity="working"] .provider-icon {
+  animation: icon-breathe 2.6s ease-in-out infinite;
+}
+
+/* Solid white activity indicator: steady white without pulsing */
+.pill-slot[data-activity-indicator="solid"][data-activity="working"] .provider-icon,
+[data-activity-indicator="solid"][data-activity="working"] .provider-icon,
+[data-activity-indicator="solid"] [data-activity="working"] .provider-icon {
+  color: #ffffff;
+  filter: brightness(1.5) drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+}
+
+/* Active model bar & concentric ring indicator: white glow on the specific model in use */
+.gauge-bars__track--active {
+  border-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: visible;
+}
+
+/* Smooth organic breath for active bar and ring */
+@keyframes bar-breathe {
+  0%, 100% {
+    opacity: 0.60;
+    box-shadow: 0 0 3px rgba(255, 255, 255, 0.55);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 5px #ffffff, 0 0 9px rgba(255, 255, 255, 0.85);
+  }
+}
+
+@keyframes ring-breathe {
+  0%, 100% {
+    opacity: 0.60;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.6));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 7px rgba(255, 255, 255, 0.9));
+  }
+}
+
+.gauge-bars__fill--active {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  min-width: 3px;
+  box-shadow: 0 0 4px #ffffff, 0 0 7px rgba(255, 255, 255, 0.75);
+  animation: bar-breathe 2.6s ease-in-out infinite;
+}
+
+.gauge__concentric-ring--active {
+  stroke: #ffffff !important;
+  filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 5px rgba(255, 255, 255, 0.85));
+  animation: ring-breathe 2.6s ease-in-out infinite;
+}
+
+[data-pulse-bar="false"] .gauge-bars__fill--active,
+[data-pulse-bar="false"] .gauge__concentric-ring--active,
+[data-activity-indicator="none"] .gauge-bars__fill--active,
+[data-activity-indicator="none"] .gauge__concentric-ring--active {
+  animation: none !important;
+}
+
 .gauge[data-activity="waiting"],
 .slot-tile[data-activity="waiting"],
-.slot-chip[data-activity="waiting"] {
+.slot-chip[data-activity="waiting"],
+.gauge-bars[data-activity="waiting"] {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 60%, transparent);
   animation: waiting-pulse 1.5s ease-in-out infinite;
 }
@@ -272,6 +429,12 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 .provider-peek__brand strong { font-size: var(--fs-md); font-weight: 600; }
 .provider-peek__brand small { font-size: var(--fs-2xs); color: var(--text-3); }
 .provider-peek__windows { display: grid; gap: 11px; margin-top: 13px; }
+.provider-peek__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 0;
+  opacity: 0.6;
+}
 .provider-peek .notice { margin-top: 11px; }
 .provider-peek .activity { margin-top: 12px; }
 .provider-peek__open {

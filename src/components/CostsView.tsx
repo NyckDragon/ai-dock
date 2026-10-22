@@ -6,11 +6,18 @@ import type { CostReport } from "../types";
 import { Segmented } from "./controls";
 import { ProviderIcon } from "./ProviderIcon";
 
-const RANGES = [1, 7, 30] as const;
-const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
+const RANGES = [1, 3, 7, 30] as const;
+const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", antigravity: "Antigravity" };
 
 function money(value: number, partial: boolean, locale: string) {
   return formatUsd(value, locale) + (partial ? "+" : "");
+}
+
+function cleanProjectLabel(key: string): string {
+  if (!key || key === "(sem projeto)") return t("(sem projeto)");
+  const trimmed = key.replace(/[/\\]+$/, "");
+  const parts = trimmed.split(/[/\\]/);
+  return parts[parts.length - 1] || key;
 }
 
 function DayColumns({ days, locale }: { days: CostDay[]; locale: string }) {
@@ -126,8 +133,25 @@ export function CostsView({
   onDays: (days: number) => void;
   onReload: () => void;
 }) {
+  const [selectedProvider, setSelectedProvider] = useState<string>("all");
   const locale = intlLocale();
-  const summary = useMemo(() => summarizeCosts(report?.entries || [], days), [report, days]);
+
+  const availableProviders = useMemo(() => {
+    if (!report?.entries) return [];
+    const set = new Set<string>();
+    for (const e of report.entries) {
+      if (e.provider) set.add(e.provider);
+    }
+    return Array.from(set);
+  }, [report]);
+
+  const filteredEntries = useMemo(() => {
+    if (!report?.entries) return [];
+    if (selectedProvider === "all") return report.entries;
+    return report.entries.filter((e) => e.provider === selectedProvider);
+  }, [report, selectedProvider]);
+
+  const summary = useMemo(() => summarizeCosts(filteredEntries, days), [filteredEntries, days]);
   const rangeLabel = days === 1 ? t("Hoje") : t("Últimos {days} dias", { days });
 
   return (
@@ -153,12 +177,29 @@ export function CostsView({
         </button>
       </div>
 
+      {availableProviders.length > 1 ? (
+        <div className="search-row" style={{ marginTop: "8px" }}>
+          <Segmented
+            label={t("Filtro")}
+            value={selectedProvider}
+            onChange={setSelectedProvider}
+            options={[
+              { value: "all", label: t("Geral") },
+              ...availableProviders.map((p) => ({
+                value: p,
+                label: TOOL_NAMES[p] || p
+              }))
+            ]}
+          />
+        </div>
+      ) : null}
+
       {!report && loading ? <div className="usage-card usage-card--skeleton" aria-hidden="true" /> : null}
 
       {report && report.files === 0 ? (
         <div className="empty-state">
           <span>{t("Nenhum log do Claude Code ou do Codex neste PC")}</span>
-          <small>{t("Os custos aparecem quando você usa o Claude Code ou o Codex CLI neste computador.")}</small>
+          <small>{t("Os custos aparecem quando você usa o Claude Code, o Codex CLI ou o Antigravity neste computador.")}</small>
         </div>
       ) : null}
 
@@ -180,7 +221,7 @@ export function CostsView({
             icon={(key) => (key in TOOL_NAMES ? key : null)}
           />
           <GroupTable title={t("Modelos")} groups={summary.models} locale={locale} label={tr} />
-          <GroupTable title={t("Projetos")} groups={summary.projects} locale={locale} label={tr} />
+          <GroupTable title={t("Projetos")} groups={summary.projects} locale={locale} label={cleanProjectLabel} />
 
           <p className="hint">
             {t("Estimativa pelo preço público da API (tabela LiteLLM). Assinaturas não cobram por token: é quanto esse uso custaria na API.")}

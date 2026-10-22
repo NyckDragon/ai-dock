@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, Fragment } from "react";
 import { formatAge } from "../lib/format";
 import { t, tr, trLabel } from "../lib/i18n";
 import type { PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
@@ -53,9 +53,22 @@ export const ProviderPeek = forwardRef<
 
       {provider.windows.length ? (
         <div className={"provider-peek__windows" + (provider.stale ? " is-stale" : "")}>
-          {provider.windows.map((window) => (
-            <QuotaWindowRow key={window.id} window={window} providerId={provider.id} display={display} now={now} compact stale={provider.stale} />
-          ))}
+          {provider.windows.map((window, idx) => {
+            const prev = idx > 0 ? provider.windows[idx - 1] : null;
+            const getFamily = (id: string) => {
+              if (id.startsWith("gemini")) return "gemini";
+              if (id.startsWith("claude-gpt") || id.startsWith("third-party")) return "claude";
+              if (id.startsWith("argon")) return "argon";
+              return id;
+            };
+            const showDivider = prev && getFamily(window.id) !== getFamily(prev.id);
+            return (
+              <Fragment key={window.id}>
+                {showDivider ? <div className="provider-peek__divider" aria-hidden="true" /> : null}
+                <QuotaWindowRow window={window} providerId={provider.id} display={display} now={now} compact stale={provider.stale} />
+              </Fragment>
+            );
+          })}
         </div>
       ) : null}
 

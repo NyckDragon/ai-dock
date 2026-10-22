@@ -6,7 +6,8 @@ const ICONS: Record<string, string> = {
   cursor: "/provider-icons/cursor.svg",
   antigravity: "/provider-icons/antigravity.svg",
   "antigravity-gemini": "/provider-icons/gemini.svg",
-  "antigravity-gpt": "/provider-icons/antigravity.svg"
+  "antigravity-gpt": "/provider-icons/antigravity.svg",
+  "antigravity-argon": "/provider-icons/gemini.svg"
 };
 
 export function ProviderIcon({
@@ -20,7 +21,13 @@ export function ProviderIcon({
   brand?: boolean;
 }) {
   const normalized = providerId.toLowerCase();
-  const source = ICONS[normalized];
+  let source = ICONS[normalized];
+  if (!source) {
+    if (normalized.endsWith("-gemini")) source = ICONS["antigravity-gemini"];
+    else if (normalized.endsWith("-gpt")) source = ICONS["antigravity-gpt"];
+    else if (normalized.endsWith("-argon") || normalized.includes("argon")) source = ICONS["antigravity-argon"];
+    else if (normalized.startsWith("antigravity")) source = ICONS["antigravity"];
+  }
   const brandClass = brand ? " provider-icon--brand provider-brand--" + normalized.replace(/[^a-z0-9-]/g, "") : "";
 
   if (!source) {

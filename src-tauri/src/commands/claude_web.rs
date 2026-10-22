@@ -551,6 +551,7 @@ async fn usage_with_cookie(
                     name: "Claude".into(),
                     connected: true,
                     plan: organization_plan(&organizations, &org_id).or_else(|| Some("Web".into())),
+                    email: None,
                     windows: parse_usage(&usage)?,
                     error: None,
                 });

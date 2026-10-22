@@ -93,9 +93,10 @@ export const EN: Record<string, string> = {
   "Modelos": "Models",
   "Nenhum log do Claude Code ou do Codex neste PC": "No Claude Code or Codex logs on this PC",
   "Nome": "Name",
-  "Os custos aparecem quando você usa o Claude Code ou o Codex CLI neste computador.":
-    "Costs show up once you use Claude Code or the Codex CLI on this computer.",
+  "Os custos aparecem quando você usa o Claude Code, o Codex CLI ou o Antigravity neste computador.":
+    "Costs show up once you use Claude Code, the Codex CLI or Antigravity on this computer.",
   "Período": "Period",
+  "Filtro": "Filter",
   "Por ferramenta": "By tool",
   "Projetos": "Projects",
   "Recalcular custos": "Recalculate costs",
@@ -130,6 +131,13 @@ export const EN: Record<string, string> = {
   "Geral": "General",
   "Conexões": "Connections",
   "Seções das configurações": "Settings sections",
+  "Interface e Tema": "Interface & Theme",
+  "Idioma da interface do AI Dock.": "Language of the AI Dock interface.",
+  "Automático (Sistema)": "Automatic (System)",
+  "Aparência clara, escura ou do sistema.": "Light, dark, or system appearance.",
+  "Seguir o Sistema": "Follow System",
+  "Barras de quota": "Quota bars",
+  "Ícone + status": "Icon + status",
   "Idioma": "Language",
   "Automático": "Automatic",
   "Tema": "Theme",
@@ -140,6 +148,8 @@ export const EN: Record<string, string> = {
   "Visual do dock recolhido": "Collapsed dock style",
   "Círculo": "Circle",
   "Anel de quota + %": "Quota ring + %",
+  "Barras": "Bars",
+  "Ícone + barras de quota": "Icon + quota bars",
   "Quadrado": "Square",
   "Borda de quota + %": "Quota border + %",
   "Números": "Numbers",
@@ -179,6 +189,8 @@ export const EN: Record<string, string> = {
   "{value}% abaixo": "{value}% down",
   "Centralizar": "Center",
   "Arraste para subir ou descer o dock na borda.": "Drag to move the dock up or down the edge.",
+  "Bloquear posição": "Lock position",
+  "Impede arrastar o dock para cima ou para baixo com o mouse.": "Prevents dragging the dock up or down with the mouse.",
   "Tela": "Display",
   "Tela {number}": "Display {number}",
   "Visibilidade": "Visibility",
@@ -199,6 +211,21 @@ export const EN: Record<string, string> = {
   "Depois de copiar um prompt, o dock recolhe, volta para o app em que você estava e cola.":
     "After you copy a prompt, the dock collapses, returns to the app you were in and pastes.",
   "Fechar o painel ao clicar fora": "Close the panel on outside click",
+  "Indicador de atividade": "Activity indicator",
+  "Luz giratória": "Rotating light",
+  "Pulso suave": "Soft pulse",
+  "Branco fixo": "Steady white",
+  "Desativado": "Disabled",
+  "Pulsar barra em uso": "Pulse active bar",
+  "Desligue para manter a barra em branco fixo enquanto o ícone pulsa.":
+    "Turn off to keep the active bar steady white while the icon pulses.",
+  "Desligue para manter a barra iluminada em branco fixo sem pulsar.":
+    "Turn off to keep the active bar steady white without pulsing.",
+  "Ocultar percentual no modo barras": "Hide percentage in bars mode",
+  "Exibe apenas as barrinhas coloridas no dock, sem o número ao lado.":
+    "Shows only the colored bars in the dock, without the number next to them.",
+  "Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.":
+    "Visual effect when the agent is working: rotating border light, soft pulse, steady white, or disabled.",
   "Atualizar uso a cada": "Refresh usage every",
   "Intervalo de atualização": "Refresh interval",
   "{minutes} min": "{minutes} min",
@@ -234,6 +261,22 @@ export const EN: Record<string, string> = {
   "Ocultar": "Hide",
   "Mostrar {name}": "Show {name}",
   "Ocultar {name}": "Hide {name}",
+  "Luz indicadora de atividade": "Activity indicator light",
+  "Mostra a luz giratória quando o agente está trabalhando.": "Shows the sweeping light when the agent is working.",
+  "Antigravity": "Antigravity",
+  "Visual no dock": "Appearance on dock",
+  "Anéis": "Rings",
+  "Separado": "Separated",
+  "Unificado (anéis concêntricos)": "Unified (concentric rings)",
+  "Separado por modelo": "Separated by model",
+  "Junta Gemini, Claude+GPT e Argon com barrinhas horizontais empilhadas.":
+    "Combines Gemini, Claude+GPT, and Argon with stacked horizontal bars.",
+  "Junta Gemini, Claude+GPT e Argon em 1 slot com anéis concêntricos por conta.":
+    "Combines Gemini, Claude+GPT, and Argon into 1 slot with concentric rings per account.",
+  "Junta Gemini, Claude+GPT e Argon em 1 slot com anéis concêntricos por conta. Passe o mouse para ver a separação completa.":
+    "Combines Gemini, Claude+GPT, and Argon into 1 slot with concentric rings per account. Hover to see the full breakdown.",
+  "Mostra cada família de modelos (Gemini, Claude+GPT, Argon) em um slot separado.":
+    "Shows each model family (Gemini, Claude+GPT, Argon) in a separate slot.",
   "Claude": "Claude",
   "Obsidian": "Obsidian",
   "Pasta conectada": "Folder connected",
@@ -351,6 +394,11 @@ export const EN: Record<string, string> = {
   "Mostrando a última leitura salva enquanto atualizo.": "Showing the last saved reading while refreshing.",
   "Precisa da sua ação": "Needs your action",
   "Executando tarefa": "Running a task",
+  "Executando tarefa (Gemini)": "Running a task (Gemini)",
+  "Executando tarefa (Claude / GPT)": "Running a task (Claude / GPT)",
+  "Executando tarefa (Argon)": "Running a task (Argon)",
+  "Antigravity fechado": "Antigravity is closed",
+  "Aplicativo fechado": "App closed",
   "Conversa do Cursor": "Cursor conversation",
   "(sem projeto)": "(no project)",
   "desconhecido": "unknown",
@@ -423,5 +471,20 @@ export const EN: Record<string, string> = {
   "Não foi possível abrir o Claude para autenticação.": "Could not open Claude to sign in.",
   "Não foi possível iniciar o cliente HTTP.": "Could not start the HTTP client.",
   "Página de status desconhecida.": "Unknown status page.",
-  "Não foi possível abrir o navegador.": "Could not open the browser."
+  "Não foi possível abrir o navegador.": "Could not open the browser.",
+
+  // Aliases & Account Customization
+  "Salvar": "Save",
+  "Personalizar nome": "Customize name",
+  "Personalizar nome de {name}": "Customize name of {name}",
+  "Editar nome personalizado (atual: {name})": "Edit custom name (current: {name})",
+  "Nome personalizado": "Custom name",
+  "Contas e instâncias conectadas": "Connected accounts and instances",
+  "Personalize o nome de exibição de cada conta (ex: Pessoal, Trabalho).":
+    "Customize each account's display name (e.g. Personal, Work).",
+  "Instância local": "Local instance",
+  "Nome (ex: Pessoal, Trabalho)": "Name (e.g. Personal, Work)",
+  "Restaurar padrão": "Restore default",
+  "Padrão": "Default",
+  "Nenhuma conta do Antigravity conectada no momento.": "No Antigravity account connected at the moment."
 };

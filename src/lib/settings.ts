@@ -41,6 +41,12 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsPausedUntil: null,
   language: "auto",
   historyRange: "24h",
+  antigravityGroupMode: "bars",
+  activityIndicator: "sweep",
+  pulseActiveBar: true,
+  hideBarsNumber: false,
+  lockPosition: false,
+  providerAliases: {},
   providerOrder: PROVIDER_IDS,
   hiddenProviders: [],
   obsidianPath: null,
@@ -48,7 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   settingsVersion: SETTINGS_VERSION
 };
 
-const COMPACT_MODES: CompactMode[] = ["classic", "percent", "ring", "square"];
+const COMPACT_MODES: CompactMode[] = ["classic", "percent", "ring", "square", "bars"];
 
 function legacySettings(): Partial<Settings> | null {
   const values = Object.values(LEGACY).map(readRaw);
@@ -75,11 +81,35 @@ function normalize(value: Partial<Settings>): Settings {
   // defaulted to remaining, so that default moves to the per-product one.
   if ((value.settingsVersion || 1) < 2 && merged.display === "remaining") merged.display = "native";
   merged.settingsVersion = SETTINGS_VERSION;
-  const known = merged.providerOrder.filter((id) => PROVIDER_IDS.includes(id));
+  const isKnown = (id: string) => PROVIDER_IDS.includes(id) || id.startsWith("antigravity");
+  const known = merged.providerOrder.filter(isKnown);
+  const groupMode: Settings["antigravityGroupMode"] = ["rings", "bars", "split"].includes(merged.antigravityGroupMode)
+    ? merged.antigravityGroupMode
+    : DEFAULT_SETTINGS.antigravityGroupMode;
+
+  const indicator = ["sweep", "pulse", "solid", "none"].includes(merged.activityIndicator as any)
+    ? merged.activityIndicator
+    : (merged as any).animateActivity === false
+      ? "none"
+      : "sweep";
+
   return {
     ...merged,
     compactMode: COMPACT_MODES.includes(merged.compactMode) ? merged.compactMode : DEFAULT_SETTINGS.compactMode,
     headline: merged.headline === "limiting" ? "limiting" : "session",
+    antigravityGroupMode: groupMode,
+    activityIndicator: indicator,
+    pulseActiveBar: typeof merged.pulseActiveBar === "boolean" ? merged.pulseActiveBar : true,
+    hideBarsNumber: typeof merged.hideBarsNumber === "boolean" ? merged.hideBarsNumber : false,
+    lockPosition: typeof merged.lockPosition === "boolean" ? merged.lockPosition : false,
+    providerAliases:
+      typeof merged.providerAliases === "object" && merged.providerAliases !== null
+        ? Object.fromEntries(
+            Object.entries(merged.providerAliases)
+              .filter(([k, v]) => typeof k === "string" && typeof v === "string" && v.trim().length > 0)
+              .map(([k, v]) => [k, v.trim()])
+          )
+        : {},
     language: ["auto", "pt", "en"].includes(merged.language) ? merged.language : "auto",
     historyRange: ["24h", "7d", "30d"].includes(merged.historyRange) ? merged.historyRange : "24h",
     notificationsPausedUntil:
@@ -89,7 +119,7 @@ function normalize(value: Partial<Settings>): Settings {
     verticalOffset: Math.max(-45, Math.min(45, Number(merged.verticalOffset) || 0)),
     refreshMinutes: REFRESH_CHOICES.includes(merged.refreshMinutes) ? merged.refreshMinutes : 5,
     providerOrder: [...known, ...PROVIDER_IDS.filter((id) => !known.includes(id))],
-    hiddenProviders: merged.hiddenProviders.filter((id) => PROVIDER_IDS.includes(id))
+    hiddenProviders: merged.hiddenProviders.filter(isKnown)
   };
 }
 

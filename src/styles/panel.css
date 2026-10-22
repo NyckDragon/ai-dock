@@ -117,6 +117,7 @@
   color: var(--text-3);
   font-size: var(--fs-xs);
   font-weight: 600;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .view-tabs button:hover,
 .tabs button:hover { color: var(--text); }
@@ -142,6 +143,8 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
   padding: 12px 14px 16px;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-3) transparent;

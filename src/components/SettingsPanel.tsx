@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Power } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Pencil, Power, X } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { intlLocale, t, tr } from "../lib/i18n";
 import { compactSlots } from "../lib/quota";
 import { GLOBAL_SHORTCUT_LABEL, REFRESH_CHOICES } from "../lib/settings";
@@ -12,15 +12,16 @@ import type {
   SettingsTab
 } from "../types";
 import { ClaudeConnectCard } from "./ClaudeConnectCard";
-import { Segmented, Switch } from "./controls";
+import { Segmented, Select, Switch } from "./controls";
 import { DockPill } from "./DockPill";
 import { ProviderIcon } from "./ProviderIcon";
 
 export const COMPACT_MODES: { id: CompactMode; title: string; description: string }[] = [
   { id: "ring", title: "Círculo", description: "Anel de quota + %" },
+  { id: "bars", title: "Barras", description: "Barras de quota" },
   { id: "square", title: "Quadrado", description: "Borda de quota + %" },
   { id: "percent", title: "Números", description: "Ícone + % colorido" },
-  { id: "classic", title: "Clássico", description: "Ícone + ponto de status" }
+  { id: "classic", title: "Clássico", description: "Ícone + status" }
 ];
 
 const TABS: { id: SettingsTab; label: string }[] = [
@@ -43,6 +44,7 @@ export type SettingsPanelProps = {
   settings: Settings;
   update: (patch: Partial<Settings>) => void;
   providers: ProviderUsage[];
+  rawProviders?: ProviderUsage[];
   activities: ProviderActivity[];
   monitors: MonitorInfo[];
   autostart: boolean | null;
@@ -118,7 +120,7 @@ export function CompactModePicker({ value, onChange }: { value: CompactMode; onC
 
 function AppearanceTab({ settings, update, providers, activities }: SettingsPanelProps) {
   const previewSlots = useMemo(() => {
-    const slots = compactSlots(providers).slice(0, 3);
+    const slots = compactSlots(providers, settings.antigravityGroupMode).slice(0, 3);
     if (slots.length) return slots;
     return [
       { id: "claude", name: "Claude", connected: true, windows: [{ id: "s", label: "Sessão", remainingPercent: 72 }] },
@@ -129,26 +131,25 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
 
   return (
     <>
-      <Group title={t("Idioma")}>
-        <Segmented
+      <Group title={t("Interface e Tema")}>
+        <Select
           label={t("Idioma")}
+          description={t("Idioma da interface do AI Dock.")}
           value={settings.language}
           onChange={(language) => update({ language })}
           options={[
-            { value: "auto", label: t("Automático") },
+            { value: "auto", label: t("Automático (Sistema)") },
             { value: "pt", label: "Português" },
             { value: "en", label: "English" }
           ]}
         />
-      </Group>
-
-      <Group title={t("Tema")}>
-        <Segmented
+        <Select
           label={t("Tema")}
+          description={t("Aparência clara, escura ou do sistema.")}
           value={settings.theme}
           onChange={(theme) => update({ theme })}
           options={[
-            { value: "system", label: t("Sistema") },
+            { value: "system", label: t("Seguir o Sistema") },
             { value: "dark", label: t("Escuro") },
             { value: "light", label: t("Claro") }
           ]}
@@ -164,6 +165,10 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
               showSign={settings.showSign}
               display={settings.display}
               headline={settings.headline}
+              antigravityGroupMode={settings.antigravityGroupMode}
+              activityIndicator={settings.activityIndicator}
+              pulseActiveBar={settings.pulseActiveBar}
+              hideBarsNumber={settings.hideBarsNumber}
               activities={activities}
               side={settings.side}
               loading={false}
@@ -229,6 +234,14 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
             onChange={(showSign) => update({ showSign })}
           />
         ) : null}
+        {settings.compactMode === "bars" || settings.antigravityGroupMode === "bars" ? (
+          <Switch
+            label={t("Ocultar percentual no modo barras")}
+            description={t("Exibe apenas as barrinhas coloridas no dock, sem o número ao lado.")}
+            checked={settings.hideBarsNumber}
+            onChange={(hideBarsNumber) => update({ hideBarsNumber })}
+          />
+        ) : null}
       </Group>
     </>
   );
@@ -277,6 +290,12 @@ function PositionTab({ settings, update, monitors }: SettingsPanelProps) {
           </button>
         </div>
         <p className="hint">{t("Arraste para subir ou descer o dock na borda.")}</p>
+        <Switch
+          label={t("Bloquear posição")}
+          description={t("Impede arrastar o dock para cima ou para baixo com o mouse.")}
+          checked={settings.lockPosition}
+          onChange={(lockPosition) => update({ lockPosition })}
+        />
       </Group>
 
       {monitors.length > 0 ? (
@@ -416,6 +435,28 @@ function GeneralTab({
           checked={settings.closeOnBlur}
           onChange={(closeOnBlur) => update({ closeOnBlur })}
         />
+        <Segmented
+          label={t("Indicador de atividade")}
+          value={settings.activityIndicator}
+          onChange={(activityIndicator) => update({ activityIndicator })}
+          options={[
+            { value: "sweep", label: t("Luz giratória") },
+            { value: "pulse", label: t("Pulso suave") },
+            { value: "solid", label: t("Branco fixo") },
+            { value: "none", label: t("Desativado") }
+          ]}
+        />
+        {settings.activityIndicator !== "none" ? (
+          <Switch
+            label={t("Pulsar barra em uso")}
+            description={t("Desligue para manter a barra iluminada em branco fixo sem pulsar.")}
+            checked={settings.pulseActiveBar}
+            onChange={(pulseActiveBar) => update({ pulseActiveBar })}
+          />
+        ) : null}
+        <p className="hint">
+          {t("Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.")}
+        </p>
       </Group>
 
       <Group title={t("Atualizar uso a cada")}>
@@ -486,14 +527,21 @@ function ConnectionsTab({
   settings,
   update,
   providers,
+  rawProviders = providers,
   onChooseFolder,
   onProvidersChanged,
   withDialog
 }: SettingsPanelProps) {
   const byId = new Map(providers.map((provider) => [provider.id, provider]));
+  const rawById = new Map(rawProviders.map((provider) => [provider.id, provider]));
+  const validProviderIds = new Set(providers.map((p) => p.id));
+  const isRecognizedId = (id: string) => ["claude", "codex", "cursor", "antigravity"].includes(id) || validProviderIds.has(id);
+  const allIds = Array.from(new Set([...settings.providerOrder.filter(isRecognizedId), ...providers.map((p) => p.id)]));
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [aliasInput, setAliasInput] = useState("");
 
   function move(id: string, direction: -1 | 1) {
-    const order = [...settings.providerOrder];
+    const order = [...allIds];
     const index = order.indexOf(id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= order.length) return;
@@ -510,25 +558,105 @@ function ConnectionsTab({
     });
   }
 
+  function saveAlias(id: string, name: string) {
+    const trimmed = name.trim();
+    const next = { ...settings.providerAliases };
+    if (trimmed) {
+      next[id] = trimmed;
+    } else {
+      delete next[id];
+    }
+    update({ providerAliases: next });
+    setEditingId(null);
+  }
+
+  const antigravityProviders = providers.filter((p) => p.id === "antigravity" || p.id.startsWith("antigravity-"));
+
   return (
     <>
       <Group title={t("Providers")}>
         <p className="hint">{t("Ordem e visibilidade no dock e no painel.")}</p>
         <ul className="provider-list">
-          {settings.providerOrder.map((id, index) => {
+          {allIds.map((id, index) => {
             const provider = byId.get(id);
+            const raw = rawById.get(id);
             const hidden = settings.hiddenProviders.includes(id);
+            const customAlias = settings.providerAliases[id];
             const name = provider?.name || PROVIDER_NAMES[id] || id;
+            const originalName = (raw && tr(raw.name)) || PROVIDER_NAMES[id] || id;
+            const isEditing = editingId === id;
+
             return (
               <li key={id} className={"provider-list__item" + (hidden ? " is-hidden" : "")}>
                 <ProviderIcon providerId={id} size={16} brand />
                 <span className="provider-list__copy">
-                  <strong>{name}</strong>
-                  <small className={provider?.connected ? "is-on" : ""}>
-                    {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
-                  </small>
+                  {isEditing ? (
+                    <div className="provider-alias-edit">
+                      <input
+                        type="text"
+                        className="provider-alias-input"
+                        placeholder={originalName}
+                        value={aliasInput}
+                        autoFocus
+                        onChange={(e) => setAliasInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveAlias(id, aliasInput);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="icon-button icon-button--small icon-button--save"
+                        onClick={() => saveAlias(id, aliasInput)}
+                        title={t("Salvar")}
+                        aria-label={t("Salvar")}
+                      >
+                        <Check size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button icon-button--small"
+                        onClick={() => setEditingId(null)}
+                        title={t("Cancelar")}
+                        aria-label={t("Cancelar")}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <strong>
+                        {name}
+                        {customAlias ? (
+                          <span className="provider-list__alias-tag" title={t("Nome personalizado")}>
+                            ★
+                          </span>
+                        ) : null}
+                      </strong>
+                      <small className={provider?.connected ? "is-on" : ""}>
+                        {provider?.email && !name.includes(provider.email) ? `${provider.email} · ` : ""}
+                        {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
+                      </small>
+                    </>
+                  )}
                 </span>
                 <span className="provider-list__actions">
+                  <button
+                    type="button"
+                    className={"icon-button icon-button--small" + (customAlias ? " is-active" : "")}
+                    onClick={() => {
+                      if (isEditing) {
+                        setEditingId(null);
+                      } else {
+                        setEditingId(id);
+                        setAliasInput(customAlias || "");
+                      }
+                    }}
+                    title={customAlias ? t("Editar nome personalizado (atual: {name})", { name }) : t("Personalizar nome")}
+                    aria-label={t("Personalizar nome de {name}", { name })}
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <button
                     type="button"
                     className="icon-button icon-button--small"
@@ -542,7 +670,7 @@ function ConnectionsTab({
                     type="button"
                     className="icon-button icon-button--small"
                     onClick={() => move(id, 1)}
-                    disabled={index === settings.providerOrder.length - 1}
+                    disabled={index === allIds.length - 1}
                     aria-label={t("Mover {name} para baixo", { name })}
                   >
                     <ArrowDown size={13} />
@@ -562,6 +690,90 @@ function ConnectionsTab({
             );
           })}
         </ul>
+      </Group>
+
+      <Group title={t("Antigravity")}>
+        <Segmented
+          label={t("Visual no dock")}
+          value={settings.antigravityGroupMode}
+          onChange={(antigravityGroupMode) => update({ antigravityGroupMode })}
+          options={[
+            { value: "bars", label: t("Barras") },
+            { value: "rings", label: t("Anéis") },
+            { value: "split", label: t("Separado") }
+          ]}
+        />
+        <p className="hint">
+          {settings.antigravityGroupMode === "bars"
+            ? t("Junta Gemini, Claude+GPT e Argon com barrinhas horizontais empilhadas.")
+            : settings.antigravityGroupMode === "split"
+              ? t("Mostra cada família de modelos (Gemini, Claude+GPT, Argon) em um slot separado.")
+              : t("Junta Gemini, Claude+GPT e Argon em 1 slot com anéis concêntricos por conta.")}
+        </p>
+
+        <div className="antigravity-accounts">
+          <label className="field-label">{t("Contas e instâncias conectadas")}</label>
+          <p className="hint">
+            {t("Personalize o nome de exibição de cada conta (ex: Pessoal, Trabalho).")}
+          </p>
+          <div className="antigravity-accounts__list">
+            {antigravityProviders.map((ag) => {
+              const alias = settings.providerAliases[ag.id] || "";
+              const original = rawById.get(ag.id);
+              const email = ag.email || original?.email;
+              return (
+                <div key={ag.id} className="antigravity-account-row">
+                  <div className="antigravity-account-row__info">
+                    <span className="antigravity-account-row__badge">
+                      {ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "")}
+                    </span>
+                    <div className="antigravity-account-row__copy">
+                      <strong>{alias || ag.name}</strong>
+                      <small className="antigravity-account-row__email">
+                        {email || (original ? tr(original.name) : t("Instância local"))}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="antigravity-account-row__input-wrap">
+                    <input
+                      type="text"
+                      className="antigravity-account-input"
+                      placeholder={t("Nome (ex: Pessoal, Trabalho)")}
+                      value={alias}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const next = { ...settings.providerAliases };
+                        if (val.trim()) {
+                          next[ag.id] = val;
+                        } else {
+                          delete next[ag.id];
+                        }
+                        update({ providerAliases: next });
+                      }}
+                    />
+                    {alias ? (
+                      <button
+                        type="button"
+                        className="text-button text-button--small"
+                        onClick={() => {
+                          const next = { ...settings.providerAliases };
+                          delete next[ag.id];
+                          update({ providerAliases: next });
+                        }}
+                        title={t("Restaurar padrão")}
+                      >
+                        {t("Padrão")}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+            {antigravityProviders.length === 0 ? (
+              <small className="hint is-empty">{t("Nenhuma conta do Antigravity conectada no momento.")}</small>
+            ) : null}
+          </div>
+        </div>
       </Group>
 
       <Group title={t("Claude")}>

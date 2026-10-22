@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   activityForSlot,
+  antigravityPools,
+  compactSlots,
   displayKind,
   displayWord,
   featuredWindow,
@@ -15,9 +17,13 @@ import { formatPace } from "../src/lib/format.ts";
 import type { ActivitySession, ProviderActivity } from "../src/types.ts";
 
 function antigravity(...pools: Array<ActivitySession["pool"]>): ProviderActivity[] {
+  return account("antigravity", ...pools);
+}
+
+function account(providerId: string, ...pools: Array<ActivitySession["pool"]>): ProviderActivity[] {
   return [
     {
-      providerId: "antigravity",
+      providerId,
       state: "working",
       confidence: "inferred",
       sessions: pools.map((pool, index) => ({ id: "s" + index, title: "Antigravity", detail: "", state: "working", since: 1, pool }))
@@ -44,6 +50,21 @@ test("an unknown pool still lights both Antigravity slots", () => {
   assert.equal(activityForSlot(activities, "antigravity-gpt")?.state, "working");
 });
 
+test("each Antigravity account lights only its own slot", () => {
+  const activities = account("antigravity-2", "gemini");
+  assert.equal(activityForSlot(activities, "antigravity"), undefined);
+  assert.equal(activityForSlot(activities, "antigravity-2")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-2-gemini")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-2-gpt"), undefined);
+  assert.equal(activityForSlot(activities, "antigravity-gemini"), undefined);
+});
+
+test("an Argon session lights only the Argon slot", () => {
+  const activities = antigravity("argon");
+  assert.equal(activityForSlot(activities, "antigravity-argon")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-gemini"), undefined);
+});
+
 test("native display: Claude shows consumed percentage, like claude.ai", () => {
   assert.equal(displayKind("native", "claude"), "used");
   assert.equal(displayWord("native", "claude"), "usado");
@@ -52,7 +73,7 @@ test("native display: Claude shows consumed percentage, like claude.ai", () => {
 });
 
 test("native display: headroom providers keep remaining percentage", () => {
-  for (const providerId of ["codex", "cursor", "antigravity", "antigravity-gemini", "antigravity-gpt"]) {
+  for (const providerId of ["codex", "cursor", "antigravity", "antigravity-gemini", "antigravity-gpt", "antigravity-argon", "antigravity-2"]) {
     assert.equal(displayKind("native", providerId), "remaining");
     assert.equal(displayWord("native", providerId), "restante");
     assert.equal(shownPercent(64, "native", providerId), 64);
@@ -131,3 +152,127 @@ test("pace is skipped when the window length is unknown or just started", () => 
   assert.equal(windowPace({ id: "session", label: "Sessão", remainingPercent: 99, resetAt: new Date(now + 4.9 * HOUR).toISOString() }, now), null);
   assert.equal(windowPace({ id: "session", label: "Sessão", remainingPercent: 50, resetAt: null }, now), null);
 });
+
+test("compactSlots: bars mode keeps provider fused with all windows", () => {
+  const antigravity = {
+    id: "antigravity",
+    name: "Antigravity (Hotmail)",
+    connected: true,
+    windows: [
+      { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 80 },
+      { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 50 },
+      { id: "argon-weekly", label: "Argon · semanal", remainingPercent: 95 }
+    ]
+  };
+  const slots = compactSlots([antigravity], "bars");
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].id, "antigravity");
+  assert.equal(slots[0].windows.length, 3);
+});
+
+test("compactSlots: split mode separates gemini, claude-gpt, and argon", () => {
+  const antigravity = {
+    id: "antigravity",
+    name: "Antigravity",
+    connected: true,
+    windows: [
+      { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 80 },
+      { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 50 },
+      { id: "argon-weekly", label: "Argon · semanal", remainingPercent: 95 }
+    ]
+  };
+  const slots = compactSlots([antigravity], "split");
+  assert.equal(slots.length, 3);
+  assert.equal(slots[0].id, "antigravity-gemini");
+  assert.equal(slots[1].id, "antigravity-gpt");
+  assert.equal(slots[2].id, "antigravity-argon");
+});
+
+test("compactSlots: split mode keeps each account apart", () => {
+  const second = {
+    id: "antigravity-2",
+    name: "Antigravity · Conta 2",
+    connected: true,
+    windows: [
+      { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 80 },
+      { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 50 }
+    ]
+  };
+  const slots = compactSlots([second], "split");
+  assert.deepEqual(slots.map((slot) => slot.id), ["antigravity-2-gemini", "antigravity-2-gpt"]);
+  assert.equal(slots[0].name, "Gemini · Conta 2");
+});
+
+test("antigravityPools extracts featured window and resolves colors", () => {
+  const antigravity = {
+    id: "antigravity",
+    name: "Antigravity",
+    connected: true,
+    windows: [
+      { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 90 },
+      { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: 20 },
+      { id: "argon-weekly", label: "Argon · semanal", remainingPercent: 50 }
+    ]
+  };
+  const pools = antigravityPools(antigravity);
+  assert.equal(pools.length, 3);
+
+  // Gemini is healthy (>60%)
+  assert.equal(pools[0].id, "gemini");
+  assert.equal(pools[0].remainingPercent, 90);
+  assert.equal(pools[0].tone, "good");
+  assert.equal(pools[0].color, "#38bdf8");
+
+  // Claude is in danger (<25%)
+  assert.equal(pools[1].id, "claude-gpt");
+  assert.equal(pools[1].remainingPercent, 20);
+  assert.equal(pools[1].tone, "danger");
+  assert.equal(pools[1].color, "var(--danger)");
+
+  // Argon is in warning (25-60%)
+  assert.equal(pools[2].id, "argon");
+  assert.equal(pools[2].remainingPercent, 50);
+  assert.equal(pools[2].tone, "warning");
+  assert.equal(pools[2].color, "var(--warning)");
+});
+
+test("mergeProviderSnapshots retains closed instances as stale/offline", async () => {
+  const { mergeProviderSnapshots } = await import("../src/lib/snapshots.ts");
+  const previous = [
+    {
+      id: "antigravity",
+      name: "Antigravity (1)",
+      connected: true,
+      windows: [{ id: "gemini", label: "Gemini", remainingPercent: 80 }]
+    },
+    {
+      id: "antigravity-2",
+      name: "Antigravity (Conta 2)",
+      connected: true,
+      windows: [{ id: "gemini", label: "Gemini", remainingPercent: 15 }]
+    }
+  ];
+  // Incoming reading only detected instance 1 (instance 2 was closed)
+  const incoming = [
+    {
+      id: "antigravity",
+      name: "Antigravity (1)",
+      connected: true,
+      windows: [{ id: "gemini", label: "Gemini", remainingPercent: 78 }]
+    }
+  ];
+  const merged = mergeProviderSnapshots(previous as any, incoming as any, 123456);
+  assert.equal(merged.length, 2);
+  const inst1 = merged.find((p) => p.id === "antigravity");
+  const inst2 = merged.find((p) => p.id === "antigravity-2");
+  assert.ok(inst1);
+  assert.equal(inst1?.connected, true);
+  assert.equal(inst1?.stale, false);
+  assert.ok(inst2);
+  assert.equal(inst2?.connected, false);
+  assert.equal(inst2?.stale, true);
+  assert.equal(inst2?.windows.length, 1);
+  assert.equal(inst2?.windows[0].remainingPercent, 15);
+  assert.equal(inst2?.error, "Aplicativo fechado");
+});
+

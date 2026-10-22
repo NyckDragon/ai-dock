@@ -1,4 +1,4 @@
-import type { HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage, Settings, UsageWindow } from "../types";
+import type { AntigravityGroupMode, HeadlineWindow, PercentDisplay, ProviderActivity, ProviderUsage, Settings, UsageWindow } from "../types";
 import { t } from "./i18n.ts";
 
 export type QuotaTone = "good" | "warning" | "danger" | "empty";
@@ -75,11 +75,15 @@ export function arrangeProviders(providers: ProviderUsage[], settings: Settings)
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
-/** Antigravity has two separate pools, so the compact dock gives each its own slot. */
-export function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
+/** Antigravity has separate pools, so the compact dock can fuse them into concentric rings/bars or give each its own slot. */
+export function compactSlots(providers: ProviderUsage[], groupMode: AntigravityGroupMode = "bars"): ProviderUsage[] {
   const slots: ProviderUsage[] = [];
   for (const provider of providers) {
-    if (provider.id !== "antigravity") {
+    if (!provider.id.startsWith("antigravity")) {
+      slots.push(provider);
+      continue;
+    }
+    if (groupMode !== "split") {
       slots.push(provider);
       continue;
     }
@@ -87,22 +91,127 @@ export function compactSlots(providers: ProviderUsage[]): ProviderUsage[] {
     const other = provider.windows.filter(
       (item) => item.id.startsWith("claude-gpt") || item.id.startsWith("third-party")
     );
-    slots.push({ ...provider, id: "antigravity-gemini", name: "Gemini", windows: gemini });
-    slots.push({ ...provider, id: "antigravity-gpt", name: "Claude + GPT", windows: other });
+    const argon = provider.windows.filter((item) => item.id.startsWith("argon"));
+
+    // "Antigravity · Conta 2" (or an alias) tells the accounts apart when there is more than one.
+    const account = provider.name.replace(/^Antigravity( · )?/, "");
+    const tag = account ? ` · ${account}` : "";
+    const prefix = provider.id;
+
+    if (gemini.length > 0) {
+      slots.push({ ...provider, id: `${prefix}-gemini`, name: `Gemini${tag}`, windows: gemini });
+    }
+    if (other.length > 0) {
+      slots.push({ ...provider, id: `${prefix}-gpt`, name: `Claude + GPT${tag}`, windows: other });
+    }
+    if (argon.length > 0) {
+      slots.push({ ...provider, id: `${prefix}-argon`, name: `Argon${tag}`, windows: argon });
+    }
   }
   return slots;
 }
 
-export function baseProviderId(slotId: string) {
-  return slotId.startsWith("antigravity-") ? "antigravity" : slotId;
+export type PoolRing = {
+  id: string;
+  name: string;
+  remainingPercent: number;
+  tone: QuotaTone;
+  color: string;
+  trackColor?: string;
+};
+
+export function antigravityPools(
+  provider: ProviderUsage,
+  headline: HeadlineWindow = "limiting",
+  display: PercentDisplay = "native"
+): PoolRing[] {
+  const findPool = (prefix: string) => {
+    const matching = provider.windows.filter((w) => w.id.startsWith(prefix));
+    if (matching.length === 0) return null;
+    if (headline === "session") {
+      const session = matching.find((w) => /session|5h/i.test(w.id));
+      if (session) return session;
+    }
+    return matching.reduce((lowest, item) => (item.remainingPercent < lowest.remainingPercent ? item : lowest));
+  };
+
+  const gemini = findPool("gemini");
+  const claudeGpt = findPool("claude-gpt") || findPool("third-party");
+  const argon = findPool("argon");
+
+  const pools: PoolRing[] = [];
+
+  const resolveColor = (remaining: number, healthyColor: string): { tone: QuotaTone; color: string } => {
+    const tone = quotaTone(remaining);
+    if (tone === "danger") return { tone, color: "var(--danger)" };
+    if (tone === "warning") return { tone, color: "var(--warning)" };
+    if (tone === "empty") return { tone, color: "var(--text-3)" };
+    return { tone, color: healthyColor };
+  };
+
+  if (gemini) {
+    const rem = clampPercent(gemini.remainingPercent);
+    const val = shownPercent(rem, display, provider.id);
+    const { tone, color } = resolveColor(rem, "#38bdf8");
+    pools.push({
+      id: "gemini",
+      name: "Gemini",
+      remainingPercent: val,
+      tone,
+      color,
+      trackColor: "rgba(56, 189, 248, 0.15)"
+    });
+  }
+
+  if (claudeGpt) {
+    const rem = clampPercent(claudeGpt.remainingPercent);
+    const val = shownPercent(rem, display, provider.id);
+    const { tone, color } = resolveColor(rem, "#c084fc");
+    pools.push({
+      id: "claude-gpt",
+      name: "Claude + GPT",
+      remainingPercent: val,
+      tone,
+      color,
+      trackColor: "rgba(192, 132, 252, 0.15)"
+    });
+  }
+
+  if (argon) {
+    const rem = clampPercent(argon.remainingPercent);
+    const val = shownPercent(rem, display, provider.id);
+    const { tone, color } = resolveColor(rem, "#34d399");
+    pools.push({
+      id: "argon",
+      name: "Argon",
+      remainingPercent: val,
+      tone,
+      color,
+      trackColor: "rgba(52, 211, 153, 0.15)"
+    });
+  }
+
+  return pools;
 }
 
-const SLOT_POOL: Record<string, string> = { "antigravity-gemini": "gemini", "antigravity-gpt": "claude-gpt" };
+export function baseProviderId(slotId: string) {
+  return slotId.startsWith("antigravity") ? "antigravity" : slotId;
+}
 
-/** An Antigravity slot shows only the sessions of its own quota pool; a session with no known pool shows on both. */
+const SLOT_POOL: Record<string, string> = { gemini: "gemini", gpt: "claude-gpt", argon: "argon" };
+const POOL_SLOT = /^(antigravity(?:-\d+)?)-(gemini|gpt|argon)$/;
+
+/** The provider id a dock slot belongs to: "antigravity-2-gemini" belongs to account "antigravity-2". */
+export function accountId(slotId: string) {
+  return slotId.match(POOL_SLOT)?.[1] ?? slotId;
+}
+
+/** Activity of the slot's own account. An Antigravity pool slot shows only the sessions
+ * of its own quota pool; a session with no known pool shows on every pool. */
 export function activityForSlot(activities: ProviderActivity[], slotId: string): ProviderActivity | undefined {
-  const activity = activities.find((item) => item.providerId === baseProviderId(slotId));
-  const pool = SLOT_POOL[slotId];
+  const activity = activities.find((item) => item.providerId === accountId(slotId));
+  const suffix = slotId.match(POOL_SLOT)?.[2];
+  const pool = suffix ? SLOT_POOL[suffix] : undefined;
   if (!activity || !pool) return activity;
   const sessions = activity.sessions.filter((session) => !session.pool || session.pool === pool);
   if (sessions.length === activity.sessions.length) return activity;

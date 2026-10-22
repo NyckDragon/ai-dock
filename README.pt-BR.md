@@ -45,12 +45,12 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 
 ## O que faz
 
-- **Sempre no topo, sem atrapalhar.** Fica na borda esquerda ou direita de qualquer tela, na altura que você escolher. Sem ícone na barra de tarefas. Pode se ocultar numa faixa fina e some durante apps em tela cheia.
-- **Quota num olhar.** Quatro visuais recolhidos (círculo, quadrado, números, clássico) com a cor de quanto resta. Passe o mouse num provider para ver todas as janelas, o reset e o plano.
+- **Sempre no topo, sem atrapalhar.** Fica na borda esquerda ou direita de qualquer tela. Arraste verticalmente pela borda para ajustar a altura e trave a posição nas Configurações. Sem ícone na barra de tarefas. Pode se ocultar numa faixa fina e some durante apps em tela cheia.
+- **Quota num olhar.** Cinco visuais recolhidos (círculo, quadrado, barras, números, clássico) com a cor de quanto resta. Passe o mouse num provider para ver todas as janelas, o reset e o plano.
 - **Ritmo.** "Esgota em 2h 10min" ou "19% abaixo do ritmo" em cada janela, e um gráfico das últimas 24 horas, 7 ou 30 dias.
 - **Nome real do plano**, como Claude Max 5x ou Max 20x, quando o provider informa.
 - **Status dos serviços.** Incidentes das páginas de status oficiais do Claude, da OpenAI (Codex) e do Cursor aparecem no dock e nos cards, com link para a página.
-- **Custos locais.** Tokens e custo estimado na API das suas sessões do Claude Code e do Codex CLI, por dia, ferramenta, modelo e projeto, lidos dos logs locais.
+- **Custos locais.** Tokens e custo estimado na API das suas sessões do Claude Code, do Codex CLI e do Antigravity, por dia, ferramenta, modelo e projeto, lidos dos logs locais.
 - **Atividade dos agentes.** Veja quando Codex, Cursor ou Antigravity estão trabalhando e receba uma notificação quando um agente espera você.
 - **Notificações** de quota baixa (80% e 95% de uso), limite renovado, instabilidade no serviço e provider que parou de atualizar (e quando volta). Pause de 30 min até "amanhã" em Configurações ou na bandeja.
 - **Prompts do Obsidian.** Busca, favoritos, recentes, `{{variáveis}}` preenchidas antes de copiar, atalho global **Ctrl + Alt + Espaço** (**Control + Option + Command + Espaço** no Mac) e opção de colar direto no app em que você estava.
@@ -63,7 +63,7 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 | **Claude** | O login OAuth local do Claude Code **ou** a sessão do claude.ai em que você entra dentro do AI Dock (ou um cookie colado à mão) | Cookies do Chrome/Edge, sessão interna do Claude Desktop |
 | **Codex** | `~/.codex/auth.json` (ou `CODEX_HOME`) e o endpoint de uso do ChatGPT | — |
 | **Cursor** | O estado logado do editor em `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (só leitura) e `cursor.com/api/usage-summary` | Senha da conta ou navegador |
-| **Antigravity** | O language server local do app instalado | Sua conta Google na web |
+| **Antigravity** | O language server local do app instalado (suporta múltiplas instâncias e contas simultâneas) | Sua conta Google na web |
 
 ### Conectar o Claude
 
@@ -73,9 +73,15 @@ Depois disso o AI Dock **renova a sessão sozinho**: guarda os cookies que o cla
 
 Alternativa manual: DevTools do claude.ai → Application → Cookies → copie a tabela inteira (ou o cabeçalho `Cookie`) e cole em **Colar o cookie manualmente**. Nunca cole isso numa issue.
 
+### Antigravity com várias contas
+
+O AI Dock acha a sua conta principal do Antigravity sozinho. Se você usa mais contas, cada uma na sua pasta de dados (aberta com `--user-data-dir`), o AI Dock acha cada instância aberta e mostra as cotas, os resets, a atividade do agente e os grupos (Gemini, Claude + GPT, Argon) no ícone dela.
+
+Dê às pastas os nomes `Antigravity-Conta2`, `Antigravity-Conta3`… (ou `Antigravity-Account2`…), na sua pasta de usuário ou na raiz do `C:\` ou do `D:\`, e o AI Dock também lista essas contas quando estão fechadas, numeradas pela pasta. O e-mail de cada conta vem do próprio Antigravity enquanto ele está aberto; o AI Dock não lê os arquivos de credencial da conta. Renomeie qualquer conta em **Configurações → Conexões**.
+
 ### Custos
 
-A aba **Custos** lê os logs JSONL que o Claude Code (`~/.claude/projects`) e o Codex CLI (`~/.codex/sessions`) já gravam no seu PC e calcula o preço de cada modelo pela [tabela pública do LiteLLM](https://github.com/BerriAI/litellm). Assinaturas não cobram por token, então o número é **quanto esse uso custaria na API**, não o que você paga. Modelos que não estão na tabela contam só em tokens e aparecem com `+`.
+A aba **Custos** lê os logs JSONL que o Claude Code (`~/.claude/projects`), o Codex CLI (`~/.codex/sessions`) e o Antigravity (`~/.gemini/antigravity/brain`) já gravam no seu PC e calcula o preço de cada modelo pela [tabela pública do LiteLLM](https://github.com/BerriAI/litellm). Assinaturas não cobram por token, então o número é **quanto esse uso custaria na API**, não o que você paga. Modelos que não estão na tabela contam só em tokens e aparecem com `+`.
 
 ## Privacidade
 

@@ -7,9 +7,9 @@ AI Dock runs locally on Windows, macOS and Linux and reads provider data only fr
 - **Claude Code:** `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`. On the macOS beta, when that file is missing, the login Keychain item `Claude Code-credentials` that Claude Code writes, read only after macOS asks you once
 - **Codex:** `%USERPROFILE%\.codex\auth.json` or `CODEX_HOME`
 - **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` on Windows, `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS, or `~/.config/Cursor/User/globalStorage/state.vscdb` on Linux, opened read-only
-- **Antigravity:** local process/language-server state
+- **Antigravity:** the local language server of each open instance (quota, plan, account email and the model of running conversations), and the files Antigravity writes under each account's `.gemini/antigravity` folder: transcript timestamps and token counts in `brain/*/logs/transcript.jsonl`, the conversation title in `conversation_summaries.db`, the model id in `conversations/*.db` and `antigravity_state.pbtxt`. Databases are opened read-only. AI Dock does not read Antigravity's credential files (`cred.json`) or any other file to find the account email
 - **Claude Web:** the claude.ai session the user signs in to inside AI Dock, or a Cookie the user pastes manually
-- **Costs tab:** the JSONL session logs Claude Code (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`) and the Codex CLI (`~/.codex/sessions`, `CODEX_HOME`) write locally. Only token counts, model names, timestamps and the project folder name are used; prompts and answers in those files are skipped and never stored or sent anywhere.
+- **Costs tab:** the JSONL session logs Claude Code (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`), the Codex CLI (`~/.codex/sessions`, `CODEX_HOME`) and Antigravity (`brain/*/logs/transcript.jsonl` of each account) write locally. Only token counts, model names, timestamps and the project folder name are used; prompts and answers in those files are skipped and never stored or sent anywhere.
 
 ## Claude Web credential handling
 
@@ -59,7 +59,7 @@ The frontend provider cache stores only non-sensitive quota/provider metadata.
 
 The app does not intentionally log tokens, cookies, session keys or OAuth credentials.
 
-Development builds write a small `boot.log` with dock placement diagnostics. Release builds do not write it. Credential values must never be added to those messages.
+Development builds write a small `boot.log` with dock placement diagnostics and an `antigravity-<account>.log` with the conversation ids, status, time and model ids the Antigravity language server reports. Release builds write neither. Credential values must never be added to those messages.
 
 ## Network boundaries
 

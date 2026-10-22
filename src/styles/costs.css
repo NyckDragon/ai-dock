@@ -165,11 +165,30 @@
 /* Notification pause */
 .pause-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px 0 4px;
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
-.pause-row > span { flex: 0 0 auto; white-space: nowrap; }
-.pause-row__options { display: flex; flex-wrap: wrap; gap: 6px; }
+.pause-row > span {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.pause-row__options {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.pause-row__options .chip {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  justify-content: center;
+  font-size: 11px;
+}
+.pause-row__options .chip:last-child {
+  flex: 1.4;
+}
+

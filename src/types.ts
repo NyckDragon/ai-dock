@@ -1,5 +1,5 @@
 export type DockSide = "left" | "right";
-export type CompactMode = "classic" | "percent" | "ring" | "square";
+export type CompactMode = "classic" | "percent" | "ring" | "square" | "bars";
 export type ThemePreference = "system" | "dark" | "light";
 /** "native" follows each product: Claude shows what was used, the others what is left. */
 export type PercentDisplay = "native" | "remaining" | "used";
@@ -10,6 +10,7 @@ export type SettingsTab = "appearance" | "position" | "general" | "connections";
 export type PanelView = "usage" | "costs" | "prompts";
 export type Language = "auto" | "pt" | "en";
 export type HistoryRange = "24h" | "7d" | "30d";
+export type AntigravityGroupMode = "bars" | "rings" | "split";
 
 export type MonitorInfo = {
   index: number;
@@ -31,6 +32,7 @@ export type ProviderUsage = {
   name: string;
   connected: boolean;
   plan?: string | null;
+  email?: string | null;
   windows: UsageWindow[];
   error?: string | null;
   /** True when the windows are the last good reading, kept after a failed refresh. */
@@ -84,6 +86,7 @@ export type PromptItem = {
 };
 
 export type ActivityState = "working" | "waiting" | "idle";
+export type ActivityIndicator = "sweep" | "pulse" | "solid" | "none";
 export type ActivityConfidence = "direct" | "inferred";
 
 export type ActivitySession = {
@@ -93,7 +96,7 @@ export type ActivitySession = {
   state: ActivityState;
   since: number;
   /** Antigravity quota pool, when the running model is known. */
-  pool?: "gemini" | "claude-gpt";
+  pool?: "gemini" | "claude-gpt" | "argon";
 };
 
 export type ProviderActivity = {
@@ -128,6 +131,12 @@ export type Settings = {
   notificationsPausedUntil: number | null;
   language: Language;
   historyRange: HistoryRange;
+  antigravityGroupMode: AntigravityGroupMode;
+  activityIndicator: ActivityIndicator;
+  pulseActiveBar: boolean;
+  hideBarsNumber: boolean;
+  lockPosition: boolean;
+  providerAliases: Record<string, string>;
   providerOrder: string[];
   hiddenProviders: string[];
   obsidianPath: string | null;

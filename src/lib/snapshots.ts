@@ -9,9 +9,10 @@ export function mergeProviderSnapshots(
   incoming: ProviderUsage[],
   updatedAt: number
 ): ProviderUsage[] {
+  const incomingIds = new Set(incoming.map((provider) => provider.id));
   const previousById = new Map(previous.map((provider) => [provider.id, provider]));
 
-  return incoming.map((provider) => {
+  const merged = incoming.map((provider) => {
     const prior = previousById.get(provider.id);
 
     if (provider.connected && provider.windows.length > 0) {
@@ -35,4 +36,19 @@ export function mergeProviderSnapshots(
       lastErrorAt: provider.error ? updatedAt : null
     };
   });
+
+  // Retain previously known providers that had windows (e.g. secondary Antigravity window closed)
+  for (const prior of previous) {
+    if (!incomingIds.has(prior.id) && prior.windows.length > 0) {
+      merged.push({
+        ...prior,
+        connected: false,
+        stale: true,
+        error: "Aplicativo fechado",
+        lastErrorAt: updatedAt
+      });
+    }
+  }
+
+  return merged;
 }
