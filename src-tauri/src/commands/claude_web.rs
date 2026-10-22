@@ -43,7 +43,11 @@ const LOGIN_EVENT: &str = "claude-login";
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const RENEW_GAP: Duration = Duration::from_secs(20 * 60);
 const RENEW_WAIT: Duration = Duration::from_secs(7);
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT: &str = if cfg!(target_os = "macos") {
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
+} else {
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+};
 
 /// The only claude.ai cookies AI Dock keeps.
 const ALLOWED: [&str; 4] = ["sessionKey", "cf_clearance", "__cf_bm", "anthropic-device-id"];
@@ -107,6 +111,8 @@ fn credential_entry(account: &str) -> Result<Entry, String> {
 fn credential_store_unavailable() -> String {
     if cfg!(target_os = "linux") {
         "Não foi possível acessar o cofre de segredos do Linux.".to_string()
+    } else if cfg!(target_os = "macos") {
+        "Não foi possível acessar o Keychain.".to_string()
     } else {
         "Não foi possível acessar o Gerenciador de Credenciais do Windows.".to_string()
     }
@@ -115,6 +121,8 @@ fn credential_store_unavailable() -> String {
 fn credential_store_save_failed() -> String {
     if cfg!(target_os = "linux") {
         "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.".to_string()
+    } else if cfg!(target_os = "macos") {
+        "Não consegui salvar o Cookie do Claude no Keychain.".to_string()
     } else {
         "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.".to_string()
     }

@@ -203,8 +203,10 @@ export const EN: Record<string, string> = {
   "Comportamento": "Behavior",
   "Iniciar com o Windows": "Start with Windows",
   "Iniciar com o Linux": "Start with Linux",
+  "Iniciar com o Mac": "Start at login",
   "Atalho global": "Global shortcut",
   "Ctrl + Alt + Espaço": "Ctrl + Alt + Space",
+  "⌃ + ⌥ + ⌘ + Espaço": "⌃ + ⌥ + ⌘ + Space",
   "abre a busca de prompts de qualquer lugar.": "opens prompt search from anywhere.",
   "Não foi possível registrar {shortcut}. Outro app pode estar usando esse atalho.":
     "Could not register {shortcut}. Another app may be using that shortcut.",
@@ -410,6 +412,8 @@ export const EN: Record<string, string> = {
   "Antigravity não foi encontrado em %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.":
     "Antigravity was not found in %LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe.",
   "Antigravity não foi encontrado neste computador.": "Antigravity was not found on this computer.",
+  "Antigravity não foi encontrado em /Applications/Antigravity.app.":
+    "Antigravity was not found in /Applications/Antigravity.app.",
   "Falha de rede ao consultar o Claude Web.": "Network failure reaching Claude Web.",
   "A sessão do Claude expirou. Clique em Reconectar e entre no claude.ai de novo.":
     "Your Claude session expired. Click Reconnect and sign in to claude.ai again.",
@@ -420,8 +424,10 @@ export const EN: Record<string, string> = {
   "Nenhuma organização Claude válida foi encontrada nessa sessão.": "No valid Claude organization was found in this session.",
   "Não foi possível acessar o Gerenciador de Credenciais do Windows.": "Could not access Windows Credential Manager.",
   "Não foi possível acessar o cofre de segredos do Linux.": "Could not access the Linux secret service.",
+  "Não foi possível acessar o Keychain.": "Could not access the Keychain.",
   "Não consegui salvar o Cookie do Claude no Gerenciador de Credenciais.": "Could not save the Claude cookie in Credential Manager.",
   "Não consegui salvar o cookie do Claude no cofre de segredos do Linux.": "Could not save the Claude cookie in the Linux secret service.",
+  "Não consegui salvar o Cookie do Claude no Keychain.": "Could not save the Claude cookie in the Keychain.",
   "Cole o Cookie completo de uma requisição do claude.ai.": "Paste the full Cookie from a claude.ai request.",
   "Cookie incompleto. Cole o cabeçalho Cookie completo ou o valor inteiro do sessionKey.":
     "Incomplete cookie. Paste the full Cookie header or the whole sessionKey value.",
@@ -472,6 +478,7 @@ export const EN: Record<string, string> = {
   "Claude Code não está instalado. Use o botão Instalar Claude Code primeiro.":
     "Claude Code is not installed. Use the Install CLI button first.",
   "Não foi possível abrir o Claude no Windows Terminal.": "Could not open Claude in Windows Terminal.",
+  "Não foi possível abrir o Claude no Terminal.": "Could not open Claude in Terminal.",
   "Não foi possível abrir o Claude para autenticação.": "Could not open Claude to sign in.",
   "Não foi possível iniciar o cliente HTTP.": "Could not start the HTTP client.",
   "Página de status desconhecida.": "Unknown status page.",

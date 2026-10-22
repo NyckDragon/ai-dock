@@ -409,7 +409,13 @@ function GeneralTab({
     <>
       <Group title={t("Comportamento")}>
         <Switch
-          label={t(currentPlatform() === "linux" ? "Iniciar com o Linux" : "Iniciar com o Windows")}
+          label={t(
+            currentPlatform() === "macos"
+              ? "Iniciar com o Mac"
+              : currentPlatform() === "linux"
+                ? "Iniciar com o Linux"
+                : "Iniciar com o Windows"
+          )}
           checked={Boolean(autostart)}
           disabled={autostart == null}
           onChange={onAutostart}

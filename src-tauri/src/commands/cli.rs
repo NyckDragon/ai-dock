@@ -11,20 +11,19 @@ use super::providers::ProviderSetupStatus;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-#[cfg(target_os = "windows")]
-fn run_hidden(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
-    Command::new(program).args(args).creation_flags(CREATE_NO_WINDOW).output()
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn run_hidden(program: impl AsRef<std::ffi::OsStr>, args: &[&str]) -> std::io::Result<std::process::Output> {
+    let mut command = Command::new(program);
+    command.args(args);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command.output()
 }
 
 #[cfg(target_os = "windows")]
 fn npm_claude() -> Option<PathBuf> {
-    if let Some(appdata) = env::var_os("APPDATA") {
-        let npm = PathBuf::from(appdata).join("npm").join("claude.cmd");
-        if npm.is_file() {
-            return Some(npm);
-        }
-    }
-    None
+    let npm = PathBuf::from(env::var_os("APPDATA")?).join("npm").join("claude.cmd");
+    npm.is_file().then_some(npm)
 }
 
 #[cfg(target_os = "windows")]
@@ -32,6 +31,16 @@ fn npm_available() -> bool {
     run_hidden("where.exe", &["npm.cmd"])
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn npm_claude() -> Option<PathBuf> {
+    super::macos::homebrew_tool("claude")
+}
+
+#[cfg(target_os = "macos")]
+fn npm_available() -> bool {
+    super::macos::homebrew_tool("npm").is_some()
 }
 
 /// The global npm bin places `claude` beside `npm`. That is the install this button removes.
@@ -46,12 +55,12 @@ fn npm_available() -> bool {
     super::linux::tool("npm").is_some()
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 fn npm_claude() -> Option<PathBuf> {
     None
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 fn npm_available() -> bool {
     false
 }
@@ -79,7 +88,13 @@ pub async fn uninstall_provider_cli() -> Result<ProviderSetupStatus, String> {
                 .args(["uninstall", "-g", "@anthropic-ai/claude-code"])
                 .output()
         }
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            let npm = super::macos::homebrew_tool("npm")
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "npm"))?;
+            run_hidden(npm, &["uninstall", "-g", "@anthropic-ai/claude-code"])
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "npm"))
         }
