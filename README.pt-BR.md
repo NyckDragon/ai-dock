@@ -2,10 +2,10 @@
 
 Dock lateral para Windows 11, com beta no macOS e no Linux, que mostra **quanto resta da quota das IAs** (Claude, Codex, Cursor e Antigravity), o que seus agentes estão fazendo, quanto esse uso custaria na API e a sua **biblioteca de prompts do Obsidian**, a um hover de distância.
 
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-0.7.1-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-0.8.0--beta.1-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
-[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -19,6 +19,8 @@ Dock lateral para Windows 11, com beta no macOS e no Linux, que mostra **quanto 
 
 ## Download
 
+**0.8.0 em teste:** o [pré-release v0.8.0-beta.1](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1) reúne Windows, macOS e Linux num lugar só, com várias contas do Antigravity e o visual em barras. O release estável mais recente para Windows continua sendo o 0.7.1.
+
 ### Windows 11
 
 Baixe o instalador (NSIS) ou o `.exe` portátil em [Releases](../../releases).
@@ -27,7 +29,7 @@ O binário **ainda não é assinado**, então o SmartScreen do Windows pode avis
 
 ### macOS em teste
 
-Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases/download/macos-beta.2/AI.Dock_0.7.0_aarch64.dmg). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/macos-beta.2), separado do release 0.7.1 de Windows.
+Só Apple Silicon. [Baixe o .dmg](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.1/AI.Dock_0.8.0-beta.1_aarch64.dmg) do [pré-release v0.8.0-beta.1](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1). Ninguém deu retorno de um Mac de verdade ainda, então conte como foi, mesmo que tudo tenha funcionado.
 
 O app não é assinado nem notarizado. O Gatekeeper avisa na primeira abertura: clique com o botão direito em AI Dock → Abrir.
 
@@ -37,7 +39,7 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 
 ### Linux em teste
 
-Omarchy (Hyprland). [Baixe o AppImage](https://github.com/NyckDragon/ai-dock/releases/download/linux-beta.2/AI.Dock_0.7.0_amd64.AppImage). Ele também está no [pré-release](https://github.com/NyckDragon/ai-dock/releases/tag/linux-beta.2), separado do release 0.7.1 de Windows.
+Omarchy (Hyprland). [Baixe o AppImage](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.1/AI.Dock_0.8.0-beta.1_amd64.AppImage) do [pré-release v0.8.0-beta.1](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1). Ele é montado no Ubuntu 22.04, então precisa da glibc 2.35 ou mais nova.
 
 O AppImage não é assinado. Dê permissão de execução e abra. Se reclamar do FUSE, instale `fuse2`, ou extraia com `--appimage-extract` e rode `./squashfs-root/AppRun`.
 

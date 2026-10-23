@@ -7,6 +7,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0-beta.1] - 2026-10-22
+
+Primeira versão de teste da 0.8.0: Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.
+
 ### Added
 
 - **macOS e Linux no `main`:** o código dos betas (`macos-beta` e `linux-beta`) entra no `main`, e o CI monta o `.dmg` (Apple Silicon) e o AppImage junto com o Windows. O AppImage passa a ser montado no Ubuntu 22.04 (glibc 2.35), com checagem das permissões do `AppRun` e um teste que abre o app numa tela virtual. No Mac e no Linux, o Antigravity também acha a pasta de cada conta pelo `--user-data-dir`.
@@ -22,6 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 - Configurações com menus de seleção e painel expandido um pouco mais largo.
 - Vite 8.3.5 e `source-map-js` 1.2.2 (Dependabot), que fecham os 2 alertas do `npm audit`. Só afetam as ferramentas de build, não o app instalado.
+- Releases: um workflow só (`build.yml`) monta os três sistemas em todo PR e publica uma release com os três arquivos quando a versão muda; versões com sufixo, como `0.8.0-beta.1`, saem como pré-release e não tiram o "Latest" do 0.7.1.
 - Tauri 2.12 (app e plugins) atualizado pelo Dependabot. O pacote npm e o crate Rust sobem juntos, porque o build recusa versões diferentes entre os dois.
 
 ## [0.7.1] - 2026-10-01
