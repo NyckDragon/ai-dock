@@ -69,8 +69,7 @@ pub fn run() {
                 let _ = window.center();
                 let _ = window.show();
                 let _ = window.set_always_on_top(true);
-                #[cfg(target_os = "windows")]
-                commands::dock::install_hit_test(&window);
+                commands::dock::start_click_through(window.clone());
                 #[cfg(target_os = "macos")]
                 let _ = window.set_visible_on_all_workspaces(true);
 

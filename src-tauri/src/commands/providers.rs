@@ -8,7 +8,7 @@ use std::os::windows::process::CommandExt;
 
 use tauri::AppHandle;
 
-use super::{antigravity, claude_web, cursor, deepseek, grok};
+use super::{antigravity, claude_web, cursor, deepseek, grok, grok_bot};
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -686,7 +686,13 @@ pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
         grok::usage(&client),
     );
     let mut providers = vec![claude, codex, cursor, grok.main];
-    if let Some(bot) = grok.bot {
+    // The desktop app's own cached meter wins. The billing payload is a fallback.
+    let bot = match (grok_bot::usage(), grok.bot) {
+        (Some(local), remote) if local.windows.is_empty() && remote.is_some() => remote,
+        (Some(local), _) => Some(local),
+        (None, remote) => remote,
+    };
+    if let Some(bot) = bot {
         providers.push(bot);
     }
     providers.extend(antigravity);

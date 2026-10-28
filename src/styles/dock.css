@@ -50,22 +50,31 @@
   transition: border-color var(--dur-fast) ease;
 }
 .dock-pill:hover { border-color: var(--accent-border); }
-.dock-pill--glass {
-  /* 0 is nearly solid glass. 1 is the clearest fill that still holds the numbers. */
+/* Glass: the pill, the signal list, the peek and the open panel share one tint.
+   App.tsx sets data-glass and --glass-t on the root; the settings preview sets
+   --glass-t on its own pill. 0 is nearly solid, 1 the clearest fill that still
+   holds the numbers. The tint follows the theme (--glass-rgb in tokens.css). */
+.dock-pill--glass,
+:root[data-glass="on"] .dock-signal-list,
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-panel {
   --glass-alpha: calc(0.9 - (0.9 - 0.5) * var(--glass-t, 0.4));
-  background: rgba(8, 10, 14, var(--glass-alpha));
-  border-top-color: rgba(255, 255, 255, 0.55);
+  background: rgba(var(--glass-rgb), var(--glass-alpha));
+  border-top-color: var(--glass-edge);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.32),
     inset 0 12px 18px rgba(255, 255, 255, 0.05);
 }
 .dock-pill--glass .slot-value,
-.dock-pill--glass .dock-word {
-  text-shadow: 0 0 3px rgba(8, 10, 14, 0.95), 0 1px 1px rgba(8, 10, 14, 0.85);
+.dock-pill--glass .dock-word,
+:root[data-glass="on"] .dock-signal-list,
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-panel {
+  text-shadow: 0 0 3px rgba(var(--glass-rgb), 0.95), 0 1px 1px rgba(var(--glass-rgb), 0.85);
 }
 .dock-pill--glass:hover {
   border-color: var(--accent-border);
-  border-top-color: rgba(255, 255, 255, 0.72);
+  border-top-color: var(--glass-edge);
 }
 .dock-pill--preview { cursor: default; }
 .dock-pill--preview:hover { border-color: var(--border); }

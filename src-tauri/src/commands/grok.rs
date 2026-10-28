@@ -228,6 +228,7 @@ fn trim_fraction(text: &str) -> String {
     format!("{head}.{digits}{tail}")
 }
 
+#[cfg(test)]
 pub(crate) fn parse_billing(body: &Value) -> ProviderUsage {
     parse_accounts(body).main
 }

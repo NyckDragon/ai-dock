@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-#[cfg(target_os = "windows")]
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
@@ -587,62 +585,51 @@ pub fn set_dock_hits(app: AppHandle, interactive: bool, boxes: Vec<DockHitBox>) 
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-static PREV_WNDPROC: AtomicIsize = AtomicIsize::new(0);
-#[cfg(target_os = "windows")]
-static HIT_INSTALLED: AtomicBool = AtomicBool::new(false);
+/// How often the cursor is checked against the hit boxes.
+const CLICK_THROUGH_POLL: std::time::Duration = std::time::Duration::from_millis(30);
 
-/// Subclasses the dock so empty peek width does not eat clicks meant for the app behind it.
-#[cfg(target_os = "windows")]
-pub fn install_hit_test(window: &tauri::WebviewWindow) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowLongPtrW, GWLP_WNDPROC};
-
-    if HIT_INSTALLED.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    let Ok(hwnd) = window.hwnd() else {
-        HIT_INSTALLED.store(false, Ordering::SeqCst);
-        return;
-    };
-    // SAFETY: the handle belongs to our live window. The previous proc is restored
-    // on every message, and the hook only answers WM_NCHITTEST.
-    let previous = unsafe { SetWindowLongPtrW(hwnd.0 as _, GWLP_WNDPROC as _, dock_hit_proc as *const () as _) };
-    PREV_WNDPROC.store(previous, Ordering::SeqCst);
-}
-
-#[cfg(target_os = "windows")]
-unsafe extern "system" fn dock_hit_proc(
-    hwnd: windows_sys::Win32::Foundation::HWND,
-    msg: u32,
-    wparam: windows_sys::Win32::Foundation::WPARAM,
-    lparam: windows_sys::Win32::Foundation::LPARAM,
-) -> windows_sys::Win32::Foundation::LRESULT {
-    use windows_sys::Win32::Foundation::{LRESULT, POINT};
-    use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CallWindowProcW, DefWindowProcW, HTTRANSPARENT, WNDPROC, WM_NCHITTEST,
-    };
-
-    if msg == WM_NCHITTEST {
-        let x = lparam as i16 as i32;
-        let y = (lparam >> 16) as i16 as i32;
-        let mut point = POINT { x, y };
-        if ScreenToClient(hwnd, &mut point) != 0 {
-            let hits = HITS.lock().unwrap_or_else(|poison| poison.into_inner());
-            let pass = client_passes_through(hits.enabled, &hits.rects, point.x, point.y);
-            drop(hits);
-            if pass {
-                return HTTRANSPARENT as LRESULT;
+/// Lets clicks on empty dock space reach the app behind it.
+///
+/// The collapsed dock keeps peek width, so the card opens without moving the
+/// window. The empty part of that width must not catch clicks meant for the
+/// browser or editor beside it. A WM_NCHITTEST answer of HTTRANSPARENT only
+/// reaches windows of this same thread, so the whole window is made to ignore
+/// the cursor while it sits over empty space, and takes it back over the pill,
+/// the cat or the open card. Windows, macOS and Linux all honor
+/// `set_ignore_cursor_events`.
+pub fn start_click_through(window: tauri::WebviewWindow) {
+    std::thread::spawn(move || {
+        let mut ignoring = false;
+        loop {
+            std::thread::sleep(CLICK_THROUGH_POLL);
+            let pass = cursor_over_empty_space(&window);
+            if pass != ignoring && window.set_ignore_cursor_events(pass).is_ok() {
+                ignoring = pass;
             }
         }
-    }
+    });
+}
 
-    let previous = PREV_WNDPROC.load(Ordering::SeqCst);
-    if previous == 0 {
-        return DefWindowProcW(hwnd, msg, wparam, lparam);
+/// True only while the cursor is inside the window and outside every hit box.
+fn cursor_over_empty_space(window: &tauri::WebviewWindow) -> bool {
+    let Some(rect) = LAST_PLACEMENT
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .as_ref()
+        .map(|placement| placement.pixels)
+    else {
+        return false;
+    };
+    let Ok(cursor) = window.cursor_position() else {
+        return false;
+    };
+    let x = cursor.x.floor() as i32 - rect.x;
+    let y = cursor.y.floor() as i32 - rect.y;
+    if x < 0 || y < 0 || x >= rect.width || y >= rect.height {
+        return false;
     }
-    let proc: WNDPROC = std::mem::transmute(previous);
-    CallWindowProcW(proc, hwnd, msg, wparam, lparam)
+    let hits = HITS.lock().unwrap_or_else(|poison| poison.into_inner());
+    client_passes_through(hits.enabled, &hits.rects, x, y)
 }
 
 /// A rectangle in the same point space as a display and a window.

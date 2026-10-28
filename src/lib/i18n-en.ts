@@ -41,6 +41,8 @@ export const EN: Record<string, string> = {
   "Grok Bot": "Grok Bot",
   "Grok CLI não conectado. Rode grok login.": "Grok CLI is not connected. Run grok login.",
   "A sessão do Grok expirou. Rode grok login.": "The Grok session expired. Run grok login.",
+  "Abra o Grok Bot para ler o limite.": "Open Grok Bot to read its limit.",
+  "A semana virou. Abra o Grok Bot para atualizar.": "A new week started. Open Grok Bot to refresh.",
   "Falha de rede ao consultar o uso do Grok.": "Network failure while checking Grok usage.",
   "Pool semanal compartilhado com o Cursor na assinatura X.":
     "Weekly pool shared with Cursor on the X subscription.",
@@ -170,8 +172,8 @@ export const EN: Record<string, string> = {
   "Robô": "Robot",
   "Faltam os frames do robô.": "The robot frames are missing.",
   "Vidro · beta": "Glass · beta",
-  "Fundo translúcido na pill. O tema claro e escuro fica igual.":
-    "Translucent pill background. Light and dark themes stay as they are.",
+  "Fundo translúcido na pill, no cartão do hover e no painel aberto.":
+    "Translucent background on the pill, the hover card and the open panel.",
   "Transparência": "Transparency",
   "0 é o vidro mais sólido. 100 é o mais transparente em que os números ainda se leem.":
     "0 is the most solid glass. 100 is the most transparent step where the numbers can still be read.",

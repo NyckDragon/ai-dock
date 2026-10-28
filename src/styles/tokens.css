@@ -57,7 +57,11 @@
   --done-soft: rgba(214, 255, 74, .14);
   --track: rgba(255, 255, 255, .09);
   --gauge-face: #0d0f16;
-  --shadow-pop: 0 18px 45px rgba(0, 0, 0, .42);
+  /* No drop shadows anywhere: cards and popovers sit flat. */
+  --shadow-pop: none;
+  /* Glass tint (RGB) and the line along its top edge. */
+  --glass-rgb: 8, 10, 14;
+  --glass-edge: rgba(255, 255, 255, .55);
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
 
   --brand-claude: #e08a64;
@@ -106,7 +110,9 @@
     --done-soft: rgba(106, 154, 0, .14);
     --track: rgba(15, 18, 30, .1);
     --gauge-face: #ffffff;
-    --shadow-pop: 0 16px 40px rgba(20, 22, 40, .18);
+    --shadow-pop: none;
+    --glass-rgb: 246, 247, 251;
+    --glass-edge: rgba(255, 255, 255, .9);
     --brand-claude: #c96442;
     --brand-codex: #0e8a64;
     --brand-cursor: #1b1c20;
@@ -152,7 +158,9 @@
   --done-soft: rgba(106, 154, 0, .14);
   --track: rgba(15, 18, 30, .1);
   --gauge-face: #ffffff;
-  --shadow-pop: 0 16px 40px rgba(20, 22, 40, .18);
+  --shadow-pop: none;
+  --glass-rgb: 246, 247, 251;
+  --glass-edge: rgba(255, 255, 255, .9);
   --brand-claude: #c96442;
   --brand-codex: #0e8a64;
   --brand-cursor: #1b1c20;

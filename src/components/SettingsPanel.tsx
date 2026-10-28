@@ -692,7 +692,7 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
         {!ROBOT_READY ? <p className="mascot-choice__note">{t("Faltam os frames do robô.")}</p> : null}
         <Switch
           label={t("Vidro · beta")}
-          description={t("Fundo translúcido na pill. O tema claro e escuro fica igual.")}
+          description={t("Fundo translúcido na pill, no cartão do hover e no painel aberto.")}
           checked={settings.glassEnabled}
           onChange={(glassEnabled) => update({ glassEnabled })}
         />

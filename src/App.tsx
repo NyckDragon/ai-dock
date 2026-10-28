@@ -157,6 +157,18 @@ export default function App() {
     applyStoredColor("--done", settings.doneColor);
   }, [settings.theme, settings.questionColor, settings.permissionColor, settings.doneColor]);
 
+  // Glass reaches the peek, the signal list and the open panel, not only the pill.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.glassEnabled) {
+      root.dataset.glass = "on";
+      root.style.setProperty("--glass-t", String(Math.min(100, Math.max(0, settings.glassOpacity)) / 100));
+    } else {
+      delete root.dataset.glass;
+      root.style.removeProperty("--glass-t");
+    }
+  }, [settings.glassEnabled, settings.glassOpacity]);
+
   useEffect(() => {
     document.documentElement.lang = locale === "en" ? "en" : "pt-BR";
   }, [locale]);

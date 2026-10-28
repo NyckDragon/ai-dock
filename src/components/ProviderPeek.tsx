@@ -7,6 +7,13 @@ import { ProviderIcon } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
 import { StatusBadge } from "./StatusBadge";
 
+/** Notes that are not failures: shown in the warning color. */
+const SOFT_NOTICES = new Set([
+  "Conectado, sem leitura de cota.",
+  "Abra o Grok Bot para ler o limite.",
+  "A semana virou. Abra o Grok Bot para atualizar."
+]);
+
 export const ProviderPeek = forwardRef<
   HTMLElement,
   {
@@ -48,7 +55,7 @@ export const ProviderPeek = forwardRef<
       {incident ? <StatusBadge status={incident} /> : null}
 
       {provider.error ? (
-        <div className={"notice " + (provider.stale || provider.error === "Conectado, sem leitura de cota." ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
+        <div className={"notice " + (provider.stale || SOFT_NOTICES.has(provider.error) ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
       ) : null}
 
       {provider.windows.length ? (
