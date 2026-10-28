@@ -527,9 +527,26 @@ fn conversation_pool(conn: &Connection) -> Option<String> {
     None
 }
 
-/// Unanswered ask on the last step of a conversation file. Recency is not a signal.
+/// An ask left unanswered longer than this belongs to an abandoned conversation.
+const WAITING_MAX_AGE_MS: u64 = 12 * 60 * 60 * 1000;
+
+/// Last write to a conversation. SQLite writes the WAL file first, so the .db alone lags.
+fn conversation_mtime_ms(path: &Path) -> Option<u64> {
+    let mut wal = path.as_os_str().to_owned();
+    wal.push("-wal");
+    mtime_ms(path).max(mtime_ms(Path::new(&wal)))
+}
+
+/// An ask still counts while its conversation was touched within WAITING_MAX_AGE_MS.
+fn ask_is_recent(modified_ms: u64, now: u64) -> bool {
+    now.saturating_sub(modified_ms) <= WAITING_MAX_AGE_MS
+}
+
+/// Unanswered ask on the last step of a conversation file touched in the last 12 hours.
+/// Older files are skipped before SQLite opens them.
 /// The session is kept only when that file names one quota family.
 fn waiting_activity(slot_id: &str, state_roots: &[PathBuf]) -> Option<ProviderActivity> {
+    let now = now_ms();
     let mut sessions = Vec::new();
     for root in state_roots {
         let Ok(entries) = fs::read_dir(root.join("conversations")) else { continue };
@@ -541,6 +558,10 @@ fn waiting_activity(slot_id: &str, state_roots: &[PathBuf]) -> Option<ProviderAc
             let Some(session_id) = path.file_stem().and_then(|stem| stem.to_str()).map(str::to_string) else {
                 continue;
             };
+            let Some(modified) = conversation_mtime_ms(&path) else { continue };
+            if !ask_is_recent(modified, now) {
+                continue;
+            }
             let Some(conn) = open_read_only(&path) else { continue };
             let Some(reason) = open_ask_reason(&conn) else { continue };
             let Some(pool) = conversation_pool(&conn) else { continue };
@@ -552,7 +573,7 @@ fn waiting_activity(slot_id: &str, state_roots: &[PathBuf]) -> Option<ProviderAc
                 title,
                 detail: "Precisa da sua ação".into(),
                 state: "waiting".into(),
-                since: mtime_ms(&path).unwrap_or(0),
+                since: modified,
                 pool: Some(pool),
                 reason: Some(reason.into()),
             });
@@ -719,6 +740,15 @@ mod tests {
     }
 
     #[test]
+    fn an_ask_older_than_twelve_hours_is_abandoned() {
+        let now = 100 * 60 * 60 * 1000;
+        assert!(ask_is_recent(now, now));
+        assert!(ask_is_recent(now - WAITING_MAX_AGE_MS, now));
+        assert!(!ask_is_recent(now - WAITING_MAX_AGE_MS - 1, now));
+        assert!(ask_is_recent(now + 5_000, now));
+    }
+
+    #[test]
     fn codex_approval_is_permission_and_a_bare_request_is_a_question() {
         assert_eq!(codex_wait_reason("approvalRequest"), Some("permission"));
         assert_eq!(codex_wait_reason("needs permission"), Some("permission"));
@@ -744,7 +774,7 @@ mod tests {
             Some("gemini")
         );
         assert_eq!(pool_from_record("claude-opus-5.5").as_deref(), Some("claude-gpt"));
-        assert_eq!(pool_from_record(r"D:\Antigravity\.gemini\brain used_claude").as_deref(), None);
+        assert_eq!(pool_from_record(r"C:\Users\Example\.gemini\brain used_claude").as_deref(), None);
         assert_eq!(pool_from_record("gemini-3.8-flash-n claude-opus-5.5"), None);
         assert_eq!(pool_from_record("model_enum MODEL_PLACEHOLDER_M318"), None);
     }

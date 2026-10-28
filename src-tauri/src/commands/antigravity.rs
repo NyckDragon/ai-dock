@@ -1704,13 +1704,13 @@ mod tests {
         let p_home = home.join(".gemini").join("antigravity");
         assert_eq!(detect_profile_slot(Some(&p_home)), ("antigravity".into(), "Principal".into()));
 
-        let c2 = PathBuf::from(r"D:\Antigravity-Conta2\.gemini\antigravity");
+        let c2 = PathBuf::from(r"E:\Antigravity-Conta2\.gemini\antigravity");
         assert_eq!(detect_profile_slot(Some(&c2)), ("antigravity-2".into(), "Conta 2".into()));
 
-        let c3 = PathBuf::from(r"D:\Antigravity-Conta3\.gemini\antigravity");
+        let c3 = PathBuf::from(r"C:\Users\Example\Antigravity-Conta3\.gemini\antigravity");
         assert_eq!(detect_profile_slot(Some(&c3)), ("antigravity-3".into(), "Conta 3".into()));
 
-        let c4 = PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity");
+        let c4 = PathBuf::from(r"F:\Antigravity-Conta4");
         assert_eq!(detect_profile_slot(Some(&c4)), ("antigravity-4".into(), "Conta 4".into()));
 
         let acc4 = PathBuf::from(r"C:\Antigravity-Account4");

@@ -158,7 +158,7 @@ test("pace is skipped when the window length is unknown or just started", () => 
 test("compactSlots: bars mode keeps provider fused with all windows", () => {
   const antigravity = {
     id: "antigravity",
-    name: "Antigravity (Hotmail)",
+    name: "Antigravity (Trabalho)",
     connected: true,
     windows: [
       { id: "gemini-session", label: "Gemini · 5h", remainingPercent: 80 },

@@ -6,3 +6,6 @@ dist/
 src-tauri/target/
 *.log
 src-tauri/gen/
+
+# Full-size mascot art, kept only on this PC
+art-originals/
