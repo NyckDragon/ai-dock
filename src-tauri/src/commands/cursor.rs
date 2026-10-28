@@ -121,6 +121,7 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
             label: "Uso incluído".into(),
             remaining_percent: percent_remaining(used_percent),
             reset_at: reset.clone(),
+            amount: None,
         });
     }
 
@@ -131,6 +132,7 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
                 label: "Uso de API".into(),
                 remaining_percent: percent_remaining(api_used_percent),
                 reset_at: reset.clone(),
+                amount: None,
             });
         }
     }
@@ -151,6 +153,7 @@ fn parse_usage(summary: &Value, fallback_plan: Option<String>) -> ProviderUsage 
                     label: "Sob demanda".into(),
                     remaining_percent: percent_remaining(used_percent),
                     reset_at: reset.clone(),
+                    amount: None,
                 });
             }
         }

@@ -25,11 +25,25 @@ export type DockPlacement = {
   /** Logical height of the visible pill; the window top is anchored to it. */
   anchorHeight: number;
   verticalOffset: number;
+  /** When true, dock.rs makes room for the cat above the pill. Off, that room is gone. */
+  mascot: boolean;
+  /** Extra pixels above the cat for the ? and ! marks and their list. */
+  overlayHeight: number;
+  /** Width the list needs. The pill stays on the screen edge and the spare grows toward the center. */
+  overlayWidth: number;
 };
 
 export async function setDock(placement: DockPlacement) {
   if (!isTauri()) return;
   await invoke("set_dock_state", { ...placement });
+}
+
+export type DockHitBox = { x: number; y: number; width: number; height: number };
+
+/** Pill, mascot and open peek, in CSS pixels. Empty space then passes clicks through on Windows. */
+export async function setDockHits(interactive: boolean, boxes: DockHitBox[]) {
+  if (!isTauri()) return;
+  await invoke("set_dock_hits", { interactive, boxes });
 }
 
 /** Keeps the dock on top. Resolves true when it was hidden for a full-screen app. */

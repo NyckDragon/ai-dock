@@ -48,7 +48,7 @@ export const ProviderPeek = forwardRef<
       {incident ? <StatusBadge status={incident} /> : null}
 
       {provider.error ? (
-        <div className={"notice " + (provider.stale ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
+        <div className={"notice " + (provider.stale || provider.error === "Conectado, sem leitura de cota." ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
       ) : null}
 
       {provider.windows.length ? (
@@ -70,6 +70,10 @@ export const ProviderPeek = forwardRef<
             );
           })}
         </div>
+      ) : null}
+
+      {provider.id === "grok" && provider.windows.some((window) => window.id === "weekly") ? (
+        <p className="provider-peek__share">{t("Pool semanal compartilhado com o Cursor na assinatura X.")}</p>
       ) : null}
 
       <ActivityBlock activity={activity} now={now} />

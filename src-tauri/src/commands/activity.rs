@@ -19,6 +19,9 @@ pub struct ActivitySession {
     /// Antigravity quota pool ("gemini", "claude-gpt" or "argon"), when the running model is known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pool: Option<String>,
+    /// Why a session is waiting: "permission" or "question". Absent waiting stays the question color.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,6 +48,18 @@ fn mtime_ms(path: &Path) -> Option<u64> {
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|duration| duration.as_millis() as u64)
+}
+
+/// Approval or permission outranks a bare request for an answer.
+fn codex_wait_reason(text: &str) -> Option<&'static str> {
+    let text = text.to_ascii_lowercase();
+    if text.contains("approval") || text.contains("permission") {
+        Some("permission")
+    } else if text.contains("request_user") {
+        Some("question")
+    } else {
+        None
+    }
 }
 
 fn idle(provider_id: &str, confidence: &str) -> ProviderActivity {
@@ -147,9 +162,8 @@ fn codex_desktop_activity() -> Option<ProviderActivity> {
         }
 
         let item_type = last_type.unwrap_or_default().to_lowercase();
-        let waiting = item_type.contains("approval")
-            || item_type.contains("permission")
-            || item_type.contains("request_user");
+        let reason = codex_wait_reason(&item_type);
+        let waiting = reason.is_some();
         sessions.push(ActivitySession {
             id: thread_id,
             title,
@@ -157,6 +171,7 @@ fn codex_desktop_activity() -> Option<ProviderActivity> {
             state: if waiting { "waiting".into() } else { "working".into() },
             since: started_ms.max(1),
             pool: None,
+            reason: reason.map(str::to_string),
         });
     }
 
@@ -213,9 +228,8 @@ fn codex_rollout_activity() -> ProviderActivity {
             content[start..].to_lowercase()
         })
         .unwrap_or_default();
-    let waiting = tail.contains("approval")
-        || tail.contains("permission")
-        || tail.contains("request_user");
+    let reason = codex_wait_reason(&tail);
+    let waiting = reason.is_some();
 
     ProviderActivity {
         provider_id: "codex".into(),
@@ -228,6 +242,7 @@ fn codex_rollout_activity() -> ProviderActivity {
             state: if waiting { "waiting".into() } else { "working".into() },
             since: modified,
             pool: None,
+            reason: reason.map(str::to_string),
         }],
     }
 }
@@ -323,6 +338,7 @@ fn cursor_activity() -> ProviderActivity {
             state: if blocked { "waiting".into() } else { "working".into() },
             since,
             pool: None,
+            reason: if blocked { Some("permission".into()) } else { None },
         });
     }
 
@@ -422,7 +438,141 @@ fn conversation_title(root: &Path, session_id: &str) -> Option<String> {
     stmt.query_row([session_id], |row| row.get::<_, String>(0)).ok()
 }
 
+/// Last step still waiting. A permissions blob or an authorization phrase is
+/// permission; any other ask is a question. A finished step is not an ask.
+fn classify_waiting_step(status: i64, permissions: &[u8], text: &str) -> Option<&'static str> {
+    if status != 9 {
+        return None;
+    }
+    if !permissions.is_empty() {
+        return Some("permission");
+    }
+    let lower = text.to_ascii_lowercase();
+    if !(lower.contains("ask_question") || lower.contains("autoriz")) {
+        return None;
+    }
+    if lower.contains("autoriz") {
+        Some("permission")
+    } else {
+        Some("question")
+    }
+}
+
+/// Quota family named by one generation record. The label cache wins. Otherwise a
+/// model name that carries a digit, so a `.gemini` path or `used_claude` does not count.
+/// Two families and no label is unknown.
+fn pool_from_record(text: &str) -> Option<String> {
+    let placeholder = text
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .find(|word| word.starts_with("MODEL_"));
+    if let Some(pool) = placeholder.and_then(antigravity::pool_for_known_model) {
+        return Some(pool.to_string());
+    }
+    let mut family: Option<&str> = None;
+    for token in text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '.')) {
+        if !token.chars().any(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        let lower = token.to_ascii_lowercase();
+        let pool = if lower.contains("argon") {
+            "argon"
+        } else if lower.contains("gemini") || lower.contains("flash") {
+            "gemini"
+        } else if lower.contains("claude") || lower.contains("gpt") {
+            "claude-gpt"
+        } else {
+            continue;
+        };
+        match family {
+            None => family = Some(pool),
+            Some(current) if current == pool => {}
+            Some(_) => return None,
+        }
+    }
+    family.map(str::to_string)
+}
+
+fn open_ask_reason(conn: &Connection) -> Option<&'static str> {
+    let (status, permissions, render_info, metadata, payload) = conn
+        .query_row(
+            "SELECT status, permissions, render_info, metadata, step_payload FROM steps ORDER BY idx DESC LIMIT 1",
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<Vec<u8>>>(1)?,
+                    row.get::<_, Option<Vec<u8>>>(2)?,
+                    row.get::<_, Option<Vec<u8>>>(3)?,
+                    row.get::<_, Option<Vec<u8>>>(4)?,
+                ))
+            },
+        )
+        .ok()?;
+    let permissions = permissions.unwrap_or_default();
+    let mut text = String::new();
+    for blob in [render_info, metadata, payload].into_iter().flatten() {
+        text.push_str(&String::from_utf8_lossy(&blob));
+    }
+    classify_waiting_step(status, &permissions, &text)
+}
+
+fn conversation_pool(conn: &Connection) -> Option<String> {
+    let mut stmt = conn.prepare("SELECT data FROM gen_metadata ORDER BY idx DESC").ok()?;
+    let rows = stmt.query_map([], |row| row.get::<_, Vec<u8>>(0)).ok()?;
+    for blob in rows.flatten() {
+        if let Some(pool) = pool_from_record(&String::from_utf8_lossy(&blob)) {
+            return Some(pool);
+        }
+    }
+    None
+}
+
+/// Unanswered ask on the last step of a conversation file. Recency is not a signal.
+/// The session is kept only when that file names one quota family.
+fn waiting_activity(slot_id: &str, state_roots: &[PathBuf]) -> Option<ProviderActivity> {
+    let mut sessions = Vec::new();
+    for root in state_roots {
+        let Ok(entries) = fs::read_dir(root.join("conversations")) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("db") {
+                continue;
+            }
+            let Some(session_id) = path.file_stem().and_then(|stem| stem.to_str()).map(str::to_string) else {
+                continue;
+            };
+            let Some(conn) = open_read_only(&path) else { continue };
+            let Some(reason) = open_ask_reason(&conn) else { continue };
+            let Some(pool) = conversation_pool(&conn) else { continue };
+            let title = conversation_title(root, &session_id)
+                .filter(|title| !title.trim().is_empty())
+                .unwrap_or_else(|| "Antigravity".into());
+            sessions.push(ActivitySession {
+                id: session_id,
+                title,
+                detail: "Precisa da sua ação".into(),
+                state: "waiting".into(),
+                since: mtime_ms(&path).unwrap_or(0),
+                pool: Some(pool),
+                reason: Some(reason.into()),
+            });
+        }
+    }
+    if sessions.is_empty() {
+        return None;
+    }
+    Some(ProviderActivity {
+        provider_id: slot_id.into(),
+        state: "waiting".into(),
+        confidence: "direct".into(),
+        sessions,
+    })
+}
+
 fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderActivity {
+    if let Some(waiting) = waiting_activity(slot_id, state_roots) {
+        return waiting;
+    }
     let mut newest: Option<(PathBuf, String, PathBuf, u64)> = None;
     for root in state_roots {
         let Ok(brains) = fs::read_dir(root.join("brain")) else { continue };
@@ -469,6 +619,7 @@ fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderAc
             state: "working".into(),
             since: modified,
             pool: detected_pool,
+            reason: None,
         }],
     }
 }
@@ -522,6 +673,10 @@ pub async fn get_provider_activity() -> Vec<ProviderActivity> {
         .iter_mut()
         .filter(|activity| activity.provider_id.starts_with("antigravity") && activity.state != "idle")
     {
+        // An open ask already names its family. Other running pools must not inherit that color.
+        if activity.state == "waiting" {
+            continue;
+        }
         // The conversation writing now is named by its own file; the server adds the other running ones.
         let active = activity.sessions.first().map(|session| (session.id.clone(), session.pool.clone()));
         let (active_id, active_pool) = match &active {
@@ -558,8 +713,40 @@ mod tests {
                 state: "working".into(),
                 since: 42,
                 pool: None,
+                reason: None,
             }],
         }
+    }
+
+    #[test]
+    fn codex_approval_is_permission_and_a_bare_request_is_a_question() {
+        assert_eq!(codex_wait_reason("approvalRequest"), Some("permission"));
+        assert_eq!(codex_wait_reason("needs permission"), Some("permission"));
+        assert_eq!(codex_wait_reason("request_user"), Some("question"));
+        assert_eq!(codex_wait_reason("request_user then approval"), Some("permission"));
+        assert_eq!(codex_wait_reason("agent_message"), None);
+    }
+
+    #[test]
+    fn an_unanswered_authorization_is_permission_and_a_plain_ask_is_a_question() {
+        assert_eq!(classify_waiting_step(9, b"", "ask_question Sim, autorizo"), Some("permission"));
+        assert_eq!(classify_waiting_step(9, b"", "autoriza a execução"), Some("permission"));
+        assert_eq!(classify_waiting_step(9, b"", "ask_question qual o nome"), Some("question"));
+        assert_eq!(classify_waiting_step(9, b"{}", "planner"), Some("permission"));
+        assert_eq!(classify_waiting_step(3, b"", "ask_question Sim, autorizo"), None);
+        assert_eq!(classify_waiting_step(9, b"", "planner finished"), None);
+    }
+
+    #[test]
+    fn a_flash_record_names_gemini_and_a_path_does_not() {
+        assert_eq!(
+            pool_from_record("gemini-3.8-flash-n used_claude false used_non_gemini_model false model_enum MODEL_PLACEHOLDER_M318").as_deref(),
+            Some("gemini")
+        );
+        assert_eq!(pool_from_record("claude-opus-5.5").as_deref(), Some("claude-gpt"));
+        assert_eq!(pool_from_record(r"D:\Antigravity\.gemini\brain used_claude").as_deref(), None);
+        assert_eq!(pool_from_record("gemini-3.8-flash-n claude-opus-5.5"), None);
+        assert_eq!(pool_from_record("model_enum MODEL_PLACEHOLDER_M318"), None);
     }
 
     #[test]

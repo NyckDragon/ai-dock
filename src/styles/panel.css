@@ -283,8 +283,8 @@
   box-shadow: 0 0 9px color-mix(in srgb, var(--good) 45%, transparent);
 }
 .activity--waiting .activity__title > i {
-  background: var(--warning);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--warning) 45%, transparent);
+  background: var(--question);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--question) 45%, transparent);
 }
 .activity__title strong { font-weight: 600; }
 .activity__title small { margin-left: auto; font-size: var(--fs-2xs); color: var(--text-3); }
@@ -303,7 +303,7 @@
   font-size: var(--fs-xs);
   font-weight: 500;
 }
-.activity__session--waiting strong { color: var(--warning); }
+.activity__session--waiting strong { color: var(--question); }
 .activity__session small,
 .activity__session time,
 .activity__more {

@@ -7,7 +7,9 @@ import {
   compactSlots,
   displayKind,
   displayWord,
+  balanceReading,
   featuredWindow,
+  limitingWindow,
   percentLabel,
   providerHeadroom,
   shownPercent,
@@ -274,5 +276,19 @@ test("mergeProviderSnapshots retains closed instances as stale/offline", async (
   assert.equal(inst2?.windows.length, 1);
   assert.equal(inst2?.windows[0].remainingPercent, 15);
   assert.equal(inst2?.error, "Aplicativo fechado");
+});
+
+test("a currency balance is not treated as a percentage", () => {
+  const provider = {
+    id: "deepseek",
+    name: "DeepSeek",
+    connected: true,
+    windows: [{ id: "balance", label: "Saldo", remainingPercent: 0, amount: "110.00 CNY" }]
+  };
+  assert.equal(balanceReading(provider), "110.00 CNY");
+  assert.equal(limitingWindow(provider), null);
+  assert.equal(providerHeadroom(provider), null);
+  assert.equal(featuredWindow(provider, "session"), null);
+  assert.equal(percentLabel(providerHeadroom(provider), "native", "deepseek"), "--");
 });
 

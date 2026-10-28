@@ -36,6 +36,14 @@ export const EN: Record<string, string> = {
 
   // Usage cards and peek
   "Conectado": "Connected",
+  "Conectado, sem leitura de cota.": "Connected, no quota reading.",
+  "DeepSeek Harness não encontrado neste PC.": "DeepSeek Harness was not found on this PC.",
+  "Grok Bot": "Grok Bot",
+  "Grok CLI não conectado. Rode grok login.": "Grok CLI is not connected. Run grok login.",
+  "A sessão do Grok expirou. Rode grok login.": "The Grok session expired. Run grok login.",
+  "Falha de rede ao consultar o uso do Grok.": "Network failure while checking Grok usage.",
+  "Pool semanal compartilhado com o Cursor na assinatura X.":
+    "Weekly pool shared with Cursor on the X subscription.",
   "Conectar": "Connect",
   "Em destaque: {window}": "Featured: {window}",
   "Não conectado": "Not connected",
@@ -144,6 +152,32 @@ export const EN: Record<string, string> = {
   "Sistema": "System",
   "Escuro": "Dark",
   "Claro": "Light",
+  "Cor de pergunta": "Question color",
+  "Quando uma IA espera sua resposta. A cor da quota não muda.":
+    "When an AI is waiting for your answer. The quota color stays the same.",
+  "Cor de permissão": "Permission color",
+  "Quando uma IA pede permissão para agir. A cor da quota não muda.":
+    "When an AI asks permission to act. The quota color stays the same.",
+  "Cor de finalização": "Finish color",
+  "Quando uma IA termina uma tarefa. Fica aceso até você ver o dock.":
+    "When an AI finishes a task. It stays lit until you see the dock.",
+  "Pergunta": "Question",
+  "Permissão": "Permission",
+  "Finalização": "Finished",
+  "Mascote": "Mascot",
+  "Mostra o gato no topo do dock recolhido.": "Shows the cat on top of the collapsed dock.",
+  "Gato": "Cat",
+  "Robô": "Robot",
+  "Faltam os frames do robô.": "The robot frames are missing.",
+  "Vidro · beta": "Glass · beta",
+  "Fundo translúcido na pill. O tema claro e escuro fica igual.":
+    "Translucent pill background. Light and dark themes stay as they are.",
+  "Transparência": "Transparency",
+  "0 é o vidro mais sólido. 100 é o mais transparente em que os números ainda se leem.":
+    "0 is the most solid glass. 100 is the most transparent step where the numbers can still be read.",
+  "{name} tem uma pergunta": "{name} has a question",
+  "{name} precisa de permissão": "{name} needs permission",
+  "{name} finalizou": "{name} finished",
   "Dock recolhido": "Collapsed dock",
   "Visual do dock recolhido": "Collapsed dock style",
   "Círculo": "Circle",

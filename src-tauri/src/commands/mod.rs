@@ -2,6 +2,8 @@ pub mod activity;
 pub mod antigravity;
 pub mod claude_web;
 pub mod cursor;
+pub mod deepseek;
+pub mod grok;
 pub mod cli;
 pub mod costs;
 pub mod dock;

@@ -2,7 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CostsView } from "./components/CostsView";
 import { DockPill } from "./components/DockPill";
 import { Onboarding } from "./components/Onboarding";
@@ -13,11 +13,13 @@ import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
 import { useDockWindow } from "./hooks/useDockWindow";
+import { useFinishSignal } from "./hooks/useFinishSignal";
 import { useNotifications, notify } from "./hooks/useNotifications";
 import { useNow } from "./hooks/useNow";
 import { usePrompts } from "./hooks/usePrompts";
 import { statusFor, useProviderStatus } from "./hooks/useProviderStatus";
 import { useProviders } from "./hooks/useProviders";
+import { stripNotice, waitKind } from "./lib/finish";
 import { formatAge } from "./lib/format";
 import { resolveLanguage, setLocale, t, tr } from "./lib/i18n";
 import {
@@ -31,6 +33,7 @@ import {
   shownPercent,
   type QuotaTone
 } from "./lib/quota";
+import { ROBOT_READY } from "./lib/robot-art";
 import { GLOBAL_SHORTCUT, GLOBAL_SHORTCUT_LABEL, loadSettings, saveSettings } from "./lib/settings";
 import {
   chooseObsidianFolder,
@@ -45,10 +48,32 @@ import {
   raiseDock,
   rememberForeground,
   returnFocus,
+  setDockHits,
   setTrayMenu,
   setTrayTooltip
 } from "./lib/tauri";
 import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
+
+const QUESTION_HEX = /^#[0-9A-Fa-f]{6}$/;
+
+function questionSoft(hex: string) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return `rgba(${red}, ${green}, ${blue}, .14)`;
+}
+
+function applyStoredColor(name: "--question" | "--permission" | "--done", color: string | null) {
+  const root = document.documentElement;
+  if (color && QUESTION_HEX.test(color)) {
+    root.style.setProperty(name, color);
+    root.style.setProperty(name + "-soft", questionSoft(color));
+  } else {
+    root.style.removeProperty(name);
+    root.style.removeProperty(name + "-soft");
+  }
+}
 
 const TONE_RANK: Record<QuotaTone, number> = { empty: 0, good: 1, warning: 2, danger: 3 };
 
@@ -106,6 +131,8 @@ export default function App() {
     () => compactSlots(visibleProviders, settings.antigravityGroupMode),
     [visibleProviders, settings.antigravityGroupMode]
   );
+  const slotIds = useMemo(() => slots.map((slot) => slot.id), [slots]);
+  const finish = useFinishSignal(activities, slotIds);
   const activityFor = (id: string) => activityForSlot(activities, id);
 
   // Dialogs (native folder picker, confirm) blur the window; they must not close the panel.
@@ -123,8 +150,12 @@ export default function App() {
 
   // Theme ------------------------------------------------------------------
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
-  }, [settings.theme]);
+    const root = document.documentElement;
+    root.dataset.theme = settings.theme;
+    applyStoredColor("--question", settings.questionColor);
+    applyStoredColor("--permission", settings.permissionColor);
+    applyStoredColor("--done", settings.doneColor);
+  }, [settings.theme, settings.questionColor, settings.permissionColor, settings.doneColor]);
 
   useEffect(() => {
     document.documentElement.lang = locale === "en" ? "en" : "pt-BR";
@@ -413,6 +444,84 @@ export default function App() {
     };
   }, [peekProvider, dock.peekPhase]);
 
+  // Windows hit testing: the spare peek width must not catch clicks. --------
+  const hitKeyRef = useRef("");
+  useLayoutEffect(() => {
+    if (!isTauri()) return;
+    let frame = 0;
+    const send = () => {
+      if (expanded || dock.hidden) {
+        if (hitKeyRef.current === "off") return;
+        hitKeyRef.current = "off";
+        void setDockHits(false, []);
+        return;
+      }
+      const root = stageRef.current?.closest(".compact-shell");
+      if (!root) return;
+      const boxes: { x: number; y: number; width: number; height: number }[] = [];
+      const take = (el: Element) => {
+        if (!(el instanceof HTMLElement)) return;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) return;
+        boxes.push({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+      };
+      root
+        .querySelectorAll(".dock-pill, .dock-mascot-stack, .dock-mascot__img, .dock-signals, .dock-signal-list")
+        .forEach(take);
+      const peek = root.querySelector(".peek-wrap--open");
+      if (peek) {
+        take(peek);
+        const pill = root.querySelector(".dock-pill");
+        if (pill) {
+          const pillBox = pill.getBoundingClientRect();
+          const peekBox = peek.getBoundingClientRect();
+          const top = Math.min(pillBox.top, peekBox.top);
+          const bottom = Math.max(pillBox.bottom, peekBox.bottom);
+          if (peekBox.right < pillBox.left) {
+            boxes.push({ x: peekBox.right, y: top, width: pillBox.left - peekBox.right, height: bottom - top });
+          } else if (pillBox.right < peekBox.left) {
+            boxes.push({ x: pillBox.right, y: top, width: peekBox.left - pillBox.right, height: bottom - top });
+          }
+        }
+      }
+      const key = JSON.stringify(boxes);
+      if (key === hitKeyRef.current) return;
+      hitKeyRef.current = key;
+      void setDockHits(true, boxes);
+    };
+    send();
+    const root = stageRef.current?.closest(".compact-shell");
+    const resizeObserver = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(send);
+    });
+    const mutationObserver = new MutationObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(send);
+    });
+    if (root) {
+      resizeObserver.observe(root);
+      root
+        .querySelectorAll(".dock-pill, .dock-mascot-stack, .dock-mascot__img, .dock-signals, .dock-signal-list, .peek-wrap")
+        .forEach((node) => resizeObserver.observe(node));
+      mutationObserver.observe(root, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class", "style"]
+      });
+    }
+    window.addEventListener("resize", send);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener("resize", send);
+    };
+  }, [expanded, dock.hidden, dock.peekPhase, dock.overlay, peekTop, settings.side, settings.mascotEnabled]);
+
   // Compact dock -----------------------------------------------------------
   if (!expanded) {
     if (dock.hidden) {
@@ -421,11 +530,19 @@ export default function App() {
         const tone = quotaTone(providerHeadroom(slot));
         if (TONE_RANK[tone] > TONE_RANK[worst]) worst = tone;
       }
-      const attention = activities.some((activity) => activity.state === "waiting")
-        ? "waiting"
-        : activities.some((activity) => activity.state === "working")
-          ? "working"
-          : "idle";
+      let permission = false;
+      let question = false;
+      let working = false;
+      let finished = false;
+      for (const slot of slots) {
+        const activity = activityFor(slot.id);
+        const kind = waitKind(activity);
+        if (kind === "permission") permission = true;
+        else if (kind === "question") question = true;
+        if (activity?.state === "working") working = true;
+        if (kind == null && finish.done.has(slot.id)) finished = true;
+      }
+      const strip = stripNotice({ permission, question, working, done: finished });
       return (
         <main
           className={"compact-shell compact-shell--" + settings.side + " is-hidden"}
@@ -434,7 +551,9 @@ export default function App() {
         >
           <div
             className={"dock-handle dock-handle--" + worst}
-            data-activity={attention}
+            data-activity={strip.activity}
+            data-wait={strip.wait ?? undefined}
+            data-signal={strip.done ? "done" : undefined}
             style={{ height: Math.round(dock.anchorHeight * 0.45) }}
           />
         </main>
@@ -443,7 +562,16 @@ export default function App() {
 
     return (
       <main
-        className={"compact-shell compact-shell--" + settings.side}
+        className={
+          "compact-shell compact-shell--" +
+          settings.side +
+          (settings.mascotEnabled ? " compact-shell--mascot" : "")
+        }
+        style={
+          settings.mascotEnabled
+            ? ({ "--mascot-overlay": dock.overlay.height + "px" } as CSSProperties)
+            : undefined
+        }
         onMouseEnter={onShellEnter}
         onMouseLeave={dock.onShellLeave}
       >
@@ -460,9 +588,16 @@ export default function App() {
             pulseActiveBar={settings.pulseActiveBar}
             hideBarsNumber={settings.hideBarsNumber}
             activities={activities}
+            finished={finish.done}
             statuses={statuses}
             side={settings.side}
             loading={loading}
+            mascot={settings.mascotEnabled}
+            mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
+            glass={settings.glassEnabled}
+            glassOpacity={settings.glassOpacity}
+            onMascotOverlay={dock.setOverlay}
+            onSeen={finish.dismiss}
             lockPosition={settings.lockPosition}
             verticalOffset={settings.verticalOffset}
             onOffsetChange={(verticalOffset) => setSettings((current) => ({ ...current, verticalOffset }))}
@@ -572,6 +707,7 @@ export default function App() {
               providers={displayProviders}
               rawProviders={providers}
               activities={activities}
+              finished={finish.done}
               monitors={monitors}
               autostart={autostart}
               onAutostart={(next) => void toggleAutostart(next)}

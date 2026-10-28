@@ -1248,6 +1248,7 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
                     label: format!("{family} · {cadence_label}"),
                     remaining_percent: (remaining * 100.0).clamp(0.0, 100.0),
                     reset_at,
+                    amount: None,
                 },
             );
         }
@@ -1324,6 +1325,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Gemini · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     if let Some((remaining_percent, reset_at)) = claude_gpt {
@@ -1332,6 +1334,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Claude + GPT · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     if let Some((remaining_percent, reset_at)) = argon {
@@ -1340,6 +1343,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Argon · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     sort_windows(&mut windows);

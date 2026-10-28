@@ -1,8 +1,10 @@
 import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Pencil, Power, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { intlLocale, t, tr } from "../lib/i18n";
 import { currentPlatform } from "../lib/platform";
 import { compactSlots } from "../lib/quota";
+import { ROBOT_READY } from "../lib/robot-art";
 import { GLOBAL_SHORTCUT_LABEL, REFRESH_CHOICES } from "../lib/settings";
 import type {
   CompactMode,
@@ -36,7 +38,10 @@ const PROVIDER_NAMES: Record<string, string> = {
   claude: "Claude",
   codex: "Codex",
   cursor: "Cursor",
-  antigravity: "Antigravity"
+  antigravity: "Antigravity",
+  deepseek: "DeepSeek",
+  grok: "Grok",
+  "grok-bot": t("Grok Bot")
 };
 
 export type SettingsPanelProps = {
@@ -47,6 +52,7 @@ export type SettingsPanelProps = {
   providers: ProviderUsage[];
   rawProviders?: ProviderUsage[];
   activities: ProviderActivity[];
+  finished?: ReadonlySet<string>;
   monitors: MonitorInfo[];
   autostart: boolean | null;
   onAutostart: (next: boolean) => void;
@@ -119,7 +125,461 @@ export function CompactModePicker({ value, onChange }: { value: CompactMode; onC
   );
 }
 
-function AppearanceTab({ settings, update, providers, activities }: SettingsPanelProps) {
+const QUESTION_DEFAULTS = ["#FF4D8D", "#D4277A"] as const;
+const PERMISSION_DEFAULTS = ["#FF7A45", "#E85D20"] as const;
+const DONE_DEFAULTS = ["#D6FF4A", "#6A9A00"] as const;
+
+function useSystemDark() {
+  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => setDark(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return dark;
+}
+
+function defaultSignalHex(defaults: readonly [string, string], theme: Settings["theme"], systemDark: boolean) {
+  return theme === "dark" || (theme === "system" && systemDark) ? defaults[0] : defaults[1];
+}
+
+type Hsv = { h: number; s: number; v: number };
+
+function clamp01(value: number) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function questionSoft(hex: string) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return `rgba(${red}, ${green}, ${blue}, .14)`;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function rgbToHex(red: number, green: number, blue: number) {
+  const channel = (part: number) => Math.round(part).toString(16).padStart(2, "0");
+  return "#" + channel(red) + channel(green) + channel(blue);
+}
+
+function rgbToHsv(red: number, green: number, blue: number): Hsv {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) h = ((g - b) / delta) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s: max === 0 ? 0 : delta / max, v: max };
+}
+
+function hsvToRgb(hsv: Hsv): [number, number, number] {
+  const c = hsv.v * hsv.s;
+  const hp = hsv.h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hp < 1) [r, g, b] = [c, x, 0];
+  else if (hp < 2) [r, g, b] = [x, c, 0];
+  else if (hp < 3) [r, g, b] = [0, c, x];
+  else if (hp < 4) [r, g, b] = [0, x, c];
+  else if (hp < 5) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const m = hsv.v - c;
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+function hsvToHex(hsv: Hsv) {
+  const [red, green, blue] = hsvToRgb(hsv);
+  return rgbToHex(red, green, blue);
+}
+
+function hexToHsv(hex: string) {
+  const [red, green, blue] = hexToRgb(hex);
+  return rgbToHsv(red, green, blue);
+}
+
+/** Theme defaults stay null so light and dark keep their own token. */
+function storedSignalColor(hex: string, defaults: readonly string[]): string | null {
+  const upper = hex.toUpperCase();
+  if (defaults.some((item) => item.toUpperCase() === upper)) return null;
+  return hex.toLowerCase();
+}
+
+function sameSignalColor(a: string | null, b: string | null) {
+  if (a == null || b == null) return a == null && b == null;
+  return a.toUpperCase() === b.toUpperCase();
+}
+
+function applySignalColor(cssVar: string, hex: string | null) {
+  const root = document.documentElement;
+  if (hex == null) {
+    root.style.removeProperty(cssVar);
+    root.style.removeProperty(cssVar + "-soft");
+    return;
+  }
+  root.style.setProperty(cssVar, hex);
+  root.style.setProperty(cssVar + "-soft", questionSoft(hex));
+}
+
+function SignalColorControl({
+  label,
+  cssVar,
+  defaults,
+  value,
+  fallback,
+  onCommit
+}: {
+  label: string;
+  cssVar: "--question" | "--permission" | "--done";
+  defaults: readonly [string, string];
+  value: string | null;
+  fallback: string;
+  onCommit: (next: string | null) => void;
+}) {
+  const shown = (value ?? fallback).toLowerCase();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(shown);
+  const [hsv, setHsv] = useState(() => hexToHsv(shown));
+  const [rgbText, setRgbText] = useState(() => hexToRgb(shown).map(String));
+  const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const svRef = useRef<HTMLDivElement>(null);
+  const hueRef = useRef<HTMLDivElement>(null);
+  const hsvRef = useRef(hsv);
+  const latestHex = useRef(shown);
+  const draggingRef = useRef(false);
+  const modeRef = useRef<"sv" | "hue">("sv");
+  const frameRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ x: number; y: number } | null>(null);
+  const rgbTextRef = useRef(rgbText);
+  const valueRef = useRef(value);
+  const fallbackRef = useRef(fallback);
+  const onCommitRef = useRef(onCommit);
+  const cssVarRef = useRef(cssVar);
+  const defaultsRef = useRef(defaults);
+  hsvRef.current = hsv;
+  rgbTextRef.current = rgbText;
+  valueRef.current = value;
+  fallbackRef.current = fallback;
+  onCommitRef.current = onCommit;
+  cssVarRef.current = cssVar;
+  defaultsRef.current = defaults;
+
+  useEffect(() => {
+    if (draggingRef.current) return;
+    latestHex.current = shown;
+    if (hsvToHex(hsvRef.current).toLowerCase() === shown) {
+      setDraft(shown);
+      setRgbText(hexToRgb(shown).map(String));
+      return;
+    }
+    const next = hexToHsv(shown);
+    hsvRef.current = next;
+    setDraft(shown);
+    setHsv(next);
+    setRgbText(hexToRgb(shown).map(String));
+  }, [shown]);
+
+  const paint = (next: Hsv, hex: string) => {
+    const text = hexToRgb(hex).map(String);
+    hsvRef.current = next;
+    latestHex.current = hex;
+    rgbTextRef.current = text;
+    // The dock preview reads these variables. Settings stay untouched until release.
+    applySignalColor(cssVarRef.current, hex);
+    setDraft(hex);
+    setHsv(next);
+    setRgbText(text);
+  };
+
+  const commitHex = (hex: string) => {
+    const stored = storedSignalColor(hex, defaultsRef.current);
+    const visible = (stored ?? fallbackRef.current).toLowerCase();
+    applySignalColor(cssVarRef.current, stored == null ? null : visible);
+    const kept = hsvToHex(hsvRef.current).toLowerCase() === visible ? hsvRef.current : hexToHsv(visible);
+    const text = hexToRgb(visible).map(String);
+    hsvRef.current = kept;
+    latestHex.current = visible;
+    rgbTextRef.current = text;
+    setDraft(visible);
+    setHsv(kept);
+    setRgbText(text);
+    if (!sameSignalColor(stored, valueRef.current)) onCommitRef.current(stored);
+  };
+
+  const applyPointer = (x: number, y: number) => {
+    const surface = modeRef.current === "sv" ? svRef.current : hueRef.current;
+    if (!surface) return;
+    const rect = surface.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const current = hsvRef.current;
+    const next =
+      modeRef.current === "sv"
+        ? { h: current.h, s: clamp01((x - rect.left) / rect.width), v: 1 - clamp01((y - rect.top) / rect.height) }
+        : { h: clamp01((x - rect.left) / rect.width) * 360, s: current.s, v: current.v };
+    paint(next, hsvToHex(next));
+  };
+
+  const queuePointer = (x: number, y: number) => {
+    pendingRef.current = { x, y };
+    if (frameRef.current != null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (!pending) return;
+      applyPointer(pending.x, pending.y);
+    });
+  };
+
+  const flushPointer = () => {
+    if (frameRef.current != null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (pending) applyPointer(pending.x, pending.y);
+  };
+
+  const startDrag = (event: ReactPointerEvent<HTMLElement>, mode: "sv" | "hue") => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    modeRef.current = mode;
+    queuePointer(event.clientX, event.clientY);
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    event.preventDefault();
+    queuePointer(event.clientX, event.clientY);
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+    flushPointer();
+    draggingRef.current = false;
+    commitHex(latestHex.current);
+  };
+
+  const commitRgbText = () => {
+    const channels = rgbTextRef.current.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : Number.NaN));
+    if (channels.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+      setRgbText(hexToRgb(latestHex.current).map(String));
+      return;
+    }
+    const [red, green, blue] = channels as [number, number, number];
+    commitHex(rgbToHex(red, green, blue));
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const placePopover = () => {
+      const button = buttonRef.current;
+      const pop = popRef.current;
+      if (!button || !pop) return;
+      const anchor = button.getBoundingClientRect();
+      const box = pop.getBoundingClientRect();
+      const gap = 6;
+      const margin = 8;
+      let top = anchor.bottom + gap;
+      if (top + box.height > window.innerHeight - margin) top = anchor.top - gap - box.height;
+      let left = anchor.right - box.width;
+      left = Math.max(margin, Math.min(left, window.innerWidth - box.width - margin));
+      top = Math.max(margin, Math.min(top, window.innerHeight - box.height - margin));
+      setPlace({ top, left });
+    };
+    placePopover();
+    window.addEventListener("resize", placePopover);
+    window.addEventListener("scroll", placePopover, true);
+    return () => {
+      window.removeEventListener("resize", placePopover);
+      window.removeEventListener("scroll", placePopover, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (draggingRef.current) {
+        flushPointer();
+        draggingRef.current = false;
+        commitHex(latestHex.current);
+      } else {
+        commitRgbText();
+      }
+      setOpen(false);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (popRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      commitRgbText();
+      setOpen(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (frameRef.current != null) window.cancelAnimationFrame(frameRef.current);
+    };
+  }, []);
+
+  const restore = () => {
+    applySignalColor(cssVarRef.current, null);
+    const next = hexToHsv(fallback.toLowerCase());
+    hsvRef.current = next;
+    latestHex.current = fallback.toLowerCase();
+    setDraft(fallback.toLowerCase());
+    setHsv(next);
+    setRgbText(hexToRgb(fallback).map(String));
+    if (value != null) onCommit(null);
+  };
+
+  return (
+    <div className="question-color">
+      <button
+        type="button"
+        ref={buttonRef}
+        className="question-color__swatch"
+        style={{ background: draft }}
+        aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      />
+      <button type="button" className="button button--small" onClick={restore} disabled={value == null}>
+        {t("Restaurar padrão")}
+      </button>
+      {open
+        ? createPortal(
+            <div
+              ref={popRef}
+              className="question-popover"
+              role="dialog"
+              aria-label={label}
+              style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: "hidden" }}
+            >
+              <div
+                ref={svRef}
+                className="question-popover__sv"
+                style={{ backgroundColor: `hsl(${hsv.h} 100% 50%)` }}
+                onPointerDown={(event) => startDrag(event, "sv")}
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                <span className="question-popover__thumb" style={{ left: hsv.s * 100 + "%", top: (1 - hsv.v) * 100 + "%" }} />
+              </div>
+              <div
+                ref={hueRef}
+                className="question-popover__hue"
+                onPointerDown={(event) => startDrag(event, "hue")}
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                <span className="question-popover__thumb" style={{ left: (hsv.h / 360) * 100 + "%", top: "50%" }} />
+              </div>
+              <div className="question-popover__rgb">
+                {(["R", "G", "B"] as const).map((channel, index) => (
+                  <label key={channel}>
+                    {channel}
+                    <input
+                      value={rgbText[index]}
+                      inputMode="numeric"
+                      aria-label={channel}
+                      spellCheck={false}
+                      onChange={(event) => {
+                        const text = event.target.value.replace(/\D/g, "").slice(0, 3);
+                        setRgbText((current) => {
+                          const next = [...current];
+                          next[index] = text;
+                          rgbTextRef.current = next;
+                          return next;
+                        });
+                      }}
+                      onBlur={commitRgbText}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
+function SignalSample({
+  providerId,
+  label,
+  wait,
+  done = false
+}: {
+  providerId: string;
+  label: string;
+  wait?: "permission" | "question";
+  done?: boolean;
+}) {
+  return (
+    <span
+      className="signal-preview__item"
+      data-activity={wait ? "waiting" : undefined}
+      data-wait={wait}
+      data-signal={done ? "done" : undefined}
+    >
+      <span className="slot-icon">
+        <ProviderIcon providerId={providerId} size={18} />
+      </span>
+      <span className="signal-preview__track" aria-hidden="true">
+        <span className="signal-preview__fill" />
+      </span>
+      <small>{label}</small>
+    </span>
+  );
+}
+
+function AppearanceTab({ settings, update, providers, activities, finished }: SettingsPanelProps) {
+  const systemDark = useSystemDark();
   const previewSlots = useMemo(() => {
     const slots = compactSlots(providers, settings.antigravityGroupMode).slice(0, 3);
     if (slots.length) return slots;
@@ -155,11 +615,114 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
             { value: "light", label: t("Claro") }
           ]}
         />
+        <div className="select-setting-row">
+          <div className="select-setting-row__copy">
+            <strong>{t("Cor de pergunta")}</strong>
+            <small>{t("Quando uma IA espera sua resposta. A cor da quota não muda.")}</small>
+          </div>
+          <SignalColorControl
+            label={t("Cor de pergunta")}
+            cssVar="--question"
+            defaults={QUESTION_DEFAULTS}
+            value={settings.questionColor}
+            fallback={defaultSignalHex(QUESTION_DEFAULTS, settings.theme, systemDark)}
+            onCommit={(questionColor) => update({ questionColor })}
+          />
+        </div>
+        <div className="select-setting-row">
+          <div className="select-setting-row__copy">
+            <strong>{t("Cor de permissão")}</strong>
+            <small>{t("Quando uma IA pede permissão para agir. A cor da quota não muda.")}</small>
+          </div>
+          <SignalColorControl
+            label={t("Cor de permissão")}
+            cssVar="--permission"
+            defaults={PERMISSION_DEFAULTS}
+            value={settings.permissionColor}
+            fallback={defaultSignalHex(PERMISSION_DEFAULTS, settings.theme, systemDark)}
+            onCommit={(permissionColor) => update({ permissionColor })}
+          />
+        </div>
+        <div className="select-setting-row">
+          <div className="select-setting-row__copy">
+            <strong>{t("Cor de finalização")}</strong>
+            <small>{t("Quando uma IA termina uma tarefa. Fica aceso até você ver o dock.")}</small>
+          </div>
+          <SignalColorControl
+            label={t("Cor de finalização")}
+            cssVar="--done"
+            defaults={DONE_DEFAULTS}
+            value={settings.doneColor}
+            fallback={defaultSignalHex(DONE_DEFAULTS, settings.theme, systemDark)}
+            onCommit={(doneColor) => update({ doneColor })}
+          />
+        </div>
       </Group>
 
       <Group title={t("Dock recolhido")}>
+        <div className="mascot-row">
+          <Switch
+            label={t("Mascote")}
+            description={t("Mostra o gato no topo do dock recolhido.")}
+            checked={settings.mascotEnabled}
+            onChange={(mascotEnabled) => update({ mascotEnabled })}
+          />
+          <div className="mascot-choice" role="radiogroup" aria-label={t("Mascote")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={settings.mascot !== "robot" || !ROBOT_READY}
+              className={settings.mascot !== "robot" || !ROBOT_READY ? "is-selected" : ""}
+              onClick={() => update({ mascot: "cat" })}
+            >
+              {t("Gato")}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={settings.mascot === "robot" && ROBOT_READY}
+              className={settings.mascot === "robot" && ROBOT_READY ? "is-selected" : ""}
+              disabled={!ROBOT_READY}
+              onClick={() => update({ mascot: "robot" })}
+            >
+              {t("Robô")}
+            </button>
+          </div>
+        </div>
+        {!ROBOT_READY ? <p className="mascot-choice__note">{t("Faltam os frames do robô.")}</p> : null}
+        <Switch
+          label={t("Vidro · beta")}
+          description={t("Fundo translúcido na pill. O tema claro e escuro fica igual.")}
+          checked={settings.glassEnabled}
+          onChange={(glassEnabled) => update({ glassEnabled })}
+        />
+        {settings.glassEnabled ? (
+          <div className="glass-opacity">
+            <div className="range-row">
+              <span className="glass-opacity__label">{t("Transparência")}</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={settings.glassOpacity}
+                aria-label={t("Transparência")}
+                onChange={(event) => update({ glassOpacity: Number(event.target.value) })}
+              />
+              <span className="range-value">{settings.glassOpacity}</span>
+            </div>
+            <p className="hint">
+              {t("0 é o vidro mais sólido. 100 é o mais transparente em que os números ainda se leem.")}
+            </p>
+          </div>
+        ) : null}
         <div className="mode-preview-layout">
           <div className="mode-preview" aria-hidden="true">
+            <div className="signal-preview">
+              <SignalSample providerId="codex" label={t("Pergunta")} wait="question" />
+              <SignalSample providerId="cursor" label={t("Permissão")} wait="permission" />
+              <SignalSample providerId="claude" label={t("Finalização")} done />
+            </div>
             <DockPill
               slots={previewSlots}
               mode={settings.compactMode}
@@ -171,8 +734,13 @@ function AppearanceTab({ settings, update, providers, activities }: SettingsPane
               pulseActiveBar={settings.pulseActiveBar}
               hideBarsNumber={settings.hideBarsNumber}
               activities={activities}
+              finished={finished}
               side={settings.side}
               loading={false}
+              mascot={settings.mascotEnabled}
+              mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
+              glass={settings.glassEnabled}
+              glassOpacity={settings.glassOpacity}
               interactive={false}
             />
           </div>
@@ -542,7 +1110,7 @@ function ConnectionsTab({
   const byId = new Map(providers.map((provider) => [provider.id, provider]));
   const rawById = new Map(rawProviders.map((provider) => [provider.id, provider]));
   const validProviderIds = new Set(providers.map((p) => p.id));
-  const isRecognizedId = (id: string) => ["claude", "codex", "cursor", "antigravity"].includes(id) || validProviderIds.has(id);
+  const isRecognizedId = (id: string) => ["claude", "codex", "cursor", "grok", "antigravity", "deepseek"].includes(id) || validProviderIds.has(id);
   const allIds = Array.from(new Set([...settings.providerOrder.filter(isRecognizedId), ...providers.map((p) => p.id)]));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [aliasInput, setAliasInput] = useState("");

@@ -8,7 +8,7 @@ use std::os::windows::process::CommandExt;
 
 use tauri::AppHandle;
 
-use super::{antigravity, claude_web, cursor};
+use super::{antigravity, claude_web, cursor, deepseek, grok};
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -20,6 +20,10 @@ pub(crate) struct UsageWindow {
     pub(crate) label: String,
     pub(crate) remaining_percent: f64,
     pub(crate) reset_at: Option<String>,
+    /// Currency figure exactly as an official balance API spelled it.
+    /// When set, `remaining_percent` is not a quota percentage and must not be shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) amount: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -140,6 +144,7 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
                 label: "Sessão · 5h".into(),
                 remaining_percent: remaining_percent(used),
                 reset_at: primary.get("reset_at").and_then(Value::as_i64).map(format_unix),
+                amount: None,
             });
         }
     }
@@ -150,6 +155,7 @@ async fn codex_usage(client: &reqwest::Client) -> ProviderUsage {
                 label: "Semanal".into(),
                 remaining_percent: remaining_percent(used),
                 reset_at: secondary.get("reset_at").and_then(Value::as_i64).map(format_unix),
+                amount: None,
             });
         }
     }
@@ -278,6 +284,7 @@ async fn claude_usage(client: &reqwest::Client) -> ProviderUsage {
                     label: label.into(),
                     remaining_percent: remaining_percent(utilization),
                     reset_at: string(window.get("resets_at")),
+                    amount: None,
                 });
             }
         }
@@ -632,7 +639,7 @@ fn format_unix(timestamp: i64) -> String {
     unix_to_iso(timestamp.max(0))
 }
 
-fn unix_to_iso(seconds: i64) -> String {
+pub(crate) fn unix_to_iso(seconds: i64) -> String {
     let days = seconds.div_euclid(86_400);
     let sod = seconds.rem_euclid(86_400);
     let z = days + 719_468;
@@ -664,18 +671,26 @@ pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
                 disconnected("codex", "Codex", "Não foi possível iniciar o cliente HTTP."),
                 disconnected("cursor", "Cursor", "Não foi possível iniciar o cliente HTTP."),
                 disconnected("antigravity", "Antigravity", "Não foi possível iniciar o cliente HTTP."),
+                deepseek::without_http_client(),
+                grok::without_http_client(),
             ];
         }
     };
 
-    let (claude, codex, cursor, antigravity) = tokio::join!(
+    let (claude, codex, cursor, antigravity, deepseek, grok) = tokio::join!(
         resolve_claude(&client, &app),
         codex_usage(&client),
         cursor::usage(&client),
         antigravity::usage(),
+        deepseek::usage(&client),
+        grok::usage(&client),
     );
-    let mut providers = vec![claude, codex, cursor];
+    let mut providers = vec![claude, codex, cursor, grok.main];
+    if let Some(bot) = grok.bot {
+        providers.push(bot);
+    }
     providers.extend(antigravity);
+    providers.push(deepseek);
     providers
 }
 
