@@ -45,6 +45,15 @@
 .segmented button:hover { color: var(--text); }
 .segmented button.is-selected { background: var(--surface-3); color: var(--text); }
 
+.segmented-title {
+  display: block;
+  margin: 4px 0 6px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+.hint + .segmented-title { margin-top: 12px; }
+
 .select-setting-row {
   width: 100%;
   display: flex;
@@ -251,26 +260,60 @@
 .switch.is-on { background: var(--accent-strong); border-color: transparent; }
 .switch.is-on i { transform: translateX(16px); background: #fff; }
 
-.signal-preview {
+/* Notice legend: a column beside the preview pill. Each row opens its color picker. */
+.signal-legend {
+  display: grid;
+  gap: 6px;
+  align-self: center;
+  min-width: 0;
+}
+.question-color--legend { display: block; }
+.signal-legend__button {
+  width: 100%;
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.signal-legend__button:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.signal-legend__button[aria-expanded="true"] { border-color: var(--accent-border); }
+.signal-legend__dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
 }
 .signal-preview__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.signal-preview__mark {
   display: grid;
   justify-items: center;
-  gap: 4px;
-  min-width: 0;
+  gap: 3px;
+  flex: 0 0 auto;
 }
 .signal-preview__item small {
   font-size: var(--fs-2xs);
-  color: var(--text-3);
+  font-weight: 600;
+  color: var(--text-2);
   line-height: 1.2;
+  white-space: nowrap;
 }
 .signal-preview__track {
-  width: 34px;
-  height: 4px;
+  width: 22px;
+  height: 3px;
   border-radius: 2px;
   background: var(--surface-2);
   overflow: visible;
@@ -284,16 +327,27 @@
   opacity: 1;
   animation: signal-glow 2.6s ease-in-out infinite;
 }
+.question-popover__hint {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
+  color: var(--text-3);
+}
 
-.mode-preview-layout { display: flex; gap: 12px; align-items: flex-start; }
+.mode-preview-layout { display: flex; gap: 10px; align-items: flex-start; }
 .mode-preview {
   flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   padding: 8px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   background: repeating-linear-gradient(45deg, var(--surface-1) 0 6px, transparent 6px 12px);
 }
-.mode-preview-layout .mode-picker { flex: 1; grid-template-columns: 1fr; }
+/* The legend sits on the screen side away from the edge, like the real peek. */
+.mode-preview--left { flex-direction: row-reverse; }
+.mode-preview-layout .mode-picker { flex: 1; min-width: 0; grid-template-columns: 1fr; }
 
 .mode-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .mode-picker button {

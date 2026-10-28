@@ -29,12 +29,18 @@ struct Reading {
     read_at_ms: u64,
     metered: bool,
     plan: Option<String>,
+    /// SuperGrok unified plan: Grok Bot draws from the one Grok pool, so it gets no slot of its own.
+    unified: bool,
 }
 
-/// None when Grok Bot is not installed on this computer.
+/// None when Grok Bot is not installed, or when its account is on the unified plan
+/// (then the Grok slot already shows that same pool).
 pub(crate) fn usage() -> Option<ProviderUsage> {
     let folder = persistence_dir()?;
     let reading = latest_reading(&folder);
+    if reading.as_ref().is_some_and(|reading| reading.unified) {
+        return None;
+    }
     Some(to_usage(reading, now_ms()))
 }
 
@@ -114,12 +120,14 @@ fn parse_cache(json: &Value) -> Option<Reading> {
         .map(str::trim)
         .filter(|label| !label.is_empty() && label.len() <= 40)
         .map(str::to_string);
+    let unified = usage.get("unifiedPlanName").is_some_and(Value::is_string);
     Some(Reading {
         percent_used,
         next_reset_ms,
         read_at_ms,
         metered,
         plan,
+        unified,
     })
 }
 
@@ -255,6 +263,14 @@ mod tests {
         let usage = to_usage(parse_cache(&zero), 1_500);
         assert!(usage.windows.is_empty());
         assert_eq!(usage.error.as_deref(), Some(NO_QUOTA));
+    }
+
+    #[test]
+    fn a_unified_plan_is_flagged_so_grok_keeps_one_slot() {
+        assert!(!parse_cache(&cache(10.0, 2_000_000_000_000, 1_000)).unwrap().unified);
+        let mut unified = cache(10.0, 2_000_000_000_000, 1_000);
+        unified["value"]["reading"]["usage"]["unifiedPlanName"] = json!("SuperGrok Heavy");
+        assert!(parse_cache(&unified).unwrap().unified);
     }
 
     #[test]

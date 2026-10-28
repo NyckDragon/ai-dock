@@ -10,9 +10,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **Mascote:** gatinho em pixel art em cima da pill (dorme, respira e se alerta com os avisos). Dá para desligar ou trocar pelo robô nas Configurações.
-- **Vidro · beta:** fundo translúcido com ajuste de transparência na pill, no cartão do hover, na lista de avisos e no painel aberto. O tom do vidro acompanha o tema claro ou escuro.
+- **Vidro · beta:** fundo de vidro na pill, no cartão do hover, na lista de avisos e no painel aberto, com ajuste de transparência (0 é sólido). No Windows o que está atrás fica desfocado de verdade (Acrílico); no macOS e no Linux, por enquanto, o vidro não desfoca. O tom acompanha o tema claro ou escuro.
 - **Avisos por tipo:** pergunta, permissão e "terminou" têm cores próprias, que dá para trocar nas Configurações.
-- **Grok, Grok Bot e DeepSeek:** cota semanal do Grok CLI; limite semanal do app Grok Bot, lido do cache de uso que o próprio app guarda no PC (sem token); saldo do DeepSeek Harness pela API oficial quando há chave.
+- **Grok, Grok Bot e DeepSeek:** cota semanal do Grok CLI; limite semanal do app Grok Bot, lido do cache de uso que o próprio app guarda no PC (sem token); saldo do DeepSeek Harness pela API oficial quando há chave. No plano unificado do SuperGrok, o Grok Bot usa o mesmo limite do Grok e não ganha ícone separado. Ícone oficial do Grok e um desenho do mascote do Grok Bot.
 
 ### Fixed
 
@@ -21,6 +21,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Sem sombra: o cartão do hover, os menus e os diálogos ficam sem sombreado.
+- Configurações → Aparência mais enxuta: os avisos (pergunta, permissão, finalização) ficam numa coluna ao lado da prévia da pill e cada um abre o seletor da sua cor; "Em destaque" e "Percentual" viraram um grupo só.
+- O aviso de pergunta do Antigravity se apaga quando a conversa fica mais de 12 horas sem mexer.
+- Mascote mais leve: o app ficou ~5 MB menor.
 
 ## [0.8.0-beta.1] - 2026-10-22
 

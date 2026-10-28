@@ -48,10 +48,12 @@ import {
   raiseDock,
   rememberForeground,
   returnFocus,
+  setDockGlass,
   setDockHits,
   setTrayMenu,
   setTrayTooltip
 } from "./lib/tauri";
+import type { DockGlassBox } from "./lib/tauri";
 import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
 
 const QUESTION_HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -458,10 +460,44 @@ export default function App() {
 
   // Windows hit testing: the spare peek width must not catch clicks. --------
   const hitKeyRef = useRef("");
+  const glassKeyRef = useRef("");
   useLayoutEffect(() => {
     if (!isTauri()) return;
     let frame = 0;
+    // Real blur sits behind the pill, the signal list, the open card and the open panel.
+    // Layout boxes, not getBoundingClientRect: the card animates with a transform.
+    const sendGlass = () => {
+      const shapes: DockGlassBox[] = [];
+      const shape = (el: Element | null) => {
+        if (!(el instanceof HTMLElement)) return;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") return;
+        let x = 0;
+        let y = 0;
+        for (let node: HTMLElement | null = el; node; node = node.offsetParent as HTMLElement | null) {
+          x += node.offsetLeft;
+          y += node.offsetTop;
+        }
+        if (el.offsetWidth < 1 || el.offsetHeight < 1) return;
+        const radius = Number.parseFloat(style.borderTopLeftRadius) || 0;
+        shapes.push({ x, y, width: el.offsetWidth, height: el.offsetHeight, radius });
+      };
+      if (settings.glassEnabled && !dock.hidden) {
+        if (expanded) {
+          shape(document.querySelector(".dock-panel"));
+        } else {
+          const root = stageRef.current?.closest(".compact-shell");
+          root?.querySelectorAll(".dock-pill, .dock-signal-list").forEach(shape);
+          shape(root?.querySelector(".peek-wrap--open .provider-peek") ?? null);
+        }
+      }
+      const key = JSON.stringify(shapes);
+      if (key === glassKeyRef.current) return;
+      glassKeyRef.current = key;
+      void setDockGlass(shapes.length > 0, shapes);
+    };
     const send = () => {
+      sendGlass();
       if (expanded || dock.hidden) {
         if (hitKeyRef.current === "off") return;
         hitKeyRef.current = "off";
@@ -532,7 +568,16 @@ export default function App() {
       mutationObserver.disconnect();
       window.removeEventListener("resize", send);
     };
-  }, [expanded, dock.hidden, dock.peekPhase, dock.overlay, peekTop, settings.side, settings.mascotEnabled]);
+  }, [
+    expanded,
+    dock.hidden,
+    dock.peekPhase,
+    dock.overlay,
+    peekTop,
+    settings.side,
+    settings.mascotEnabled,
+    settings.glassEnabled
+  ]);
 
   // Compact dock -----------------------------------------------------------
   if (!expanded) {

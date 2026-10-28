@@ -46,6 +46,14 @@ export async function setDockHits(interactive: boolean, boxes: DockHitBox[]) {
   await invoke("set_dock_hits", { interactive, boxes });
 }
 
+export type DockGlassBox = DockHitBox & { radius: number };
+
+/** Shapes that get the real blur behind them, in CSS pixels. Windows only; elsewhere a no-op. */
+export async function setDockGlass(enabled: boolean, boxes: DockGlassBox[]) {
+  if (!isTauri()) return;
+  await invoke("set_dock_glass", { enabled, boxes });
+}
+
 /** Keeps the dock on top. Resolves true when it was hidden for a full-screen app. */
 export async function raiseDock(hideOnFullscreen: boolean): Promise<boolean> {
   if (!isTauri()) return false;

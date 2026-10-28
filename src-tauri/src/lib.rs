@@ -38,6 +38,7 @@ pub fn run() {
             commands::dock::get_monitors,
             commands::dock::set_dock_state,
             commands::dock::set_dock_hits,
+            commands::glass::set_dock_glass,
             commands::dock::raise_dock,
             commands::dock::focus_dock,
             commands::dock::set_tray_tooltip,

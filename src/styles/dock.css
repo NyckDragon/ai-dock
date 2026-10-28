@@ -58,7 +58,8 @@
 :root[data-glass="on"] .dock-signal-list,
 :root[data-glass="on"] .provider-peek,
 :root[data-glass="on"] .dock-panel {
-  --glass-alpha: calc(0.9 - (0.9 - 0.5) * var(--glass-t, 0.4));
+  /* 0 is fully solid. 100 keeps a 40% fill so the numbers still read. */
+  --glass-alpha: calc(1 - (1 - 0.4) * var(--glass-t, 0.4));
   background: rgba(var(--glass-rgb), var(--glass-alpha));
   border-top-color: var(--glass-edge);
   box-shadow:

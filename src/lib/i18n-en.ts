@@ -175,8 +175,11 @@ export const EN: Record<string, string> = {
   "Fundo translúcido na pill, no cartão do hover e no painel aberto.":
     "Translucent background on the pill, the hover card and the open panel.",
   "Transparência": "Transparency",
-  "0 é o vidro mais sólido. 100 é o mais transparente em que os números ainda se leem.":
-    "0 is the most solid glass. 100 is the most transparent step where the numbers can still be read.",
+  "0 é sólido. 100 é o mais transparente em que os números ainda se leem.":
+    "0 is solid. 100 is the most transparent step where the numbers can still be read.",
+  "Cores dos avisos": "Notice colors",
+  "Clique em um aviso para trocar a cor dele. A cor da cota não muda.":
+    "Click a notice to change its color. Quota colors stay the same.",
   "{name} tem uma pergunta": "{name} has a question",
   "{name} precisa de permissão": "{name} needs permission",
   "{name} finalizou": "{name} finished",

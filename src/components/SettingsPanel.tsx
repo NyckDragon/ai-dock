@@ -243,7 +243,9 @@ function SignalColorControl({
   defaults,
   value,
   fallback,
-  onCommit
+  onCommit,
+  hint,
+  children
 }: {
   label: string;
   cssVar: "--question" | "--permission" | "--done";
@@ -251,6 +253,10 @@ function SignalColorControl({
   value: string | null;
   fallback: string;
   onCommit: (next: string | null) => void;
+  /** When this color shows up. Tooltip on the button and a line in the picker. */
+  hint?: string;
+  /** Legend content. When set, the whole legend row opens the picker instead of a bare swatch. */
+  children?: ReactNode;
 }) {
   const shown = (value ?? fallback).toLowerCase();
   const [open, setOpen] = useState(false);
@@ -469,19 +475,20 @@ function SignalColorControl({
   };
 
   return (
-    <div className="question-color">
+    <div className={children ? "question-color question-color--legend" : "question-color"}>
       <button
         type="button"
         ref={buttonRef}
-        className="question-color__swatch"
-        style={{ background: draft }}
+        className={children ? "signal-legend__button" : "question-color__swatch"}
+        style={children ? undefined : { background: draft }}
         aria-label={label}
+        title={hint}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-      />
-      <button type="button" className="button button--small" onClick={restore} disabled={value == null}>
-        {t("Restaurar padrão")}
+      >
+        {children}
+        {children ? <span className="signal-legend__dot" style={{ background: draft }} aria-hidden="true" /> : null}
       </button>
       {open
         ? createPortal(
@@ -541,6 +548,10 @@ function SignalColorControl({
                   </label>
                 ))}
               </div>
+              {hint ? <p className="question-popover__hint">{hint}</p> : null}
+              <button type="button" className="button button--small" onClick={restore} disabled={value == null}>
+                {t("Restaurar padrão")}
+              </button>
             </div>,
             document.body
           )
@@ -567,11 +578,13 @@ function SignalSample({
       data-wait={wait}
       data-signal={done ? "done" : undefined}
     >
-      <span className="slot-icon">
-        <ProviderIcon providerId={providerId} size={18} />
-      </span>
-      <span className="signal-preview__track" aria-hidden="true">
-        <span className="signal-preview__fill" />
+      <span className="signal-preview__mark">
+        <span className="slot-icon">
+          <ProviderIcon providerId={providerId} size={18} />
+        </span>
+        <span className="signal-preview__track" aria-hidden="true">
+          <span className="signal-preview__fill" />
+        </span>
       </span>
       <small>{label}</small>
     </span>
@@ -589,6 +602,44 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
       { id: "cursor", name: "Cursor", connected: true, windows: [{ id: "s", label: "Sessão", remainingPercent: 12 }] }
     ];
   }, [providers]);
+
+  const signalColors = (
+    <div className="signal-legend" role="group" aria-label={t("Cores dos avisos")}>
+      <SignalColorControl
+        label={t("Cor de pergunta")}
+        hint={t("Quando uma IA espera sua resposta. A cor da quota não muda.")}
+        cssVar="--question"
+        defaults={QUESTION_DEFAULTS}
+        value={settings.questionColor}
+        fallback={defaultSignalHex(QUESTION_DEFAULTS, settings.theme, systemDark)}
+        onCommit={(questionColor) => update({ questionColor })}
+      >
+        <SignalSample providerId="codex" label={t("Pergunta")} wait="question" />
+      </SignalColorControl>
+      <SignalColorControl
+        label={t("Cor de permissão")}
+        hint={t("Quando uma IA pede permissão para agir. A cor da quota não muda.")}
+        cssVar="--permission"
+        defaults={PERMISSION_DEFAULTS}
+        value={settings.permissionColor}
+        fallback={defaultSignalHex(PERMISSION_DEFAULTS, settings.theme, systemDark)}
+        onCommit={(permissionColor) => update({ permissionColor })}
+      >
+        <SignalSample providerId="cursor" label={t("Permissão")} wait="permission" />
+      </SignalColorControl>
+      <SignalColorControl
+        label={t("Cor de finalização")}
+        hint={t("Quando uma IA termina uma tarefa. Fica aceso até você ver o dock.")}
+        cssVar="--done"
+        defaults={DONE_DEFAULTS}
+        value={settings.doneColor}
+        fallback={defaultSignalHex(DONE_DEFAULTS, settings.theme, systemDark)}
+        onCommit={(doneColor) => update({ doneColor })}
+      >
+        <SignalSample providerId="claude" label={t("Finalização")} done />
+      </SignalColorControl>
+    </div>
+  );
 
   return (
     <>
@@ -615,51 +666,38 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             { value: "light", label: t("Claro") }
           ]}
         />
-        <div className="select-setting-row">
-          <div className="select-setting-row__copy">
-            <strong>{t("Cor de pergunta")}</strong>
-            <small>{t("Quando uma IA espera sua resposta. A cor da quota não muda.")}</small>
-          </div>
-          <SignalColorControl
-            label={t("Cor de pergunta")}
-            cssVar="--question"
-            defaults={QUESTION_DEFAULTS}
-            value={settings.questionColor}
-            fallback={defaultSignalHex(QUESTION_DEFAULTS, settings.theme, systemDark)}
-            onCommit={(questionColor) => update({ questionColor })}
-          />
-        </div>
-        <div className="select-setting-row">
-          <div className="select-setting-row__copy">
-            <strong>{t("Cor de permissão")}</strong>
-            <small>{t("Quando uma IA pede permissão para agir. A cor da quota não muda.")}</small>
-          </div>
-          <SignalColorControl
-            label={t("Cor de permissão")}
-            cssVar="--permission"
-            defaults={PERMISSION_DEFAULTS}
-            value={settings.permissionColor}
-            fallback={defaultSignalHex(PERMISSION_DEFAULTS, settings.theme, systemDark)}
-            onCommit={(permissionColor) => update({ permissionColor })}
-          />
-        </div>
-        <div className="select-setting-row">
-          <div className="select-setting-row__copy">
-            <strong>{t("Cor de finalização")}</strong>
-            <small>{t("Quando uma IA termina uma tarefa. Fica aceso até você ver o dock.")}</small>
-          </div>
-          <SignalColorControl
-            label={t("Cor de finalização")}
-            cssVar="--done"
-            defaults={DONE_DEFAULTS}
-            value={settings.doneColor}
-            fallback={defaultSignalHex(DONE_DEFAULTS, settings.theme, systemDark)}
-            onCommit={(doneColor) => update({ doneColor })}
-          />
-        </div>
       </Group>
 
       <Group title={t("Dock recolhido")}>
+        <div className="mode-preview-layout">
+          <div className={"mode-preview mode-preview--" + settings.side}>
+            {signalColors}
+            <div aria-hidden="true">
+              <DockPill
+                slots={previewSlots}
+                mode={settings.compactMode}
+                showSign={settings.showSign}
+                display={settings.display}
+                headline={settings.headline}
+                antigravityGroupMode={settings.antigravityGroupMode}
+                activityIndicator={settings.activityIndicator}
+                pulseActiveBar={settings.pulseActiveBar}
+                hideBarsNumber={settings.hideBarsNumber}
+                activities={activities}
+                finished={finished}
+                side={settings.side}
+                loading={false}
+                mascot={settings.mascotEnabled}
+                mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
+                glass={settings.glassEnabled}
+                glassOpacity={settings.glassOpacity}
+                interactive={false}
+              />
+            </div>
+          </div>
+          <CompactModePicker value={settings.compactMode} onChange={(compactMode) => update({ compactMode })} />
+        </div>
+        <p className="hint">{t("Clique em um aviso para trocar a cor dele. A cor da cota não muda.")}</p>
         <div className="mascot-row">
           <Switch
             label={t("Mascote")}
@@ -667,29 +705,29 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             checked={settings.mascotEnabled}
             onChange={(mascotEnabled) => update({ mascotEnabled })}
           />
-          <div className="mascot-choice" role="radiogroup" aria-label={t("Mascote")}>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={settings.mascot !== "robot" || !ROBOT_READY}
-              className={settings.mascot !== "robot" || !ROBOT_READY ? "is-selected" : ""}
-              onClick={() => update({ mascot: "cat" })}
-            >
-              {t("Gato")}
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={settings.mascot === "robot" && ROBOT_READY}
-              className={settings.mascot === "robot" && ROBOT_READY ? "is-selected" : ""}
-              disabled={!ROBOT_READY}
-              onClick={() => update({ mascot: "robot" })}
-            >
-              {t("Robô")}
-            </button>
-          </div>
+          {ROBOT_READY ? (
+            <div className="mascot-choice" role="radiogroup" aria-label={t("Mascote")}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={settings.mascot !== "robot"}
+                className={settings.mascot !== "robot" ? "is-selected" : ""}
+                onClick={() => update({ mascot: "cat" })}
+              >
+                {t("Gato")}
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={settings.mascot === "robot"}
+                className={settings.mascot === "robot" ? "is-selected" : ""}
+                onClick={() => update({ mascot: "robot" })}
+              >
+                {t("Robô")}
+              </button>
+            </div>
+          ) : null}
         </div>
-        {!ROBOT_READY ? <p className="mascot-choice__note">{t("Faltam os frames do robô.")}</p> : null}
         <Switch
           label={t("Vidro · beta")}
           description={t("Fundo translúcido na pill, no cartão do hover e no painel aberto.")}
@@ -711,75 +749,13 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
               />
               <span className="range-value">{settings.glassOpacity}</span>
             </div>
-            <p className="hint">
-              {t("0 é o vidro mais sólido. 100 é o mais transparente em que os números ainda se leem.")}
-            </p>
+            <p className="hint">{t("0 é sólido. 100 é o mais transparente em que os números ainda se leem.")}</p>
           </div>
         ) : null}
-        <div className="mode-preview-layout">
-          <div className="mode-preview" aria-hidden="true">
-            <div className="signal-preview">
-              <SignalSample providerId="codex" label={t("Pergunta")} wait="question" />
-              <SignalSample providerId="cursor" label={t("Permissão")} wait="permission" />
-              <SignalSample providerId="claude" label={t("Finalização")} done />
-            </div>
-            <DockPill
-              slots={previewSlots}
-              mode={settings.compactMode}
-              showSign={settings.showSign}
-              display={settings.display}
-              headline={settings.headline}
-              antigravityGroupMode={settings.antigravityGroupMode}
-              activityIndicator={settings.activityIndicator}
-              pulseActiveBar={settings.pulseActiveBar}
-              hideBarsNumber={settings.hideBarsNumber}
-              activities={activities}
-              finished={finished}
-              side={settings.side}
-              loading={false}
-              mascot={settings.mascotEnabled}
-              mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
-              glass={settings.glassEnabled}
-              glassOpacity={settings.glassOpacity}
-              interactive={false}
-            />
-          </div>
-          <CompactModePicker value={settings.compactMode} onChange={(compactMode) => update({ compactMode })} />
-        </div>
-      </Group>
-
-      <Group title={t("Em destaque")}>
-        <Segmented
-          label={t("Janela em destaque no dock")}
-          value={settings.headline}
-          onChange={(headline) => update({ headline })}
-          options={[
-            { value: "session", label: t("Sessão atual (5h)") },
-            { value: "limiting", label: t("A que mais limita") }
-          ]}
-        />
-        <p className="hint">
-          {t(
-            "Qual janela aparece no anel do dock e no número grande do card. Quem não tem sessão de 5h (como o Cursor) mostra a janela que tiver."
-          )}
-        </p>
-      </Group>
-
-      <Group title={t("Histórico no card")}>
-        <Segmented
-          label={t("Período do gráfico de histórico")}
-          value={settings.historyRange}
-          onChange={(historyRange) => update({ historyRange })}
-          options={[
-            { value: "24h", label: "24h" },
-            { value: "7d", label: t("7 dias") },
-            { value: "30d", label: t("30 dias") }
-          ]}
-        />
-        <p className="hint">{t("O histórico fica só neste PC e começa a partir da primeira leitura.")}</p>
       </Group>
 
       <Group title={t("Percentual")}>
+        <strong className="segmented-title">{t("O que o percentual mostra")}</strong>
         <Segmented
           label={t("O que o percentual mostra")}
           value={settings.display}
@@ -793,6 +769,21 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
         <p className="hint">
           {t(
             "\"Como no app\" segue cada produto: o Claude mostra quanto você já usou, como no claude.ai; os outros mostram quanto resta."
+          )}
+        </p>
+        <strong className="segmented-title">{t("Janela em destaque no dock")}</strong>
+        <Segmented
+          label={t("Janela em destaque no dock")}
+          value={settings.headline}
+          onChange={(headline) => update({ headline })}
+          options={[
+            { value: "session", label: t("Sessão atual (5h)") },
+            { value: "limiting", label: t("A que mais limita") }
+          ]}
+        />
+        <p className="hint">
+          {t(
+            "Qual janela aparece no anel do dock e no número grande do card. Quem não tem sessão de 5h (como o Cursor) mostra a janela que tiver."
           )}
         </p>
         {settings.compactMode !== "classic" ? (
@@ -811,6 +802,20 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             onChange={(hideBarsNumber) => update({ hideBarsNumber })}
           />
         ) : null}
+      </Group>
+
+      <Group title={t("Histórico no card")}>
+        <Segmented
+          label={t("Período do gráfico de histórico")}
+          value={settings.historyRange}
+          onChange={(historyRange) => update({ historyRange })}
+          options={[
+            { value: "24h", label: "24h" },
+            { value: "7d", label: t("7 dias") },
+            { value: "30d", label: t("30 dias") }
+          ]}
+        />
+        <p className="hint">{t("O histórico fica só neste PC e começa a partir da primeira leitura.")}</p>
       </Group>
     </>
   );

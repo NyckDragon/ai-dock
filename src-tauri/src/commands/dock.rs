@@ -250,6 +250,7 @@ pub fn place_dock(
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_always_on_top(true);
+    super::glass::sync(window.app_handle());
     Ok(())
 }
 
@@ -421,12 +422,15 @@ pub fn raise_dock(app: AppHandle, hide_on_fullscreen: Option<bool>) -> Result<bo
     let window = main_window(&app)?;
     if hide_on_fullscreen.unwrap_or(false) && fullscreen_app_active() {
         let _ = window.hide();
+        super::glass::sync(&app);
         return Ok(true);
     }
     let _ = window.unminimize();
     let _ = window.show();
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
     reassert_topmost(&window);
+    // The blur backdrop goes back right under the dock.
+    super::glass::sync(&app);
     Ok(false)
 }
 

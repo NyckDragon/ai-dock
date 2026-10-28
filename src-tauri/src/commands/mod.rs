@@ -8,6 +8,7 @@ pub mod grok_bot;
 pub mod cli;
 pub mod costs;
 pub mod dock;
+pub mod glass;
 pub mod focus;
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;
