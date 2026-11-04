@@ -2,10 +2,10 @@
 
 A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
-[![Version](https://img.shields.io/badge/version-0.8.0--beta.1-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0--beta.2-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
-[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.2)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.2)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -19,7 +19,7 @@ A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how
 
 ## Download
 
-**0.8.0 beta:** the [v0.8.0-beta.1 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1) has Windows, macOS and Linux in one place, with multiple Antigravity accounts and the bars style. The latest stable release for Windows is still 0.7.1.
+**0.8.0 beta:** the [v0.8.0-beta.2 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.2) has Windows, macOS and Linux in one place, now with the pixel-art cat, real glass blur on Windows, Grok, Grok Bot and DeepSeek, and clicks that pass through the empty space beside the dock. The latest stable release for Windows is still 0.7.1.
 
 ### Windows 11
 
@@ -29,7 +29,7 @@ The binary is **not code-signed yet**, so Windows SmartScreen may warn the first
 
 ### macOS beta
 
-Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.1/AI.Dock_0.8.0-beta.1_aarch64.dmg) from the [v0.8.0-beta.1 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1). Nobody has reported back from a real Mac yet, so tell us how it went, even if everything worked.
+Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.2/AI.Dock_0.8.0-beta.2_aarch64.dmg) from the [v0.8.0-beta.2 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.2). Nobody has reported back from a real Mac yet, so tell us how it went, even if everything worked.
 
 The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
 
@@ -39,7 +39,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 
 ### Linux beta
 
-Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.1/AI.Dock_0.8.0-beta.1_amd64.AppImage) from the [v0.8.0-beta.1 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.1). It is built on Ubuntu 22.04, so it needs glibc 2.35 or newer.
+Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.2/AI.Dock_0.8.0-beta.2_amd64.AppImage) from the [v0.8.0-beta.2 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.2). It is built on Ubuntu 22.04, so it needs glibc 2.35 or newer.
 
 The AppImage is unsigned. Make it executable and run it. If it complains about FUSE, install `fuse2`, or extract it with `--appimage-extract` and run `./squashfs-root/AppRun`.
 

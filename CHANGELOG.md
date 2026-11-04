@@ -7,9 +7,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0-beta.2] - 2026-11-04
+
+Segunda versão de teste da 0.8.0, de novo com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.
+
 ### Added
 
-- **Mascote:** gatinho em pixel art em cima da pill (dorme, respira e se alerta com os avisos). Dá para desligar ou trocar pelo robô nas Configurações.
+- **Mascote:** gatinho em pixel art em cima da pill (dorme, respira e se alerta com os avisos). Dá para desligar nas Configurações.
 - **Vidro · beta:** fundo de vidro na pill, no cartão do hover, na lista de avisos e no painel aberto, com ajuste de transparência (0 é sólido). No Windows o que está atrás fica desfocado de verdade (Acrílico); no macOS e no Linux, por enquanto, o vidro não desfoca. O tom acompanha o tema claro ou escuro.
 - **Avisos por tipo:** pergunta, permissão e "terminou" têm cores próprias, que dá para trocar nas Configurações.
 - **Grok, Grok Bot e DeepSeek:** cota semanal do Grok CLI; limite semanal do app Grok Bot, lido do cache de uso que o próprio app guarda no PC (sem token); saldo do DeepSeek Harness pela API oficial quando há chave. No plano unificado do SuperGrok, o Grok Bot usa o mesmo limite do Grok e não ganha ícone separado. Ícone oficial do Grok e um desenho do mascote do Grok Bot.
@@ -17,6 +21,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - O espaço vazio ao lado do dock não bloqueia mais cliques no app de trás (navegador, editor). Só a pill, o gatinho e o cartão aberto recebem o clique, no Windows, no macOS e no Linux.
+- Arrastar o dock agora vai até o topo e até o fundo da tela. Antes ele parava uns 300px antes do fundo, por causa do espaço reservado para o cartão do hover; perto do fundo esse espaço passa para cima e o cartão abre para cima. O dock respeita a barra de tarefas, volta na hora quando você puxa de volta depois de bater na borda e se move em passos menores.
 
 ### Changed
 
