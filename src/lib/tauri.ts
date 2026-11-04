@@ -33,9 +33,18 @@ export type DockPlacement = {
   overlayWidth: number;
 };
 
-export async function setDock(placement: DockPlacement) {
-  if (!isTauri()) return;
-  await invoke("set_dock_state", { ...placement });
+/** What dock.rs reports back after placing the window. */
+export type DockPlaced = {
+  /** Logical px the pill sits lower inside the window, when the peek room had to go above it. */
+  pillShift: number;
+  /** Offsets, in percent, where the pill meets the top and bottom of the free screen area. */
+  offsetMin: number;
+  offsetMax: number;
+};
+
+export async function setDock(placement: DockPlacement): Promise<DockPlaced | null> {
+  if (!isTauri()) return null;
+  return invoke<DockPlaced>("set_dock_state", { ...placement });
 }
 
 export type DockHitBox = { x: number; y: number; width: number; height: number };

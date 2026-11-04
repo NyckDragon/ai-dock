@@ -849,8 +849,8 @@ function PositionTab({ settings, update, monitors }: SettingsPanelProps) {
               settings.verticalOffset === 0
                 ? t("Centro")
                 : settings.verticalOffset < 0
-                  ? t("{value}% acima", { value: Math.abs(settings.verticalOffset) })
-                  : t("{value}% abaixo", { value: settings.verticalOffset })
+                  ? t("{value}% acima", { value: Math.round(Math.abs(settings.verticalOffset)) })
+                  : t("{value}% abaixo", { value: Math.round(settings.verticalOffset) })
             }
             onChange={(event) => update({ verticalOffset: Number(event.target.value) })}
           />

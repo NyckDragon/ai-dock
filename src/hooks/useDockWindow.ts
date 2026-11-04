@@ -7,6 +7,11 @@ export type PeekPhase = "closed" | "opening" | "open" | "closing";
 
 export type MascotOverlay = { height: number; width: number };
 
+/** Vertical offsets, in percent, between which dragging still moves the pill. */
+export type OffsetRange = { min: number; max: number };
+
+const MAX_OFFSET = 45;
+
 const PEEK_EXTRA = 280;
 const PEEK_MIN = 600;
 const PEEK_CLOSE_MS = 170;
@@ -55,6 +60,8 @@ function samePlacement(a: DockPlacement, b: DockPlacement): boolean {
  */
 export function useDockWindow(settings: Settings, expanded: boolean) {
   const [pillHeight, setPillHeight] = useState(0);
+  const [pillShift, setPillShift] = useState(0);
+  const [offsetRange, setOffsetRange] = useState<OffsetRange>({ min: -MAX_OFFSET, max: MAX_OFFSET });
   const [hidden, setHidden] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekPhase, setPeekPhase] = useState<PeekPhase>("closed");
@@ -120,8 +127,18 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
               nativeWidth(previous.mode, previous.mascot, previous.overlayWidth);
           if (widening) ignoreLeaveUntilRef.current = Number.POSITIVE_INFINITY;
           try {
-            await setDock(next);
+            const placed = await setDock(next);
             lastSentRef.current = next;
+            // Only the visible collapsed dock draws the pill, so only its placement moves it.
+            if (placed && next.mode === "peek") {
+              const shift = Math.max(0, Math.round(placed.pillShift));
+              setPillShift((current) => (current === shift ? current : shift));
+              setOffsetRange((current) =>
+                current.min === placed.offsetMin && current.max === placed.offsetMax
+                  ? current
+                  : { min: placed.offsetMin, max: placed.offsetMax }
+              );
+            }
             if (widening) ignoreLeaveUntilRef.current = performance.now() + LEAVE_GUARD_MS;
           } catch {
             if (widening) ignoreLeaveUntilRef.current = 0;
@@ -296,6 +313,8 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   return {
     pillRef,
     anchorHeight,
+    pillShift,
+    offsetRange,
     overlay,
     setOverlay,
     hidden,

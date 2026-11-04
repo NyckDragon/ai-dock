@@ -64,49 +64,110 @@ fn physical_px(logical: f64, scale: f64) -> i32 {
     (logical * scale).round() as i32
 }
 
+/// Widest vertical offset, in percent of the monitor height, either way.
+const MAX_OFFSET: f64 = 45.0;
+
+/// The monitor and the part of it the taskbar or menu bar leaves free, in physical pixels.
+#[derive(Clone, Copy, Debug)]
+struct Screen {
+    origin_x: i32,
+    origin_y: i32,
+    width: u32,
+    height: u32,
+    /// Free band, relative to `origin_y`.
+    work_top: i32,
+    work_bottom: i32,
+}
+
+/// Where the window goes, and where the pill sits inside it.
+#[derive(Clone, Copy, Debug)]
+struct DockLayout {
+    pixels: DockPixels,
+    /// Physical pixels the pill block sits below the window top, past its usual spot.
+    pill_shift: i32,
+    /// Offsets, in percent, that still move the pill. Past them it is against an edge.
+    offset_min: f64,
+    offset_max: f64,
+}
+
 /// Where the window goes, in physical pixels.
 ///
 /// Width and height are the logical size about to be applied, times `scale`.
 /// The right dock keeps its right edge still, so a wider peek, cat or signal
 /// grows left. The left dock keeps its left edge still and grows right.
-/// The top follows the pill anchor, so extra height grows up for the cat and
-/// down for the peek without moving the pill.
+///
+/// The pill block is the pill plus the cat and marks above it (`anchor + rise`).
+/// That block alone is kept on screen, so it reaches the top and bottom edges.
+/// The spare peek height under it goes below while it fits; near the bottom
+/// the window grows up instead and `pill_shift` moves the pill down inside it.
 #[allow(clippy::too_many_arguments)]
 fn dock_rect(
     side: &str,
     mode: &str,
-    origin_x: i32,
-    origin_y: i32,
-    monitor_width: u32,
-    monitor_height: u32,
+    screen: Screen,
     scale: f64,
     logical_width: f64,
     logical_height: f64,
     anchor: f64,
     rise: f64,
     vertical_offset: f64,
-) -> DockPixels {
+) -> DockLayout {
     let width = physical_px(logical_width, scale);
     let height = physical_px(logical_height, scale);
     let margin = physical_px(10.0, scale);
     let edge_gap = if mode == "hidden" { 0 } else { margin };
     let x = if side == "left" {
-        origin_x + edge_gap
+        screen.origin_x + edge_gap
     } else {
-        origin_x + monitor_width as i32 - width - edge_gap
+        screen.origin_x + screen.width as i32 - width - edge_gap
     };
-    let offset = vertical_offset.clamp(-45.0, 45.0) / 100.0;
-    let center = monitor_height as f64 / 2.0 + offset * monitor_height as f64;
-    let top_limit = margin;
-    let bottom_limit = monitor_height as i32 - margin - height;
-    let relative_y = (anchored_top(center, anchor * scale, rise * scale).round() as i32)
-        .min(bottom_limit)
+    let monitor_height = (screen.height as f64).max(1.0);
+    let offset = vertical_offset.clamp(-MAX_OFFSET, MAX_OFFSET) / 100.0;
+    let center = monitor_height / 2.0 + offset * monitor_height;
+    let anchor_px = anchor * scale;
+    let rise_px = rise * scale;
+    let block = physical_px(anchor + rise, scale).min(height);
+    let top_limit = screen.work_top + margin;
+    let bottom_limit = (screen.work_bottom - margin).max(top_limit);
+    let block_top = (anchored_top(center, anchor_px, rise_px).round() as i32)
+        .min(bottom_limit - block)
         .max(top_limit);
-    DockPixels {
-        x,
-        y: origin_y + relative_y,
-        width,
-        height,
+    let window_top = block_top.min(bottom_limit - height).max(top_limit);
+
+    // The offsets where the block meets each edge. Dragging past them does nothing.
+    let to_offset = |top: i32| ((top as f64 + anchor_px / 2.0 + rise_px - monitor_height / 2.0) / monitor_height) * 100.0;
+    let offset_min = to_offset(top_limit).clamp(-MAX_OFFSET, MAX_OFFSET);
+    let offset_max = to_offset((bottom_limit - block).max(top_limit)).clamp(offset_min, MAX_OFFSET);
+
+    DockLayout {
+        pixels: DockPixels {
+            x,
+            y: screen.origin_y + window_top,
+            width,
+            height,
+        },
+        pill_shift: block_top - window_top,
+        offset_min,
+        offset_max,
+    }
+}
+
+/// What the UI needs back after a placement, in logical pixels and percent.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockPlaced {
+    pill_shift: f64,
+    offset_min: f64,
+    offset_max: f64,
+}
+
+impl DockLayout {
+    fn placed(&self, scale: f64) -> DockPlaced {
+        DockPlaced {
+            pill_shift: self.pill_shift as f64 / scale,
+            offset_min: (self.offset_min * 10.0).round() / 10.0,
+            offset_max: (self.offset_max * 10.0).round() / 10.0,
+        }
     }
 }
 
@@ -181,7 +242,7 @@ pub fn place_dock(
     mascot: bool,
     overlay_height: f64,
     overlay_width: f64,
-) -> Result<(), String> {
+) -> Result<DockPlaced, String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     let selected_monitor = monitor_index
         .and_then(|index| monitors.get(index).cloned())
@@ -193,9 +254,8 @@ pub fn place_dock(
         .scale_factor()
         .unwrap_or_else(|_| selected_monitor.scale_factor())
         .max(1.0);
-    let monitor_pos = selected_monitor.position();
-    let monitor_size = selected_monitor.size();
-    let work_h = monitor_size.height as f64 / scale;
+    let screen = screen_of(&selected_monitor);
+    let work_h = (screen.work_bottom - screen.work_top) as f64 / scale;
     let max_h = (work_h - 28.0).max(160.0);
 
     let (logical_width, logical_height, anchor) =
@@ -208,13 +268,10 @@ pub fn place_dock(
         requested_rise.min((logical_height - base_height).max(0.0))
     };
 
-    let pixels = dock_rect(
+    let layout = dock_rect(
         side,
         mode,
-        monitor_pos.x,
-        monitor_pos.y,
-        monitor_size.width,
-        monitor_size.height,
+        screen,
         scale,
         logical_width,
         logical_height,
@@ -222,12 +279,15 @@ pub fn place_dock(
         rise,
         vertical_offset.unwrap_or(0.0),
     );
+    let pixels = layout.pixels;
+    let placed = layout.placed(scale);
     let remembered = LAST_PLACEMENT.lock().unwrap_or_else(|poison| poison.into_inner());
     if remembered
         .as_ref()
         .is_some_and(|previous| same_placement(previous, side, mode, pixels))
     {
-        return Ok(());
+        // Against the bottom edge only the pill moves inside a still window.
+        return Ok(placed);
     }
     drop(remembered);
 
@@ -251,7 +311,26 @@ pub fn place_dock(
     let _ = window.show();
     let _ = window.set_always_on_top(true);
     super::glass::sync(window.app_handle());
-    Ok(())
+    Ok(placed)
+}
+
+/// The monitor rect plus its work area. A work area that does not fit inside
+/// the monitor (a missing or odd report) falls back to the whole monitor.
+fn screen_of(monitor: &tauri::Monitor) -> Screen {
+    let position = monitor.position();
+    let size = monitor.size();
+    let work = monitor.work_area();
+    let work_top = work.position.y - position.y;
+    let work_bottom = work_top + work.size.height as i32;
+    let fits = work.size.height > 0 && work_top >= 0 && work_bottom <= size.height as i32;
+    Screen {
+        origin_x: position.x,
+        origin_y: position.y,
+        width: size.width,
+        height: size.height,
+        work_top: if fits { work_top } else { 0 },
+        work_bottom: if fits { work_bottom } else { size.height as i32 },
+    }
 }
 
 /// Windows applies x, y, width and height together. Other systems set that same
@@ -502,7 +581,7 @@ pub fn set_dock_state(
     mascot: Option<bool>,
     overlay_height: Option<f64>,
     overlay_width: Option<f64>,
-) -> Result<(), String> {
+) -> Result<DockPlaced, String> {
     place_dock(
         &main_window(&app)?,
         &side,
@@ -839,20 +918,79 @@ mod tests {
         anchor: f64,
         rise: f64,
     ) -> super::DockPixels {
-        super::dock_rect(
-            side,
-            mode,
-            0,
-            0,
-            1920,
-            1080,
-            1.25,
-            logical_width,
-            logical_height,
-            anchor,
-            rise,
-            0.0,
-        )
+        super::dock_rect(side, mode, full_screen(0, 0), 1.25, logical_width, logical_height, anchor, rise, 0.0).pixels
+    }
+
+    /// 1920x1080 with no taskbar.
+    fn full_screen(origin_x: i32, origin_y: i32) -> super::Screen {
+        super::Screen {
+            work_bottom: 1080,
+            ..screen(origin_x, origin_y)
+        }
+    }
+
+    /// 1920x1080 with a 48px taskbar at the bottom.
+    fn screen(origin_x: i32, origin_y: i32) -> super::Screen {
+        super::Screen {
+            origin_x,
+            origin_y,
+            width: 1920,
+            height: 1080,
+            work_top: 0,
+            work_bottom: 1032,
+        }
+    }
+
+    fn at_offset(offset: f64) -> super::DockLayout {
+        // Peek-sized window at scale 1: 300px pill, 86px cat and marks, 280px of peek room below.
+        super::dock_rect("right", "peek", screen(0, 0), 1.0, 338.0, 666.0, 300.0, 86.0, offset)
+    }
+
+    #[test]
+    fn the_pill_reaches_the_bottom_edge_and_the_peek_room_goes_up() {
+        let layout = at_offset(45.0);
+        let pill_bottom = layout.pixels.y + layout.pill_shift + 86 + 300;
+        // The pill block meets the 10px margin above the taskbar, not 280px earlier.
+        assert_eq!(pill_bottom, 1032 - 10);
+        // The window still fits on screen; the spare room moved above the pill.
+        assert_eq!(layout.pixels.y + layout.pixels.height, 1032 - 10);
+        assert_eq!(layout.pill_shift, 666 - 386);
+    }
+
+    #[test]
+    fn the_pill_reaches_the_top_edge() {
+        let layout = at_offset(-45.0);
+        assert_eq!(layout.pixels.y, 10);
+        assert_eq!(layout.pill_shift, 0);
+    }
+
+    #[test]
+    fn mid_screen_keeps_the_peek_room_below() {
+        let layout = at_offset(0.0);
+        assert_eq!(layout.pill_shift, 0);
+        assert_eq!(layout.pixels.y, (540.0_f64 - 150.0 - 86.0) as i32);
+    }
+
+    #[test]
+    fn offset_range_marks_where_the_pill_meets_each_edge() {
+        let layout = at_offset(0.0);
+        assert!(layout.offset_min > -45.0 && layout.offset_min < 0.0);
+        assert!(layout.offset_max > 0.0 && layout.offset_max < 45.0);
+        // At the reported limit the pill sits on the edge; past it nothing moves.
+        let edge = at_offset(layout.offset_max);
+        let past = at_offset(45.0);
+        assert!((edge.pixels.y + edge.pill_shift - (past.pixels.y + past.pill_shift)).abs() <= 1);
+        let edge = at_offset(layout.offset_min);
+        let past = at_offset(-45.0);
+        assert!((edge.pixels.y + edge.pill_shift - (past.pixels.y + past.pill_shift)).abs() <= 1);
+    }
+
+    #[test]
+    fn a_window_taller_than_the_work_area_stays_at_the_top() {
+        let layout = super::dock_rect("right", "peek", screen(0, 0), 1.0, 338.0, 1200.0, 300.0, 86.0, 45.0);
+        assert_eq!(layout.pixels.y, 10);
+        assert_eq!(layout.pixels.y + layout.pill_shift + 386, 1022);
+        assert!(layout.offset_max >= layout.offset_min);
     }
 
     #[test]
@@ -886,9 +1024,8 @@ mod tests {
         assert_eq!(left_peek.x, left_compact.x);
         assert!(left_peek.width > left_compact.width);
 
-        let second_monitor = super::dock_rect(
-            "right", "compact", 1920, 80, 1920, 1080, scale, 64.0, 364.0, 300.0, 64.0, 0.0,
-        );
+        let second_monitor =
+            super::dock_rect("right", "compact", full_screen(1920, 80), scale, 64.0, 364.0, 300.0, 64.0, 0.0).pixels;
         assert_eq!(second_monitor.x + second_monitor.width, 1920 + 1920 - gap);
     }
 

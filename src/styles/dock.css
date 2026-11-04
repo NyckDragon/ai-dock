@@ -20,14 +20,15 @@
 
 /* The 10px screen margin sits outside the window, so the inset here is 0.
    Fixed to that edge, the pill does not follow the window width while a peek widens. */
+/* --pill-shift comes from dock.rs: near the bottom edge the peek room sits above the pill. */
 .compact-shell--right .dock-pill,
 .compact-shell--left .dock-pill {
   position: fixed;
-  top: 10px;
+  top: calc(10px + var(--pill-shift, 0px));
 }
 .compact-shell--mascot.compact-shell--right .dock-pill,
 .compact-shell--mascot.compact-shell--left .dock-pill {
-  top: calc(10px + 64px + var(--mascot-overlay, 0px));
+  top: calc(10px + 64px + var(--mascot-overlay, 0px) + var(--pill-shift, 0px));
 }
 .compact-shell--right .dock-pill { right: 0; left: auto; }
 .compact-shell--left .dock-pill { left: 0; right: auto; }

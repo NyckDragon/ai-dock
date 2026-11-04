@@ -657,6 +657,7 @@ export function DockPill({
   interactive = true,
   lockPosition = false,
   verticalOffset = 0,
+  offsetRange,
   onOffsetChange,
   onOffsetCommit,
   pillRef,
@@ -687,6 +688,8 @@ export function DockPill({
   interactive?: boolean;
   lockPosition?: boolean;
   verticalOffset?: number;
+  /** Where dock.rs says the pill meets the top and bottom edges. Dragging past them does nothing. */
+  offsetRange?: { min: number; max: number };
   onOffsetChange?: (offset: number) => void;
   onOffsetCommit?: (offset: number) => void;
   pillRef?: Ref<HTMLDivElement>;
@@ -733,8 +736,17 @@ export function DockPill({
     }
     if (isDraggingRef.current) {
       const screenH = window.screen.height || 1080;
-      const deltaPercent = (dy / screenH) * 100;
-      const nextOffset = Math.round(Math.max(-45, Math.min(45, dragStartOffsetRef.current + deltaPercent)));
+      const min = Math.max(-45, Math.min(offsetRange?.min ?? -45, 45));
+      const max = Math.max(min, Math.min(offsetRange?.max ?? 45, 45));
+      const wanted = dragStartOffsetRef.current + (dy / screenH) * 100;
+      const clamped = Math.max(min, Math.min(max, wanted));
+      if (clamped !== wanted) {
+        // Against an edge: start counting again from here, so the way back moves at once.
+        dragStartOffsetRef.current = clamped;
+        dragOriginRef.current = { x: dragOriginRef.current.x, y: event.screenY };
+      }
+      // Tenths of a percent: a whole percent is about 11px and the drag felt stepped.
+      const nextOffset = Math.round(clamped * 10) / 10;
       pendingOffsetRef.current = nextOffset;
       if (rafRef.current == null) {
         rafRef.current = window.requestAnimationFrame(() => {

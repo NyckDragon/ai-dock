@@ -573,6 +573,7 @@ export default function App() {
     dock.hidden,
     dock.peekPhase,
     dock.overlay,
+    dock.pillShift,
     peekTop,
     settings.side,
     settings.mascotEnabled,
@@ -625,9 +626,10 @@ export default function App() {
           (settings.mascotEnabled ? " compact-shell--mascot" : "")
         }
         style={
-          settings.mascotEnabled
-            ? ({ "--mascot-overlay": dock.overlay.height + "px" } as CSSProperties)
-            : undefined
+          {
+            "--pill-shift": dock.pillShift + "px",
+            ...(settings.mascotEnabled ? { "--mascot-overlay": dock.overlay.height + "px" } : {})
+          } as CSSProperties
         }
         onMouseEnter={onShellEnter}
         onMouseLeave={dock.onShellLeave}
@@ -657,6 +659,7 @@ export default function App() {
             onSeen={finish.dismiss}
             lockPosition={settings.lockPosition}
             verticalOffset={settings.verticalOffset}
+            offsetRange={dock.offsetRange}
             onOffsetChange={(verticalOffset) => setSettings((current) => ({ ...current, verticalOffset }))}
             onOffsetCommit={(verticalOffset) => update({ verticalOffset })}
             onOpen={openPanel}
