@@ -25,6 +25,8 @@ export type UsageWindow = {
   label: string;
   remainingPercent: number;
   resetAt?: string | null;
+  /** Currency figure exactly as an official balance API spelled it. Not a percentage. */
+  amount?: string | null;
 };
 
 export type ProviderUsage = {
@@ -97,6 +99,8 @@ export type ActivitySession = {
   since: number;
   /** Antigravity quota pool, when the running model is known. */
   pool?: "gemini" | "claude-gpt" | "argon";
+  /** Why a session is waiting. Absent waiting keeps the question color. */
+  reason?: "permission" | "question" | null;
 };
 
 export type ProviderActivity = {
@@ -116,6 +120,20 @@ export type Settings = {
   display: PercentDisplay;
   headline: HeadlineWindow;
   theme: ThemePreference;
+  /** #RRGGBB override. Null keeps the theme token. */
+  questionColor: string | null;
+  /** #RRGGBB override. Null keeps the theme token. */
+  permissionColor: string | null;
+  /** #RRGGBB override. Null keeps the theme token. */
+  doneColor: string | null;
+  /** Pixel cat on the collapsed pill. Off drops the extra window height. */
+  mascotEnabled: boolean;
+  /** Which drawing sits on the pill. Robot falls back to the cat when its frames are missing. */
+  mascot: "cat" | "robot";
+  /** Translucent pill. Off keeps the solid theme background. */
+  glassEnabled: boolean;
+  /** Glass fill, 0 solid through 100 clearest. Ignored while glass is off. */
+  glassOpacity: number;
   autoHide: boolean;
   closeOnBlur: boolean;
   hideOnFullscreen: boolean;

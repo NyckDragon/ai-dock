@@ -1248,6 +1248,7 @@ fn parse_quota_summary(document: &Value) -> Vec<UsageWindow> {
                     label: format!("{family} · {cadence_label}"),
                     remaining_percent: (remaining * 100.0).clamp(0.0, 100.0),
                     reset_at,
+                    amount: None,
                 },
             );
         }
@@ -1324,6 +1325,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Gemini · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     if let Some((remaining_percent, reset_at)) = claude_gpt {
@@ -1332,6 +1334,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Claude + GPT · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     if let Some((remaining_percent, reset_at)) = argon {
@@ -1340,6 +1343,7 @@ fn parse_legacy_model_quotas(document: &Value) -> Vec<UsageWindow> {
             label: "Argon · 5h".into(),
             remaining_percent,
             reset_at,
+            amount: None,
         });
     }
     sort_windows(&mut windows);
@@ -1700,13 +1704,13 @@ mod tests {
         let p_home = home.join(".gemini").join("antigravity");
         assert_eq!(detect_profile_slot(Some(&p_home)), ("antigravity".into(), "Principal".into()));
 
-        let c2 = PathBuf::from(r"D:\Antigravity-Conta2\.gemini\antigravity");
+        let c2 = PathBuf::from(r"E:\Antigravity-Conta2\.gemini\antigravity");
         assert_eq!(detect_profile_slot(Some(&c2)), ("antigravity-2".into(), "Conta 2".into()));
 
-        let c3 = PathBuf::from(r"D:\Antigravity-Conta3\.gemini\antigravity");
+        let c3 = PathBuf::from(r"C:\Users\Example\Antigravity-Conta3\.gemini\antigravity");
         assert_eq!(detect_profile_slot(Some(&c3)), ("antigravity-3".into(), "Conta 3".into()));
 
-        let c4 = PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity");
+        let c4 = PathBuf::from(r"F:\Antigravity-Conta4");
         assert_eq!(detect_profile_slot(Some(&c4)), ("antigravity-4".into(), "Conta 4".into()));
 
         let acc4 = PathBuf::from(r"C:\Antigravity-Account4");

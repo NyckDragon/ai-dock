@@ -19,6 +19,18 @@ export function QuotaWindowRow({
   /** A last good reading: its pace would be projected from old numbers, so it is hidden. */
   stale?: boolean;
 }) {
+  if (window.amount) {
+    const label = trLabel(window.label);
+    return (
+      <div className={"quota-row" + (compact ? " quota-row--compact" : "")}>
+        <div className="quota-row__labels">
+          <span className="quota-row__name">{label}</span>
+          <strong>{window.amount}</strong>
+        </div>
+      </div>
+    );
+  }
+
   const remaining = clampPercent(window.remainingPercent);
   const value = shownPercent(remaining, display, providerId);
   const word = displayWord(display, providerId);

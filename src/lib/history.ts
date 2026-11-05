@@ -52,6 +52,7 @@ export function recordHistory(history: UsageHistory, providers: ProviderUsage[],
   for (const provider of providers) {
     if (!provider.connected) continue;
     for (const window of provider.windows) {
+      if (window.amount) continue;
       const key = historyKey(provider.id, window.id);
       const points = next[key] || [];
       const last = points[points.length - 1];

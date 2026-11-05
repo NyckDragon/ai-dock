@@ -5,6 +5,9 @@ const ICONS: Record<string, string> = {
   codex: "/provider-icons/codex.svg",
   cursor: "/provider-icons/cursor.svg",
   antigravity: "/provider-icons/antigravity.svg",
+  deepseek: "/provider-icons/deepseek.svg",
+  grok: "/provider-icons/grok.svg",
+  "grok-bot": "/provider-icons/grok-bot.svg",
   "antigravity-gemini": "/provider-icons/gemini.svg",
   "antigravity-gpt": "/provider-icons/antigravity.svg",
   "antigravity-argon": "/provider-icons/gemini.svg"

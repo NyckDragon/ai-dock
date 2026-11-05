@@ -46,12 +46,22 @@
   --good: #5fd494;
   --warning: #e8bb4c;
   --danger: #f06d70;
+  --question: #FF4D8D;
+  --permission: #FF7A45;
+  --done: #D6FF4A;
   --good-soft: rgba(95, 212, 148, .14);
   --warning-soft: rgba(232, 187, 76, .14);
   --danger-soft: rgba(240, 109, 112, .12);
+  --question-soft: rgba(255, 77, 141, .14);
+  --permission-soft: rgba(255, 122, 69, .14);
+  --done-soft: rgba(214, 255, 74, .14);
   --track: rgba(255, 255, 255, .09);
   --gauge-face: #0d0f16;
-  --shadow-pop: 0 18px 45px rgba(0, 0, 0, .42);
+  /* No drop shadows anywhere: cards and popovers sit flat. */
+  --shadow-pop: none;
+  /* Glass tint (RGB) and the line along its top edge. */
+  --glass-rgb: 8, 10, 14;
+  --glass-edge: rgba(255, 255, 255, .55);
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
 
   --brand-claude: #e08a64;
@@ -59,6 +69,8 @@
   --brand-cursor: #e6e7eb;
   --brand-gemini: #6ea8ff;
   --brand-antigravity: #7aa2ff;
+  --brand-deepseek: #4d6bfe;
+  --brand-grok: #f4efe6;
 
   color-scheme: dark;
 }
@@ -87,17 +99,27 @@
     --good: #16894c;
     --warning: #a86f06;
     --danger: #c9353b;
+    --question: #D4277A;
+    --permission: #E85D20;
+    --done: #6A9A00;
     --good-soft: rgba(22, 137, 76, .1);
     --warning-soft: rgba(168, 111, 6, .1);
     --danger-soft: rgba(201, 53, 59, .09);
+    --question-soft: rgba(212, 39, 122, .14);
+    --permission-soft: rgba(232, 93, 32, .14);
+    --done-soft: rgba(106, 154, 0, .14);
     --track: rgba(15, 18, 30, .1);
     --gauge-face: #ffffff;
-    --shadow-pop: 0 16px 40px rgba(20, 22, 40, .18);
+    --shadow-pop: none;
+    --glass-rgb: 246, 247, 251;
+    --glass-edge: rgba(255, 255, 255, .9);
     --brand-claude: #c96442;
     --brand-codex: #0e8a64;
     --brand-cursor: #1b1c20;
     --brand-gemini: #2f6fe0;
     --brand-antigravity: #3b6fe6;
+    --brand-deepseek: #3a56e8;
+    --brand-grok: #2c2824;
     color-scheme: light;
   }
 }
@@ -125,16 +147,26 @@
   --good: #16894c;
   --warning: #a86f06;
   --danger: #c9353b;
+  --question: #D4277A;
+  --permission: #E85D20;
+  --done: #6A9A00;
   --good-soft: rgba(22, 137, 76, .1);
   --warning-soft: rgba(168, 111, 6, .1);
   --danger-soft: rgba(201, 53, 59, .09);
+  --question-soft: rgba(212, 39, 122, .14);
+  --permission-soft: rgba(232, 93, 32, .14);
+  --done-soft: rgba(106, 154, 0, .14);
   --track: rgba(15, 18, 30, .1);
   --gauge-face: #ffffff;
-  --shadow-pop: 0 16px 40px rgba(20, 22, 40, .18);
+  --shadow-pop: none;
+  --glass-rgb: 246, 247, 251;
+  --glass-edge: rgba(255, 255, 255, .9);
   --brand-claude: #c96442;
   --brand-codex: #0e8a64;
   --brand-cursor: #1b1c20;
   --brand-gemini: #2f6fe0;
   --brand-antigravity: #3b6fe6;
+  --brand-deepseek: #3a56e8;
+  --brand-grok: #2c2824;
   color-scheme: light;
 }

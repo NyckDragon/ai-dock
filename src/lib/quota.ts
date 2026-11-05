@@ -7,17 +7,31 @@ export function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
+/** A currency balance from an official API. It is not a percentage of a plan. */
+export function balanceReading(provider: ProviderUsage): string | null {
+  for (const window of provider.windows) {
+    const amount = window.amount?.trim();
+    if (amount) return amount;
+  }
+  return null;
+}
+
+function percentWindows(provider: ProviderUsage): UsageWindow[] {
+  return provider.windows.filter((window) => !window.amount);
+}
+
 /** The window closest to running out, which is the one that actually limits you. Stale readings count. */
 export function limitingWindow(provider: ProviderUsage): UsageWindow | null {
-  if (provider.windows.length === 0) return null;
-  return provider.windows.reduce((lowest, item) =>
+  const windows = percentWindows(provider);
+  if (windows.length === 0) return null;
+  return windows.reduce((lowest, item) =>
     item.remainingPercent < lowest.remainingPercent ? item : lowest
   );
 }
 
 /** The current short window (5h session), for providers that have one. */
 export function sessionWindow(provider: ProviderUsage): UsageWindow | null {
-  return provider.windows.find((window) => /session|5h/i.test(window.id)) || null;
+  return percentWindows(provider).find((window) => /session|5h/i.test(window.id)) || null;
 }
 
 /**

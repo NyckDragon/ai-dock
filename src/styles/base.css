@@ -88,6 +88,9 @@ code {
 .provider-brand--antigravity,
 .provider-brand--antigravity-gpt { color: var(--brand-antigravity); }
 .provider-brand--antigravity-gemini { color: var(--brand-gemini); }
+.provider-brand--deepseek { color: var(--brand-deepseek); }
+.provider-brand--grok,
+.provider-brand--grok-bot { color: var(--brand-grok); }
 
 .status-dot {
   width: 8px;

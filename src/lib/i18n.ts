@@ -69,7 +69,9 @@ const LABEL_WORDS: [RegExp, string][] = [
   [/Uso incluído/g, "Included usage"],
   [/Uso de API/g, "API usage"],
   [/Sob demanda/g, "On-demand"],
-  [/Ilimitado/g, "Unlimited"]
+  [/Ilimitado/g, "Unlimited"],
+  [/Saldo/g, "Balance"],
+  [/Mensal/g, "Monthly"]
 ];
 
 /** Translates a quota window label from the Rust side ("Sessão · 5h", "Opus · semanal"). */

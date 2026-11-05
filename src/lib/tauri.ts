@@ -25,11 +25,42 @@ export type DockPlacement = {
   /** Logical height of the visible pill; the window top is anchored to it. */
   anchorHeight: number;
   verticalOffset: number;
+  /** When true, dock.rs makes room for the cat above the pill. Off, that room is gone. */
+  mascot: boolean;
+  /** Extra pixels above the cat for the ? and ! marks and their list. */
+  overlayHeight: number;
+  /** Width the list needs. The pill stays on the screen edge and the spare grows toward the center. */
+  overlayWidth: number;
 };
 
-export async function setDock(placement: DockPlacement) {
+/** What dock.rs reports back after placing the window. */
+export type DockPlaced = {
+  /** Logical px the pill sits lower inside the window, when the peek room had to go above it. */
+  pillShift: number;
+  /** Offsets, in percent, where the pill meets the top and bottom of the free screen area. */
+  offsetMin: number;
+  offsetMax: number;
+};
+
+export async function setDock(placement: DockPlacement): Promise<DockPlaced | null> {
+  if (!isTauri()) return null;
+  return invoke<DockPlaced>("set_dock_state", { ...placement });
+}
+
+export type DockHitBox = { x: number; y: number; width: number; height: number };
+
+/** Pill, mascot and open peek, in CSS pixels. Empty space then passes clicks through on Windows. */
+export async function setDockHits(interactive: boolean, boxes: DockHitBox[]) {
   if (!isTauri()) return;
-  await invoke("set_dock_state", { ...placement });
+  await invoke("set_dock_hits", { interactive, boxes });
+}
+
+export type DockGlassBox = DockHitBox & { radius: number };
+
+/** Shapes that get the real blur behind them, in CSS pixels. Windows only; elsewhere a no-op. */
+export async function setDockGlass(enabled: boolean, boxes: DockGlassBox[]) {
+  if (!isTauri()) return;
+  await invoke("set_dock_glass", { enabled, boxes });
 }
 
 /** Keeps the dock on top. Resolves true when it was hidden for a full-screen app. */

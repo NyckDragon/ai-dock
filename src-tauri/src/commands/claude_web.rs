@@ -519,6 +519,7 @@ fn parse_usage(usage: &Value) -> Result<Vec<UsageWindow>, WebError> {
                     label: label.to_string(),
                     remaining_percent: remaining(utilization),
                     reset_at: reset(window.get("resets_at")),
+                    amount: None,
                 });
             }
         }

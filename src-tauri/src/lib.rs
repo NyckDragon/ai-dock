@@ -37,6 +37,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::dock::get_monitors,
             commands::dock::set_dock_state,
+            commands::dock::set_dock_hits,
+            commands::glass::set_dock_glass,
             commands::dock::raise_dock,
             commands::dock::focus_dock,
             commands::dock::set_tray_tooltip,
@@ -68,6 +70,7 @@ pub fn run() {
                 let _ = window.center();
                 let _ = window.show();
                 let _ = window.set_always_on_top(true);
+                commands::dock::start_click_through(window.clone());
                 #[cfg(target_os = "macos")]
                 let _ = window.set_visible_on_all_workspaces(true);
 

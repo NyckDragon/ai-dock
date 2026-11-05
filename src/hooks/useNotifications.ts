@@ -49,7 +49,10 @@ const NAMES: Record<string, string> = {
   codex: "Codex",
   cursor: "Cursor",
   antigravity: "Antigravity",
-  claude: "Claude"
+  claude: "Claude",
+  deepseek: "DeepSeek",
+  grok: "Grok",
+  "grok-bot": "Grok Bot"
 };
 
 const LEVEL_RANK: Record<string, number> = { none: 0, maintenance: 1, minor: 2, major: 3, critical: 4 };
@@ -96,6 +99,7 @@ export function useNotifications(
     for (const provider of providers) {
       if (!provider.connected || settings.hiddenProviders.includes(provider.id)) continue;
       for (const window of provider.windows) {
+        if (window.amount) continue;
         const key = provider.id + ":" + window.id;
         const now = window.remainingPercent;
         next.set(key, now);

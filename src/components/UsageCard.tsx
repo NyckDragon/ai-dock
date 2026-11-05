@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { formatAge } from "../lib/format";
 import { historyKey, pointsInRange, type UsageHistory } from "../lib/history";
 import { t, tr, trLabel } from "../lib/i18n";
-import { displayWord, featuredWindow, quotaTone, shownPercent } from "../lib/quota";
+import { balanceReading, displayWord, featuredWindow, quotaTone, shownPercent } from "../lib/quota";
 import type { HeadlineWindow, HistoryRange, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
 import { ProviderIcon } from "./ProviderIcon";
@@ -33,6 +33,7 @@ export const UsageCard = forwardRef<
   }
 >(function UsageCard({ provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect }, ref) {
   const shown = featuredWindow(provider, featured);
+  const balance = balanceReading(provider);
   const headline = shown ? shownPercent(shown.remainingPercent, display, provider.id) : null;
   const tone = quotaTone(shown ? shown.remainingPercent : null);
   // Same scale as the big number: remaining or used, as the user chose.
@@ -71,7 +72,11 @@ export const UsageCard = forwardRef<
             )}
           </div>
         </div>
-        {shown && headline != null ? (
+        {balance ? (
+          <div className="usage-card__headline">
+            <strong>{balance}</strong>
+          </div>
+        ) : shown && headline != null ? (
           <div className="usage-card__headline">
             <strong className={"tone-text--" + tone}>{headline}%</strong>
             <small>{displayWord(display, provider.id)}</small>
@@ -95,7 +100,7 @@ export const UsageCard = forwardRef<
       {status ? <StatusBadge status={status} /> : null}
 
       {provider.error ? (
-        <div className={"notice " + (provider.stale ? "notice--warning" : "notice--error")}>
+        <div className={"notice " + (provider.stale || provider.error === "Conectado, sem leitura de cota." ? "notice--warning" : "notice--error")}>
           <span>{tr(provider.error)}</span>
           {onConnect && !provider.connected ? (
             <button type="button" className="text-button" onClick={onConnect}>

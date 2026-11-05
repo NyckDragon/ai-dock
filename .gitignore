@@ -5,4 +5,8 @@ dist/
 .DS_Store
 src-tauri/target/
 *.log
+.env*.local
 src-tauri/gen/
+
+# Full-size mascot art, kept only on this PC
+art-originals/

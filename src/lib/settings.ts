@@ -13,7 +13,7 @@ const LEGACY = {
   compactSign: "ai-dock-compact-sign"
 };
 
-export const PROVIDER_IDS = ["claude", "codex", "cursor", "antigravity"];
+export const PROVIDER_IDS = ["claude", "codex", "cursor", "grok", "grok-bot", "antigravity", "deepseek"];
 export const REFRESH_CHOICES = [1, 2, 5, 10, 15];
 const SETTINGS_VERSION = 2;
 // macOS already uses ⌥⌘Space (Finder search), ⌃⌥Space (input sources) and ⇧⌘Space (Siri).
@@ -30,6 +30,13 @@ export const DEFAULT_SETTINGS: Settings = {
   display: "native",
   headline: "session",
   theme: "system",
+  questionColor: null,
+  permissionColor: null,
+  doneColor: null,
+  mascotEnabled: true,
+  mascot: "cat",
+  glassEnabled: false,
+  glassOpacity: 40,
   autoHide: false,
   closeOnBlur: true,
   hideOnFullscreen: true,
@@ -78,6 +85,16 @@ function legacySettings(): Partial<Settings> | null {
   return legacy;
 }
 
+function clampGlass(value: unknown) {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_SETTINGS.glassOpacity;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function hexOrNull(value: unknown): string | null {
+  return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+}
+
 function normalize(value: Partial<Settings>): Settings {
   const merged = { ...DEFAULT_SETTINGS, ...value };
   // v2: Claude shows "% usado" like claude.ai. v0.5.0 only offered remaining/used and
@@ -114,6 +131,13 @@ function normalize(value: Partial<Settings>): Settings {
           )
         : {},
     language: ["auto", "pt", "en"].includes(merged.language) ? merged.language : "auto",
+    questionColor: hexOrNull(merged.questionColor),
+    permissionColor: hexOrNull(merged.permissionColor),
+    doneColor: hexOrNull(merged.doneColor),
+    mascotEnabled: typeof merged.mascotEnabled === "boolean" ? merged.mascotEnabled : true,
+    mascot: merged.mascot === "robot" ? "robot" : "cat",
+    glassEnabled: merged.glassEnabled === true,
+    glassOpacity: clampGlass(merged.glassOpacity),
     historyRange: ["24h", "7d", "30d"].includes(merged.historyRange) ? merged.historyRange : "24h",
     notificationsPausedUntil:
       typeof merged.notificationsPausedUntil === "number" && merged.notificationsPausedUntil > Date.now()

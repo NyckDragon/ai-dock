@@ -9,6 +9,7 @@
 }
 .compact-shell--right { justify-content: flex-end; }
 .compact-shell--left { justify-content: flex-start; }
+.compact-shell--mascot { padding-top: calc(10px + 64px + var(--mascot-overlay, 0px)); }
 
 .compact-stage {
   width: 100%;
@@ -17,7 +18,23 @@
 }
 .compact-shell--right .compact-stage { justify-content: flex-end; }
 
+/* The 10px screen margin sits outside the window, so the inset here is 0.
+   Fixed to that edge, the pill does not follow the window width while a peek widens. */
+/* --pill-shift comes from dock.rs: near the bottom edge the peek room sits above the pill. */
+.compact-shell--right .dock-pill,
+.compact-shell--left .dock-pill {
+  position: fixed;
+  top: calc(10px + var(--pill-shift, 0px));
+}
+.compact-shell--mascot.compact-shell--right .dock-pill,
+.compact-shell--mascot.compact-shell--left .dock-pill {
+  top: calc(10px + 64px + var(--mascot-overlay, 0px) + var(--pill-shift, 0px));
+}
+.compact-shell--right .dock-pill { right: 0; left: auto; }
+.compact-shell--left .dock-pill { left: 0; right: auto; }
+
 .dock-pill {
+  position: relative;
   width: 58px;
   flex: 0 0 58px;
   padding: 10px 0 8px;
@@ -34,6 +51,33 @@
   transition: border-color var(--dur-fast) ease;
 }
 .dock-pill:hover { border-color: var(--accent-border); }
+/* Glass: the pill, the signal list, the peek and the open panel share one tint.
+   App.tsx sets data-glass and --glass-t on the root; the settings preview sets
+   --glass-t on its own pill. 0 is nearly solid, 1 the clearest fill that still
+   holds the numbers. The tint follows the theme (--glass-rgb in tokens.css). */
+.dock-pill--glass,
+:root[data-glass="on"] .dock-signal-list,
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-panel {
+  /* 0 is fully solid. 100 keeps a 40% fill so the numbers still read. */
+  --glass-alpha: calc(1 - (1 - 0.4) * var(--glass-t, 0.4));
+  background: rgba(var(--glass-rgb), var(--glass-alpha));
+  border-top-color: var(--glass-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 12px 18px rgba(255, 255, 255, 0.05);
+}
+.dock-pill--glass .slot-value,
+.dock-pill--glass .dock-word,
+:root[data-glass="on"] .dock-signal-list,
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-panel {
+  text-shadow: 0 0 3px rgba(var(--glass-rgb), 0.95), 0 1px 1px rgba(var(--glass-rgb), 0.85);
+}
+.dock-pill--glass:hover {
+  border-color: var(--accent-border);
+  border-top-color: var(--glass-edge);
+}
 .dock-pill--preview { cursor: default; }
 .dock-pill--preview:hover { border-color: var(--border); }
 .dock-pill--draggable { cursor: grab; }
@@ -41,6 +85,169 @@
 .dock-pill--draggable button.dock-pill__chevron { cursor: grab; }
 .dock-pill--dragging,
 .dock-pill--dragging * { cursor: grabbing !important; user-select: none !important; }
+
+.dock-pill--preview.dock-pill--mascot { margin-top: 64px; }
+.dock-pill--preview.dock-pill--signals { margin-top: calc(64px + 22px); }
+.dock-mascot-stack {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 1px);
+  width: 64px;
+  height: 64px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+.dock-mascot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  line-height: 0;
+}
+/* Sit, alert and sleep share this box. Feet stay on its bottom edge. */
+.dock-mascot__motion {
+  position: absolute;
+  inset: 0;
+  width: 64px;
+  height: 64px;
+}
+.dock-mascot__clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.dock-mascot__clip.dock-mascot__img--flip { transform: scaleX(-1); }
+/* The face sits about 6px to the right of the drawing. Shift in the image's
+   own axis, then mirror, so the head stays under the mark on both sides. */
+.dock-mascot--breathe .dock-mascot__clip { transform: translateX(-6px); }
+.dock-pill--right .dock-mascot--breathe .dock-mascot__clip { transform: scaleX(-1) translateX(-6px); }
+.dock-mascot__sheet {
+  width: 320px;
+  height: 64px;
+  display: block;
+  image-rendering: auto;
+  pointer-events: none;
+  animation: cat-breathe-frames 1.6s steps(5, end) infinite;
+}
+.dock-mascot__img {
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  left: 0;
+  width: 64px;
+  height: 64px;
+  display: block;
+  image-rendering: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.dock-mascot__img--flip { transform: scaleX(-1); }
+/* Same 64px box for sit, alert, sleep and the breath. Feet share its bottom edge. */
+.dock-mascot--sleep .dock-mascot__img {
+  width: 64px;
+  height: 64px;
+  top: auto;
+  left: 0;
+  bottom: -9px;
+}
+.dock-mascot--alert .dock-mascot__img {
+  width: 64px;
+  height: 64px;
+  top: auto;
+  left: 0;
+  bottom: -3px;
+  transform: translateX(-6px);
+}
+.dock-pill--right .dock-mascot--alert .dock-mascot__img { transform: scaleX(-1) translateX(-6px); }
+.dock-signals {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  z-index: 3;
+}
+.dock-signals__marks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.dock-signal {
+  appearance: none;
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  padding: 0;
+  margin: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--question);
+  background: transparent;
+  color: var(--question);
+  line-height: 0;
+}
+.dock-signal svg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  display: block;
+  overflow: visible;
+  transform: translate(-50%, -50%);
+}
+.dock-signal text {
+  fill: currentColor;
+  font-family: var(--font-ui);
+  font-weight: 800;
+}
+.dock-signal--bang {
+  border-color: var(--signal, var(--permission));
+  color: var(--signal, var(--permission));
+}
+.dock-signal-list {
+  position: absolute;
+  bottom: calc(100% - 1px);
+  z-index: 4;
+  box-sizing: border-box;
+  /* One line, same box hidden or shown. Matches MASCOT_NOTICE_LINE in mascot.ts. */
+  height: 26px;
+  overflow: hidden;
+  margin: 0;
+  padding: 4px 7px;
+  list-style: none;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-pill);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.dock-pill--right .dock-signal-list { right: 0; left: auto; }
+.dock-pill--left .dock-signal-list { left: 0; right: auto; }
+.dock-signals.is-held,
+.dock-signals.is-idle,
+.dock-signal.is-idle,
+.dock-signal-list.is-held { visibility: hidden; }
+/* An idle mark stays mounted, out of the row, so the cat box does not move. */
+.dock-signal.is-idle {
+  position: absolute;
+  pointer-events: none;
+}
+@keyframes cat-breathe-frames {
+  from { transform: translateX(0); }
+  to { transform: translateX(-320px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot__sheet { animation: none !important; transform: none !important; }
+}
 
 .dock-pill__brand,
 .dock-pill__chevron {
@@ -171,6 +378,8 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 }
 .gauge--circle { width: 36px; height: 36px; border-radius: 50%; }
 .gauge__face {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: grid;
@@ -245,7 +454,7 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   transition: width var(--dur-normal) var(--ease-out);
 }
 
-/* Activity: an arc sweeping around the border while working, amber pulse while it waits for you.
+/* Activity: an arc sweeping around the border while working.
    The gradient angle is animated instead of rotating the element, so square shapes stay put. */
 @property --sweep {
   syntax: "<angle>";
@@ -361,15 +570,109 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   animation: none !important;
 }
 
-.gauge[data-activity="waiting"],
-.slot-tile[data-activity="waiting"],
-.slot-chip[data-activity="waiting"],
-.gauge-bars[data-activity="waiting"] {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 60%, transparent);
-  animation: waiting-pulse 1.5s ease-in-out infinite;
+/* A notice paints the icon and the quota mark. No plate behind the drawing. */
+.slot-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: fit-content;
+  height: fit-content;
+  align-self: center;
+  justify-self: center;
+  line-height: 0;
 }
-@keyframes waiting-pulse {
-  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 80%, transparent), 0 0 14px color-mix(in srgb, var(--warning) 35%, transparent); }
+.pill-slot[data-activity="waiting"],
+.signal-preview__item[data-activity="waiting"] { --signal-color: var(--question); }
+.pill-slot[data-wait="permission"],
+.signal-preview__item[data-wait="permission"] { --signal-color: var(--permission); }
+.pill-slot[data-signal="done"],
+.signal-preview__item[data-signal="done"] { --signal-color: var(--done); }
+@keyframes signal-breathe {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+/* Same 2.6s breath as execution. The color stays full; only the shine moves. */
+@keyframes signal-glow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+  50% { filter: brightness(1.6) drop-shadow(0 0 2px var(--signal-color)); }
+}
+.pill-slot[data-activity="waiting"] .provider-icon,
+.pill-slot[data-signal="done"] .provider-icon,
+.pill-slot[data-activity-indicator="pulse"][data-signal="done"] .provider-icon,
+.pill-slot[data-activity-indicator="solid"][data-signal="done"] .provider-icon,
+.pill-slot[data-activity-indicator="pulse"][data-activity="working"][data-signal="done"] .provider-icon,
+.pill-slot[data-activity-indicator="solid"][data-activity="working"][data-signal="done"] .provider-icon,
+.signal-preview__item[data-activity="waiting"] .provider-icon,
+.signal-preview__item[data-signal="done"] .provider-icon {
+  color: var(--signal-color);
+  opacity: 1;
+  filter: none;
+  animation: signal-glow 2.6s ease-in-out infinite;
+}
+.pill-slot[data-activity="waiting"] .slot-dot,
+.pill-slot[data-signal="done"] .slot-dot {
+  background: var(--signal-color);
+  animation: signal-breathe 2.6s ease-in-out infinite;
+}
+.pill-slot[data-activity="waiting"] .slot-chip,
+.pill-slot[data-signal="done"] .slot-chip {
+  color: var(--signal-color);
+  background: color-mix(in srgb, var(--signal-color) 22%, transparent);
+  border-color: var(--signal-color);
+  animation: signal-breathe 2.6s ease-in-out infinite;
+}
+.pill-slot[data-activity="waiting"] .gauge:not(.gauge--concentric),
+.pill-slot[data-signal="done"] .gauge:not(.gauge--concentric) {
+  background: var(--track);
+}
+.pill-slot[data-activity="waiting"] .gauge:not(.gauge--concentric)::before,
+.pill-slot[data-signal="done"] .gauge:not(.gauge--concentric)::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(var(--signal-color) var(--ring-value), transparent 0);
+  animation: signal-breathe 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.pill-slot[data-signal="done"] .gauge[data-activity="working"]::after,
+.pill-slot[data-signal="done"] .slot-tile[data-activity="working"]::after,
+.pill-slot[data-signal="done"] .slot-chip[data-activity="working"]::after {
+  content: none;
+  animation: none;
+}
+.gauge-bars__track:has(.gauge-bars__fill--signal) { overflow: visible; }
+.gauge-bars__fill--signal {
+  background: var(--signal-color) !important;
+  background-color: var(--signal-color) !important;
+  min-width: 3px;
+  opacity: 1;
+  box-shadow: none;
+  animation: signal-glow 2.6s ease-in-out infinite;
+}
+.gauge__concentric-ring--signal {
+  stroke: var(--signal-color) !important;
+  filter: none;
+  animation: signal-breathe 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-slot[data-activity="waiting"] .provider-icon,
+  .pill-slot[data-signal="done"] .provider-icon,
+  .signal-preview__item[data-activity="waiting"] .provider-icon,
+  .signal-preview__item[data-signal="done"] .provider-icon,
+  .pill-slot[data-activity="waiting"] .slot-dot,
+  .pill-slot[data-signal="done"] .slot-dot,
+  .pill-slot[data-activity="waiting"] .slot-chip,
+  .pill-slot[data-signal="done"] .slot-chip,
+  .pill-slot[data-activity="waiting"] .gauge:not(.gauge--concentric)::before,
+  .pill-slot[data-signal="done"] .gauge:not(.gauge--concentric)::before,
+  .gauge-bars__fill--signal,
+  .gauge__concentric-ring--signal,
+  .signal-preview__fill {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
 }
 @keyframes skeleton-pulse { 50% { opacity: .45; } }
 
@@ -429,6 +732,12 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 .provider-peek__brand strong { font-size: var(--fs-md); font-weight: 600; }
 .provider-peek__brand small { font-size: var(--fs-2xs); color: var(--text-3); }
 .provider-peek__windows { display: grid; gap: 11px; margin-top: 13px; }
+.provider-peek__share {
+  margin: 12px 0 0;
+  font-size: var(--fs-2xs);
+  line-height: 1.45;
+  color: var(--text-2);
+}
 .provider-peek__divider {
   height: 1px;
   background: var(--border);
@@ -470,8 +779,12 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
 .dock-handle--warning { background: var(--warning); }
 .dock-handle--danger { background: var(--danger); }
 .dock-handle[data-activity="working"] { background: var(--accent); }
+.dock-handle[data-signal="done"] {
+  box-shadow: inset 0 8px 0 var(--done), 0 0 0 1px var(--bg-pill);
+}
 .dock-handle[data-activity="waiting"] {
-  background: var(--warning);
-  opacity: 1;
-  animation: waiting-pulse 1.5s ease-in-out infinite;
+  box-shadow: inset 0 8px 0 var(--question), 0 0 0 1px var(--bg-pill);
+}
+.dock-handle[data-wait="permission"] {
+  box-shadow: inset 0 8px 0 var(--permission), 0 0 0 1px var(--bg-pill);
 }

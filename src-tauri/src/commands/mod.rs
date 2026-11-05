@@ -2,9 +2,13 @@ pub mod activity;
 pub mod antigravity;
 pub mod claude_web;
 pub mod cursor;
+pub mod deepseek;
+pub mod grok;
+pub mod grok_bot;
 pub mod cli;
 pub mod costs;
 pub mod dock;
+pub mod glass;
 pub mod focus;
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;
