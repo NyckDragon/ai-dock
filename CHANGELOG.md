@@ -7,6 +7,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Grok na X Subscription:** com o plano unificado (Grok, Grok Bot, Cursor e X no mesmo limite semanal), o Grok sumia do dock quando o Grok CLI não estava logado. Agora fica um ícone só do Grok, com o plano "X Premium" (ou o seu nível), lido do Grok CLI quando ele está logado e do Grok Bot quando não está. Com contas separadas, continuam os dois ícones, como antes.
+- **Cursor junto com o Grok:** quando o Cursor está na mesma conta X, o uso incluído dele mostra o mesmo limite semanal do Grok. O uso sob demanda e o de API (modelos Claude e GPT, cobrados à parte) continuam como o Cursor informa.
+- **Login do Grok:** o dock também reconhece o login salvo como `accounts.x.ai`.
+
 ## [0.8.0-beta.2] - 2026-11-04
 
 Segunda versão de teste da 0.8.0, de novo com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.

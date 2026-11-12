@@ -685,25 +685,190 @@ pub async fn get_provider_usage(app: AppHandle) -> Vec<ProviderUsage> {
         deepseek::usage(&client),
         grok::usage(&client),
     );
-    let mut providers = vec![claude, codex, cursor, grok.main];
-    // The desktop app's own cached meter wins. The billing payload is a fallback.
-    let bot = match (grok_bot::usage(), grok.bot) {
-        (Some(local), remote) if local.windows.is_empty() && remote.is_some() => remote,
-        (Some(local), _) => Some(local),
-        (None, remote) => remote,
-    };
-    if let Some(bot) = bot {
-        providers.push(bot);
-    }
+    let mut cursor = cursor;
+    let x_slots = x_accounts(grok, grok_bot::read(), &mut cursor, cursor::account_id().as_deref());
+    let mut providers = vec![claude, codex, cursor];
+    providers.extend(x_slots);
     providers.extend(antigravity);
     providers.push(deepseek);
     providers
+}
+
+fn copy_window(window: &UsageWindow) -> UsageWindow {
+    UsageWindow {
+        id: window.id.clone(),
+        label: window.label.clone(),
+        remaining_percent: window.remaining_percent,
+        reset_at: window.reset_at.clone(),
+        amount: window.amount.clone(),
+    }
+}
+
+/// The Grok slots to show, and Cursor kept in step with them.
+///
+/// Separate plans: Grok (CLI) and Grok Bot each get a slot, as before.
+/// The X Subscription (Grok Bot reports a `unifiedPlanName`): Grok, Grok Bot and
+/// Cursor draw from one weekly pool, so there is one Grok slot. It reads the live
+/// CLI billing when signed in and the Grok Bot cache otherwise, so it works with
+/// either app alone. When Cursor is signed in to the same X account, its included
+/// usage is that same pool; its API and on-demand windows (Claude and GPT models,
+/// billed apart) stay as Cursor reported them.
+fn x_accounts(
+    grok: grok::GrokAccounts,
+    bot: Option<grok_bot::GrokBotState>,
+    cursor: &mut ProviderUsage,
+    cursor_account: Option<&str>,
+) -> Vec<ProviderUsage> {
+    let Some(tier) = bot.as_ref().and_then(|bot| bot.unified_plan.clone()) else {
+        // The desktop app's own cached meter wins. The billing payload is a fallback.
+        let bot = match (bot.map(|bot| bot.usage), grok.bot) {
+            (Some(local), remote) if local.windows.is_empty() && remote.is_some() => remote,
+            (Some(local), _) => Some(local),
+            (None, remote) => remote,
+        };
+        return std::iter::once(grok.main).chain(bot).collect();
+    };
+    let Some(bot) = bot else {
+        return vec![grok.main];
+    };
+
+    let cli_has_pool = grok.main.connected && grok.main.windows.iter().any(|window| window.id == "weekly");
+    let pool = if cli_has_pool { grok.main } else { bot.usage };
+    let plan = Some(format!("X {tier}"));
+    let same_account = bot
+        .account
+        .as_deref()
+        .zip(cursor_account)
+        .is_some_and(|(bot_account, cursor_account)| bot_account == cursor_account);
+
+    if same_account && cursor.connected {
+        if let Some(weekly) = pool.windows.iter().find(|window| window.id == "weekly") {
+            cursor.windows.retain(|window| window.id != "included");
+            cursor.windows.insert(0, copy_window(weekly));
+        }
+        cursor.plan = plan.clone();
+    }
+
+    vec![ProviderUsage {
+        id: "grok".into(),
+        name: "Grok".into(),
+        connected: pool.connected,
+        plan,
+        email: None,
+        windows: pool.windows,
+        error: pool.error,
+    }]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn weekly(remaining: f64) -> UsageWindow {
+        UsageWindow {
+            id: "weekly".into(),
+            label: "Semanal".into(),
+            remaining_percent: remaining,
+            reset_at: Some("2026-11-19T00:00:00Z".into()),
+            amount: None,
+        }
+    }
+
+    fn slot(id: &str, connected: bool, windows: Vec<UsageWindow>) -> ProviderUsage {
+        ProviderUsage {
+            id: id.into(),
+            name: id.into(),
+            connected,
+            plan: None,
+            email: None,
+            windows,
+            error: None,
+        }
+    }
+
+    fn bot_state(remaining: f64, tier: Option<&str>, account: &str) -> grok_bot::GrokBotState {
+        grok_bot::GrokBotState {
+            usage: slot("grok-bot", true, vec![weekly(remaining)]),
+            unified_plan: tier.map(str::to_string),
+            account: Some(account.into()),
+        }
+    }
+
+    fn cursor_slot() -> ProviderUsage {
+        let mut included = weekly(40.0);
+        included.id = "included".into();
+        let mut on_demand = weekly(80.0);
+        on_demand.id = "on-demand".into();
+        let mut cursor = slot("cursor", true, vec![included, on_demand]);
+        cursor.plan = Some("free".into());
+        cursor
+    }
+
+    fn grok(main: ProviderUsage) -> grok::GrokAccounts {
+        grok::GrokAccounts { main, bot: None }
+    }
+
+    #[test]
+    fn separate_plans_keep_grok_and_grok_bot_apart_and_cursor_untouched() {
+        let mut cursor = cursor_slot();
+        let slots = x_accounts(
+            grok(slot("grok", true, vec![weekly(70.0)])),
+            Some(bot_state(30.0, None, "acct")),
+            &mut cursor,
+            Some("acct"),
+        );
+        assert_eq!(slots.iter().map(|slot| slot.id.as_str()).collect::<Vec<_>>(), ["grok", "grok-bot"]);
+        assert_eq!(cursor.windows[0].id, "included");
+        assert_eq!(cursor.plan.as_deref(), Some("free"));
+    }
+
+    #[test]
+    fn unified_plan_shows_one_grok_from_grok_bot_when_the_cli_is_signed_out() {
+        let mut cursor = cursor_slot();
+        let slots = x_accounts(
+            grok(disconnected("grok", "Grok", "Grok CLI não conectado.")),
+            Some(bot_state(90.0, Some("Premium"), "acct")),
+            &mut cursor,
+            Some("acct"),
+        );
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].id, "grok");
+        assert!(slots[0].connected);
+        assert_eq!(slots[0].plan.as_deref(), Some("X Premium"));
+        assert_eq!(slots[0].windows[0].remaining_percent, 90.0);
+        // Cursor on the same account shows the same pool; on-demand stays its own.
+        assert_eq!(cursor.plan.as_deref(), Some("X Premium"));
+        assert_eq!(cursor.windows.iter().map(|w| w.id.as_str()).collect::<Vec<_>>(), ["weekly", "on-demand"]);
+        assert_eq!(cursor.windows[0].remaining_percent, 90.0);
+    }
+
+    #[test]
+    fn unified_plan_prefers_the_live_cli_reading() {
+        let mut cursor = cursor_slot();
+        let slots = x_accounts(
+            grok(slot("grok", true, vec![weekly(60.0)])),
+            Some(bot_state(90.0, Some("Premium"), "acct")),
+            &mut cursor,
+            Some("acct"),
+        );
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].windows[0].remaining_percent, 60.0);
+        assert_eq!(cursor.windows[0].remaining_percent, 60.0);
+    }
+
+    #[test]
+    fn a_cursor_on_another_account_is_left_alone() {
+        let mut cursor = cursor_slot();
+        x_accounts(
+            grok(disconnected("grok", "Grok", "x")),
+            Some(bot_state(90.0, Some("Premium"), "acct")),
+            &mut cursor,
+            Some("someone-else"),
+        );
+        assert_eq!(cursor.windows[0].id, "included");
+        assert_eq!(cursor.plan.as_deref(), Some("free"));
+    }
 
     #[test]
     fn terminal_command_keeps_a_path_with_spaces_and_quotes_whole() {

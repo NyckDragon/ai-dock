@@ -5,7 +5,8 @@
 //! `<config dir>/Grok Bot/sand-client-persistence/<base32 key>.blob`, where the
 //! key ends in `.weekly-usage.cache`. The file is plain JSON with the percent
 //! used (0 to 100) and the next reset. It holds no token, and nothing else in
-//! that folder is opened. The account id inside the key is never read out.
+//! that folder is opened. The account id inside the key stays in memory, only to
+//! tell whether Cursor is signed in to the same X account; it is never shown or logged.
 
 use serde_json::Value;
 use std::{
@@ -29,19 +30,32 @@ struct Reading {
     read_at_ms: u64,
     metered: bool,
     plan: Option<String>,
-    /// SuperGrok unified plan: Grok Bot draws from the one Grok pool, so it gets no slot of its own.
-    unified: bool,
+    /// Tier of The X Subscription (for example "Premium"). Grok, Grok Bot and Cursor
+    /// then draw from one weekly pool.
+    unified_plan: Option<String>,
+    /// Account id from the cache file name, such as `google-oauth2|user_…`.
+    account: Option<String>,
 }
 
-/// None when Grok Bot is not installed, or when its account is on the unified plan
-/// (then the Grok slot already shows that same pool).
-pub(crate) fn usage() -> Option<ProviderUsage> {
+/// What the Grok Bot cache says about this PC's X account.
+pub(crate) struct GrokBotState {
+    pub(crate) usage: ProviderUsage,
+    /// Set on The X Subscription: one pool shared by Grok, Grok Bot and Cursor.
+    pub(crate) unified_plan: Option<String>,
+    pub(crate) account: Option<String>,
+}
+
+/// None when Grok Bot is not installed.
+pub(crate) fn read() -> Option<GrokBotState> {
     let folder = persistence_dir()?;
     let reading = latest_reading(&folder);
-    if reading.as_ref().is_some_and(|reading| reading.unified) {
-        return None;
-    }
-    Some(to_usage(reading, now_ms()))
+    let unified_plan = reading.as_ref().and_then(|reading| reading.unified_plan.clone());
+    let account = reading.as_ref().and_then(|reading| reading.account.clone());
+    Some(GrokBotState {
+        usage: to_usage(reading, now_ms()),
+        unified_plan,
+        account,
+    })
 }
 
 fn persistence_dir() -> Option<PathBuf> {
@@ -66,13 +80,42 @@ fn latest_reading(folder: &Path) -> Option<Reading> {
         .filter_map(|entry| {
             let name = entry.file_name();
             let stem = name.to_str()?.strip_suffix(".blob")?;
-            if !base32_decode(stem)?.ends_with(CACHE_SUFFIX.as_bytes()) {
+            let key = base32_decode(stem)?;
+            if !key.ends_with(CACHE_SUFFIX.as_bytes()) {
                 return None;
             }
             let raw = fs::read_to_string(entry.path()).ok()?;
-            parse_cache(&serde_json::from_str::<Value>(&raw).ok()?)
+            let mut reading = parse_cache(&serde_json::from_str::<Value>(&raw).ok()?)?;
+            reading.account = account_from_key(&key);
+            Some(reading)
         })
         .max_by_key(|reading| reading.read_at_ms)
+}
+
+/// `…slice.account.<id>.weekly-usage.cache`, with the id percent-encoded
+/// (`google-oauth2%7Cuser_…`). Returned decoded, as Cursor stores it.
+fn account_from_key(key: &[u8]) -> Option<String> {
+    let key = std::str::from_utf8(key).ok()?;
+    let rest = key.split_once(".account.")?.1.strip_suffix(CACHE_SUFFIX)?;
+    let id = percent_decode(rest)?;
+    (!id.trim().is_empty()).then_some(id)
+}
+
+fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let hex = text.get(index + 1..index + 3)?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            index += 3;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(out).ok()
 }
 
 /// Lowercase RFC 4648 base32 without padding, as Grok Bot names its files.
@@ -120,14 +163,20 @@ fn parse_cache(json: &Value) -> Option<Reading> {
         .map(str::trim)
         .filter(|label| !label.is_empty() && label.len() <= 40)
         .map(str::to_string);
-    let unified = usage.get("unifiedPlanName").is_some_and(Value::is_string);
+    let unified_plan = usage
+        .get("unifiedPlanName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && name.len() <= 40)
+        .map(str::to_string);
     Some(Reading {
         percent_used,
         next_reset_ms,
         read_at_ms,
         metered,
         plan,
-        unified,
+        unified_plan,
+        account: None,
     })
 }
 
@@ -266,11 +315,21 @@ mod tests {
     }
 
     #[test]
-    fn a_unified_plan_is_flagged_so_grok_keeps_one_slot() {
-        assert!(!parse_cache(&cache(10.0, 2_000_000_000_000, 1_000)).unwrap().unified);
+    fn the_x_subscription_tier_is_read() {
+        assert_eq!(parse_cache(&cache(10.0, 2_000_000_000_000, 1_000)).unwrap().unified_plan, None);
         let mut unified = cache(10.0, 2_000_000_000_000, 1_000);
-        unified["value"]["reading"]["usage"]["unifiedPlanName"] = json!("SuperGrok Heavy");
-        assert!(parse_cache(&unified).unwrap().unified);
+        unified["value"]["reading"]["usage"]["unifiedPlanName"] = json!("Premium");
+        assert_eq!(parse_cache(&unified).unwrap().unified_plan.as_deref(), Some("Premium"));
+        unified["value"]["reading"]["usage"]["unifiedPlanName"] = json!("  ");
+        assert_eq!(parse_cache(&unified).unwrap().unified_plan, None);
+    }
+
+    #[test]
+    fn the_account_id_comes_decoded_from_the_file_key() {
+        let key = format!("sand.client.slice.account.google-oauth2%7Cuser_EXAMPLE{CACHE_SUFFIX}");
+        assert_eq!(account_from_key(key.as_bytes()).as_deref(), Some("google-oauth2|user_EXAMPLE"));
+        assert_eq!(account_from_key(b"sand.client.slice.ui-layout"), None);
+        assert_eq!(account_from_key(format!("x.account.bad%Z{CACHE_SUFFIX}").as_bytes()), None);
     }
 
     #[test]
@@ -291,6 +350,7 @@ mod tests {
         fs::write(folder.join(name("C", ".ui-layout")), cache(99.0, 2_000_000_000_000, 99_000).to_string()).unwrap();
         let reading = latest_reading(&folder).unwrap();
         let _ = fs::remove_dir_all(&folder);
+        assert_eq!(reading.account.as_deref(), Some("B"));
         assert_eq!(reading.percent_used, 40.0);
         assert_eq!(reading.read_at_ms, 9_000);
     }
