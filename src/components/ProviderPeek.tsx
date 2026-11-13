@@ -79,8 +79,12 @@ export const ProviderPeek = forwardRef<
         </div>
       ) : null}
 
-      {provider.id === "grok" && provider.windows.some((window) => window.id === "weekly") ? (
-        <p className="provider-peek__share">{t("Pool semanal compartilhado com o Cursor na assinatura X.")}</p>
+      {provider.plan?.startsWith("X ") && provider.windows.some((window) => window.id === "weekly") ? (
+        <p className="provider-peek__share">
+          {provider.id === "cursor"
+            ? t("Pool semanal compartilhado com o Grok e o Grok Bot na assinatura X.")
+            : t("Pool semanal compartilhado com o Grok Bot e o Cursor na assinatura X.")}
+        </p>
       ) : null}
 
       <ActivityBlock activity={activity} now={now} />

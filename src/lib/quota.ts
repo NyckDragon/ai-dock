@@ -213,7 +213,7 @@ export function baseProviderId(slotId: string) {
 }
 
 const SLOT_POOL: Record<string, string> = { gemini: "gemini", gpt: "claude-gpt", argon: "argon" };
-const POOL_SLOT = /^(antigravity(?:-\d+)?)-(gemini|gpt|argon)$/;
+const POOL_SLOT = /^(antigravity(?:-(?:\d+|openbot\d*))?)-(gemini|gpt|argon)$/;
 
 /** The provider id a dock slot belongs to: "antigravity-2-gemini" belongs to account "antigravity-2". */
 export function accountId(slotId: string) {

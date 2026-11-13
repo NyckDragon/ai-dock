@@ -67,17 +67,14 @@ fn connected_unmetered() -> ProviderUsage {
     }
 }
 
+/// An explicit DSH_HOME counts on its own. The default ~/.dsh does not: uninstalling
+/// leaves it behind, so it only says where the key is once the program itself is found.
 fn locate_install() -> Option<Install> {
     if let Some(path) = env_home() {
         return Some(Install::Home(path));
     }
-    if let Some(path) = default_home() {
-        return Some(Install::Home(path));
-    }
-    if find_executable().is_some() {
-        return Some(Install::Executable);
-    }
-    None
+    find_executable()?;
+    Some(default_home().map(Install::Home).unwrap_or(Install::Executable))
 }
 
 fn env_home() -> Option<PathBuf> {

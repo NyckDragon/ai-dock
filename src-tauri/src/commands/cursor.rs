@@ -86,6 +86,25 @@ fn credentials() -> Option<CursorCredentials> {
     })
 }
 
+/// Account id of the signed-in user (`google-oauth2|user_…`), from the cached
+/// profile. No credential is read. Used only to tell whether Cursor and Grok Bot
+/// share one X account; never shown or logged.
+pub(crate) fn account_id() -> Option<String> {
+    let conn = open_store()?;
+    let profile = item(&conn, "cursorAuth/cachedScopedProfile")?;
+    auth_id_from_profile(&profile)
+}
+
+fn auth_id_from_profile(profile: &str) -> Option<String> {
+    serde_json::from_str::<Value>(profile)
+        .ok()?
+        .get("authId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+}
+
 fn number(value: Option<&Value>) -> Option<f64> {
     value.and_then(|value| {
         value
@@ -249,6 +268,14 @@ pub(crate) async fn usage(client: &reqwest::Client) -> ProviderUsage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_account_id_comes_from_the_cached_profile() {
+        let profile = r#"{"authId":"google-oauth2|user_EXAMPLE","displayName":"Ana"}"#;
+        assert_eq!(auth_id_from_profile(profile).as_deref(), Some("google-oauth2|user_EXAMPLE"));
+        assert_eq!(auth_id_from_profile(r#"{"authId":"  "}"#), None);
+        assert_eq!(auth_id_from_profile("not json"), None);
+    }
 
     #[test]
     fn zero_percent_used_is_a_real_reading() {

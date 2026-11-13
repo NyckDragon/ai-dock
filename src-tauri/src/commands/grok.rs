@@ -1,8 +1,8 @@
 //! Grok CLI usage.
 //!
 //! The OAuth session lives in GROK_HOME or ~/.grok/auth.json, a map of scope to
-//! credential. The token is the `key` of a scope that contains `auth.x.ai` and
-//! whose `expires_at` is still in the future. `xai::api_key` is a different wallet
+//! credential. The token is the `key` of a scope that contains `auth.x.ai` (or
+//! `accounts.x.ai`, the older sign-in) and whose `expires_at` is still in the future. `xai::api_key` is a different wallet
 //! and is never sent. The key stays in memory for one request and is not logged.
 
 use reqwest::header::{ACCEPT, AUTHORIZATION};
@@ -133,7 +133,8 @@ fn now_unix() -> u64 {
 fn select_token(json: &Value, now: u64) -> Option<String> {
     let mut chosen: Option<(u64, &str)> = None;
     for (scope, value) in json.as_object()? {
-        if scope.contains("xai::api_key") || !scope.contains("auth.x.ai") {
+        let signed_in = scope.contains("auth.x.ai") || scope.contains("accounts.x.ai");
+        if scope.contains("xai::api_key") || !signed_in {
             continue;
         }
         let Some(key) = value.get("key").and_then(Value::as_str).filter(|key| !key.trim().is_empty()) else {
@@ -393,6 +394,10 @@ mod tests {
         });
         assert_eq!(select_token(&json, now).as_deref(), Some("late"));
         assert_eq!(select_token(&json!({ "xai::api_key": { "key": "wallet" } }), now), None);
+        let accounts = json!({
+            "https://accounts.x.ai/sign-in": { "key": "accounts", "expires_at": "2026-12-01T00:00:00Z" }
+        });
+        assert_eq!(select_token(&accounts, now).as_deref(), Some("accounts"));
     }
 
     #[test]

@@ -7,6 +7,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **OpenBot (Windows):** o dock lê a cota do Antigravity que roda dentro do OpenBot, uma conta por vez, enquanto o OpenBot está usando a conta. Conta que também está no Antigravity aparece no mesmo ícone, e o trabalho feito pelo OpenBot acende esse ícone. Conta que só existe no OpenBot ganha um ícone "Antigravity · OpenBot". A conta é reconhecida pelo e-mail que o próprio servidor informa; nenhum token do OpenBot é lido. Para reconhecer a conta mesmo com o Antigravity fechado, o dock guarda só uma impressão digital (SHA-256) do e-mail de cada ícone, nunca o e-mail.
+
+### Fixed
+
+- **Grok Bot "Aplicativo fechado":** um ícone que deixa de existir de propósito (como o Grok Bot no plano unificado) não fica mais preso com a última leitura. Só as contas do Antigravity com a janela fechada guardam os números.
+- **DeepSeek depois de desinstalar:** a pasta `~/.dsh` que o desinstalador deixa não conta mais como instalação. O dock só mostra o DeepSeek quando o programa existe.
+- **Antigravity "aberto" por engano:** o Antigravity interno do OpenBot não é mais confundido com o app do Antigravity.
+
+- **Grok na X Subscription:** com o plano unificado (Grok, Grok Bot, Cursor e X no mesmo limite semanal), o Grok sumia do dock quando o Grok CLI não estava logado. Agora fica um ícone só do Grok, com o plano "X Premium" (ou o seu nível), lido do Grok CLI quando ele está logado e do Grok Bot quando não está. Com contas separadas, continuam os dois ícones, como antes.
+- **Cursor junto com o Grok:** quando o Cursor está na mesma conta X, o uso incluído dele mostra o mesmo limite semanal do Grok. O uso sob demanda e o de API (modelos Claude e GPT, cobrados à parte) continuam como o Cursor informa.
+- **Login do Grok:** o dock também reconhece o login salvo como `accounts.x.ai`.
+
 ## [0.8.0-beta.2] - 2026-11-04
 
 Segunda versão de teste da 0.8.0, de novo com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.

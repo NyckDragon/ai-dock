@@ -590,12 +590,46 @@ fn waiting_activity(slot_id: &str, state_roots: &[PathBuf]) -> Option<ProviderAc
     })
 }
 
+fn transcript_path(brain: &Path) -> PathBuf {
+    brain.join(".system_generated").join("logs").join("transcript.jsonl")
+}
+
+fn has_transcripts(root: &Path) -> bool {
+    fs::read_dir(root.join("brain"))
+        .map(|brains| brains.flatten().any(|brain| transcript_path(&brain.path()).is_file()))
+        .unwrap_or(false)
+}
+
+/// The conversation file (or its WAL) written most recently: session id, path, time.
+fn newest_conversation(root: &Path) -> Option<(String, PathBuf, u64)> {
+    fs::read_dir(root.join("conversations"))
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let session_id = name.strip_suffix(".db-wal").or_else(|| name.strip_suffix(".db"))?.to_string();
+            let path = entry.path();
+            Some((session_id, path.clone(), mtime_ms(&path)?))
+        })
+        .max_by_key(|(_, _, modified)| *modified)
+}
+
 fn check_instance_activity(slot_id: &str, state_roots: &[PathBuf]) -> ProviderActivity {
     if let Some(waiting) = waiting_activity(slot_id, state_roots) {
         return waiting;
     }
     let mut newest: Option<(PathBuf, String, PathBuf, u64)> = None;
     for root in state_roots {
+        // OpenBot's Antigravity server writes no transcript; its conversation files
+        // are the only sign of work there.
+        if !has_transcripts(root) {
+            if let Some((session_id, path, modified)) = newest_conversation(root) {
+                if newest.as_ref().map(|(_, _, _, current)| modified > *current).unwrap_or(true) {
+                    newest = Some((root.clone(), session_id, path, modified));
+                }
+            }
+            continue;
+        }
         let Ok(brains) = fs::read_dir(root.join("brain")) else { continue };
         for brain in brains.flatten() {
             let transcript = brain
@@ -675,7 +709,16 @@ fn antigravity_activities() -> Vec<ProviderActivity> {
     }
     instances
         .into_iter()
-        .map(|inst| check_instance_activity(&inst.slot_id, &[inst.state_root]))
+        .map(|inst| {
+            // OpenBot runs the same account from its own folder; its work lights this slot too.
+            let mut roots = vec![inst.state_root];
+            for root in antigravity::openbot_roots_for(&inst.slot_id) {
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+            check_instance_activity(&inst.slot_id, &roots)
+        })
         .collect()
 }
 
@@ -721,6 +764,25 @@ pub async fn get_provider_activity() -> Vec<ProviderActivity> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_root_without_transcripts_is_read_from_its_conversation_files() {
+        let root = std::env::temp_dir().join(format!("ai-dock-acp-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("conversations")).unwrap();
+        fs::create_dir_all(root.join("brain").join("session-a")).unwrap();
+        fs::write(root.join("conversations").join("session-a.db"), "").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        fs::write(root.join("conversations").join("session-b.db-wal"), "").unwrap();
+        let without = has_transcripts(&root);
+        let newest = newest_conversation(&root).map(|(id, _, _)| id);
+        let activity = check_instance_activity("antigravity-openbot", &[root.clone()]);
+        let _ = fs::remove_dir_all(&root);
+        assert!(!without);
+        assert_eq!(newest.as_deref(), Some("session-b"));
+        assert_eq!(activity.state, "working");
+        assert_eq!(activity.sessions[0].id, "session-b");
+    }
 
     fn working_antigravity() -> ProviderActivity {
         ProviderActivity {

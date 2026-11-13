@@ -292,3 +292,11 @@ test("a currency balance is not treated as a percentage", () => {
   assert.equal(percentLabel(providerHeadroom(provider), "native", "deepseek"), "--");
 });
 
+
+test("an OpenBot-only Antigravity account lights its own pool slots", () => {
+  const activities = account("antigravity-openbot", "gemini");
+  assert.equal(activityForSlot(activities, "antigravity-openbot-gemini")?.state, "working");
+  assert.equal(activityForSlot(activities, "antigravity-openbot-gpt"), undefined);
+  assert.equal(activityForSlot(activities, "antigravity-gemini"), undefined);
+  assert.equal(activityForSlot(account("antigravity-openbot2", "argon"), "antigravity-openbot2-argon")?.state, "working");
+});

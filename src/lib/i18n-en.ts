@@ -44,8 +44,10 @@ export const EN: Record<string, string> = {
   "Abra o Grok Bot para ler o limite.": "Open Grok Bot to read its limit.",
   "A semana virou. Abra o Grok Bot para atualizar.": "A new week started. Open Grok Bot to refresh.",
   "Falha de rede ao consultar o uso do Grok.": "Network failure while checking Grok usage.",
-  "Pool semanal compartilhado com o Cursor na assinatura X.":
-    "Weekly pool shared with Cursor on the X subscription.",
+  "Pool semanal compartilhado com o Grok Bot e o Cursor na assinatura X.":
+    "Weekly pool shared with Grok Bot and Cursor on The X Subscription.",
+  "Pool semanal compartilhado com o Grok e o Grok Bot na assinatura X.":
+    "Weekly pool shared with Grok and Grok Bot on The X Subscription.",
   "Conectar": "Connect",
   "Em destaque: {window}": "Featured: {window}",
   "Não conectado": "Not connected",
