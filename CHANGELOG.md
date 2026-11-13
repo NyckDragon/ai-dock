@@ -7,6 +7,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0-beta.3] - 2026-11-12
+
+Terceira versão de teste da 0.8.0, com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.
+
 ### Added
 
 - **OpenBot (Windows):** o dock lê a cota do Antigravity que roda dentro do OpenBot, uma conta por vez, enquanto o OpenBot está usando a conta. Conta que também está no Antigravity aparece no mesmo ícone, e o trabalho feito pelo OpenBot acende esse ícone. Conta que só existe no OpenBot ganha um ícone "Antigravity · OpenBot". A conta é reconhecida pelo e-mail que o próprio servidor informa; nenhum token do OpenBot é lido. Para reconhecer a conta mesmo com o Antigravity fechado, o dock guarda só uma impressão digital (SHA-256) do e-mail de cada ícone, nunca o e-mail.

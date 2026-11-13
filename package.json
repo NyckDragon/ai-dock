@@ -3,7 +3,7 @@
   "private": true,
   "author": "Nycolas Monteiro (https://github.com/NyckDragon)",
   "license": "MIT",
-  "version": "0.8.0-beta.2",
+  "version": "0.8.0-beta.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
