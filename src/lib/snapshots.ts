@@ -37,9 +37,12 @@ export function mergeProviderSnapshots(
     };
   });
 
-  // Retain previously known providers that had windows (e.g. secondary Antigravity window closed)
+  // An Antigravity account whose window closed keeps its last bars. Any other slot that
+  // stops coming is gone on purpose (Grok Bot on the unified X plan, an OpenBot slot
+  // folded into the account's own slot) and is not kept.
+  const keepsBars = (id: string) => id.startsWith("antigravity") && !id.startsWith("antigravity-openbot");
   for (const prior of previous) {
-    if (!incomingIds.has(prior.id) && prior.windows.length > 0) {
+    if (keepsBars(prior.id) && !incomingIds.has(prior.id) && prior.windows.length > 0) {
       merged.push({
         ...prior,
         connected: false,

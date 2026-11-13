@@ -7,6 +7,7 @@ use std::{
     sync::Mutex,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use std::path::Path;
 
 #[cfg(target_os = "windows")]
 use std::{env, os::windows::process::CommandExt};
@@ -61,6 +62,10 @@ pub fn format_antigravity_name(slot_id: &str, has_multiple: bool) -> String {
     }
     match slot_id {
         "antigravity" => "Antigravity · Conta 1 (Principal)".to_string(),
+        "antigravity-openbot" => "Antigravity · OpenBot".to_string(),
+        other if other.starts_with("antigravity-openbot") => {
+            format!("Antigravity · OpenBot {}", &other["antigravity-openbot".len()..])
+        }
         other => {
             if let Some(num) = other.strip_prefix("antigravity-") {
                 format!("Antigravity · Conta {num}")
@@ -74,6 +79,9 @@ pub fn format_antigravity_name(slot_id: &str, has_multiple: bool) -> String {
 fn slot_numeric_order(id: &str) -> u32 {
     if id == "antigravity" {
         return 1;
+    }
+    if let Some(rest) = id.strip_prefix("antigravity-openbot") {
+        return 500 + rest.parse::<u32>().unwrap_or(1);
     }
     if let Some(num_str) = id.strip_prefix("antigravity-") {
         if let Ok(n) = num_str.parse::<u32>() {
@@ -166,6 +174,159 @@ pub fn get_antigravity_instances() -> Vec<AntigravityInstanceInfo> {
     all_instances
 }
 
+/// OpenBot account folder to the dock slot it was matched to, kept for the run so
+/// activity can light the right slot between quota refreshes.
+static OPENBOT_SLOTS: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
+
+/// `<config dir>/OpenBot/provider-accounts`, where OpenBot keeps one folder per account.
+fn openbot_accounts_dir() -> Option<PathBuf> {
+    let path = dirs::config_dir()?.join("OpenBot").join("provider-accounts");
+    path.is_dir().then_some(path)
+}
+
+/// The Antigravity folder of each OpenBot account, in a stable order.
+pub(crate) fn openbot_account_roots() -> Vec<PathBuf> {
+    let Some(dir) = openbot_accounts_dir() else { return vec![] };
+    let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
+    let mut roots: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path().join("antigravity-acp"))
+        .filter(|path| path.is_dir())
+        .collect();
+    roots.sort();
+    roots
+}
+
+/// Which Antigravity slot each account was shown in, by a SHA-256 fingerprint of
+/// its e-mail. The e-mail itself is never written; the fingerprint only lets a later
+/// run tell that an OpenBot server belongs to an account the dock already shows.
+fn fingerprints_path() -> Option<PathBuf> {
+    Some(dirs::config_dir()?.join("app.aidock.desktop").join("antigravity-accounts.json"))
+}
+
+fn email_fingerprint(email: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(email.trim().to_lowercase().as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Slot id to fingerprint.
+fn saved_fingerprints() -> HashMap<String, String> {
+    fingerprints_path()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn slot_for_fingerprint(saved: &HashMap<String, String>, fingerprint: &str) -> Option<String> {
+    let mut slots: Vec<&String> = saved
+        .iter()
+        .filter(|(_, saved)| saved.as_str() == fingerprint)
+        .map(|(slot, _)| slot)
+        .collect();
+    // An Antigravity window wins over an earlier OpenBot-only slot for the same account.
+    slots.sort_by_key(|slot| slot_numeric_order(slot));
+    slots.first().map(|slot| (*slot).clone())
+}
+
+/// Merges this run's slot e-mails into the saved fingerprints. Written only on change.
+fn save_fingerprints(instances: &[AntigravityInstanceInfo]) {
+    let Some(path) = fingerprints_path() else { return };
+    let mut saved = saved_fingerprints();
+    let before = saved.clone();
+    for instance in instances {
+        if let Some(email) = instance.email.as_deref().filter(|email| !email.trim().is_empty()) {
+            saved.insert(instance.slot_id.clone(), email_fingerprint(email));
+        }
+    }
+    if saved == before {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(text) = serde_json::to_string_pretty(&saved) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// `~/.gemini/antigravity-acp`: the folder OpenBot's long-running Antigravity
+/// server writes to (it starts with `--gemini-dir=~/.gemini --app-data-dir=antigravity-acp`).
+fn shared_acp_root() -> Option<PathBuf> {
+    let path = dirs::home_dir()?.join(".gemini").join("antigravity-acp");
+    path.is_dir().then_some(path)
+}
+
+/// Every folder an OpenBot server may log to: the shared one first, then each account's.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn openbot_log_roots() -> Vec<PathBuf> {
+    shared_acp_root().into_iter().chain(openbot_account_roots()).collect()
+}
+
+/// Slot for an OpenBot account no Antigravity window shows: `antigravity-openbot`,
+/// then `antigravity-openbot2`, by folder order.
+fn openbot_slot_id(root: &Path) -> String {
+    let index = openbot_account_roots().iter().position(|item| item == root).unwrap_or(0);
+    openbot_slot_for_index(index)
+}
+
+fn openbot_slot_for_index(index: usize) -> String {
+    if index == 0 {
+        "antigravity-openbot".into()
+    } else {
+        format!("antigravity-openbot{}", index + 1)
+    }
+}
+
+fn remembered_openbot_slot(root: &Path) -> Option<String> {
+    OPENBOT_SLOTS.lock().ok()?.as_ref()?.get(root).cloned()
+}
+
+fn remember_openbot_slot(root: &Path, slot_id: &str) {
+    if let Ok(mut guard) = OPENBOT_SLOTS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(root.to_path_buf(), slot_id.to_string());
+    }
+}
+
+/// OpenBot folders whose work belongs to this slot.
+pub(crate) fn openbot_roots_for(slot_id: &str) -> Vec<PathBuf> {
+    let Ok(guard) = OPENBOT_SLOTS.lock() else { return vec![] };
+    let Some(map) = guard.as_ref() else { return vec![] };
+    let mut roots: Vec<PathBuf> = map
+        .iter()
+        .filter(|(_, slot)| slot.as_str() == slot_id)
+        .map(|(root, _)| root.clone())
+        .collect();
+    roots.sort();
+    roots
+}
+
+/// OpenBot names each server's log after its process id:
+/// `<account>/antigravity-acp/log/acp-server-<date>-<pid>.log`.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn openbot_root_for_pid(roots: &[PathBuf], pid: u32) -> Option<PathBuf> {
+    let suffix = format!("-{pid}.log");
+    roots
+        .iter()
+        .find(|root| {
+            std::fs::read_dir(root.join("log")).is_ok_and(|entries| {
+                entries.flatten().any(|entry| {
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    name.starts_with("acp-server-") && name.ends_with(&suffix)
+                })
+            })
+        })
+        .cloned()
+}
+
+/// OpenBot starts `antigravity.exe acp` from its own runtime folder.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn is_openbot_server(lower_executable: &str, lower_command: &str) -> bool {
+    let runtime = lower_executable.contains("openbot") || lower_command.contains("openbot");
+    runtime && lower_command.split_whitespace().any(|word| word == "acp")
+}
+
 #[derive(Default)]
 struct Discovery {
     installed: bool,
@@ -187,6 +348,9 @@ struct LanguageServer {
     csrf_token: String,
     extension_csrf_token: String,
     state_root: Option<PathBuf>,
+    /// The OpenBot account folder (`…/provider-accounts/<id>/antigravity-acp`) this
+    /// server belongs to. OpenBot runs its own Antigravity server per account.
+    openbot: Option<PathBuf>,
 }
 
 pub(crate) async fn usage() -> Vec<ProviderUsage> {
@@ -195,8 +359,13 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
         .unwrap_or_default();
 
     let mut snapshots: Vec<Snapshot> = Vec::new();
+    let mut openbot_snapshots: Vec<Snapshot> = Vec::new();
     for server in &discovery.servers {
         if let Some(snapshot) = try_language_server(server).await {
+            if snapshot.openbot.is_some() {
+                openbot_snapshots.push(snapshot);
+                continue;
+            }
             let is_duplicate = snapshots
                 .iter()
                 .any(|other| other.root.is_some() && other.root == snapshot.root);
@@ -207,12 +376,13 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
     }
 
     let known_instances = get_antigravity_instances();
-    let has_multiple_profiles = known_instances.len() > 1 || snapshots.len() > 1;
+    let has_multiple_profiles =
+        known_instances.len() > 1 || snapshots.len() + openbot_snapshots.len() > 1;
 
     let mut active_by_slot: HashMap<String, (ProviderUsage, Option<String>, PathBuf)> = HashMap::new();
     let mut endpoints = HashMap::new();
 
-    for Snapshot { mut usage, email, root, endpoint } in snapshots {
+    for Snapshot { mut usage, email, root, endpoint, .. } in snapshots {
         // Priority 1: Match against known instances by email
         let matched_slot = email.as_ref().and_then(|em| {
             let em_lower = em.to_lowercase();
@@ -241,6 +411,48 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
         if let Some(r) = root {
             active_by_slot.insert(slot_id, (usage, effective_email, r));
         }
+    }
+
+    // OpenBot servers last: an account the Antigravity app already shows keeps that
+    // reading, and OpenBot only adds its folder so its work lights the same slot.
+    for Snapshot { mut usage, email, endpoint, openbot, .. } in openbot_snapshots {
+        let Some(openbot_root) = openbot else { continue };
+        let known = email.as_ref().and_then(|em| {
+            known_instances
+                .iter()
+                .find(|ki| ki.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(em)))
+        });
+        let live_slot = email.as_ref().and_then(|em| {
+            active_by_slot
+                .iter()
+                .find(|(_, (_, live_email, _))| live_email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(em)))
+                .map(|(slot, _)| slot.clone())
+        });
+        // An account seen in an earlier run is matched by its saved fingerprint, so
+        // OpenBot lands on the right slot even while the Antigravity app's server is down.
+        let saved_slot = email
+            .as_deref()
+            .and_then(|em| slot_for_fingerprint(&saved_fingerprints(), &email_fingerprint(em)));
+        let slot_id = known
+            .map(|ki| ki.slot_id.clone())
+            .or(live_slot)
+            .or(saved_slot)
+            .or_else(|| remembered_openbot_slot(&openbot_root))
+            .unwrap_or_else(|| openbot_slot_id(&openbot_root));
+        remember_openbot_slot(&openbot_root, &slot_id);
+        if active_by_slot.contains_key(&slot_id) {
+            continue;
+        }
+        let state_root = known_instances
+            .iter()
+            .find(|ki| ki.slot_id == slot_id)
+            .map(|ki| ki.state_root.clone())
+            .unwrap_or(openbot_root);
+        usage.id = slot_id.clone();
+        usage.email = email.clone();
+        usage.name = format_antigravity_name(&slot_id, has_multiple_profiles);
+        endpoints.insert(slot_id.clone(), endpoint);
+        active_by_slot.insert(slot_id, (usage, email, state_root));
     }
 
     remember_endpoints(endpoints);
@@ -319,6 +531,7 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
 
     usages.sort_by_key(|u| slot_numeric_order(&u.id));
 
+    save_fingerprints(&updated_instances);
     if let Ok(mut lock) = DISCOVERED_INSTANCES.write() {
         *lock = updated_instances;
     }
@@ -431,12 +644,16 @@ $all | Where-Object {
         _ => vec![],
     };
 
+    // OpenBot's own `antigravity.exe acp` is not the Antigravity app.
     let app_running = processes.iter().any(|process| {
-        process
+        let is_app = process
             .get("Name")
             .and_then(Value::as_str)
-            .is_some_and(|name| name.eq_ignore_ascii_case("Antigravity.exe"))
+            .is_some_and(|name| name.eq_ignore_ascii_case("Antigravity.exe"));
+        let path = process.get("ExecutablePath").and_then(Value::as_str).unwrap_or_default();
+        is_app && !path.to_lowercase().contains("openbot")
     });
+    let openbot_roots = openbot_log_roots();
 
     let netstat = run_hidden("netstat.exe", &["-ano", "-p", "TCP"]).unwrap_or_default();
     let install_marker = install_root()
@@ -473,6 +690,24 @@ $all | Where-Object {
             .unwrap_or_default()
             .to_lowercase();
 
+        if is_openbot_server(&lower_executable, &lower_command) {
+            // The account itself is told by the e-mail the server reports; the folder
+            // only says where its conversations are written.
+            let Some(account) = openbot_root_for_pid(&openbot_roots, pid).or_else(shared_acp_root) else {
+                continue;
+            };
+            servers.push(LanguageServer {
+                ports: local_ports(&netstat, pid),
+                extension_port: None,
+                // Its server answers on loopback without a token.
+                csrf_token: String::new(),
+                extension_csrf_token: String::new(),
+                state_root: None,
+                openbot: Some(account),
+            });
+            continue;
+        }
+
         let looks_like_server = lower_name.starts_with("language_server")
             || lower_name.starts_with("language-server")
             || lower_name == "agy.exe"
@@ -497,21 +732,7 @@ $all | Where-Object {
             .or_else(|| command_flag(command_line, "extension-server-port"))
             .and_then(|value| value.parse::<u16>().ok());
 
-        let mut ports: Vec<u16> = netstat
-            .lines()
-            .filter(|line| line.contains("LISTENING") && line.trim().ends_with(&pid.to_string()))
-            .filter_map(|line| {
-                let local = line.split_whitespace().nth(1)?;
-                let (address, port) = local.rsplit_once(':')?;
-                if matches!(address, "127.0.0.1" | "0.0.0.0" | "[::1]" | "[::]") {
-                    port.parse::<u16>().ok()
-                } else {
-                    None
-                }
-            })
-            .collect();
-        ports.sort_unstable();
-        ports.dedup();
+        let ports = local_ports(&netstat, pid);
 
         let ppid = process
             .get("ParentProcessId")
@@ -543,6 +764,7 @@ $all | Where-Object {
             csrf_token,
             extension_csrf_token,
             state_root: state_root_from(user_data_dir),
+            openbot: None,
         });
     }
 
@@ -552,6 +774,29 @@ $all | Where-Object {
         app_running,
         servers,
     }
+}
+
+/// Loopback ports a process listens on, from `netstat -ano -p TCP`.
+#[cfg(target_os = "windows")]
+fn local_ports(netstat: &str, pid: u32) -> Vec<u16> {
+    let pid = pid.to_string();
+    let mut ports: Vec<u16> = netstat
+        .lines()
+        .filter(|line| line.contains("LISTENING"))
+        .filter(|line| line.split_whitespace().last() == Some(pid.as_str()))
+        .filter_map(|line| {
+            let local = line.split_whitespace().nth(1)?;
+            let (address, port) = local.rsplit_once(':')?;
+            if matches!(address, "127.0.0.1" | "0.0.0.0" | "[::1]" | "[::]") {
+                port.parse::<u16>().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+    ports.sort_unstable();
+    ports.dedup();
+    ports
 }
 
 /// The `.gemini/antigravity` folder of the account an app instance runs with. An
@@ -697,6 +942,7 @@ fn discover() -> Discovery {
             csrf_token,
             extension_csrf_token,
             state_root: state_root_from(user_data_dir),
+            openbot: None,
         });
     }
 
@@ -815,6 +1061,7 @@ fn discover() -> Discovery {
             csrf_token,
             extension_csrf_token,
             state_root: state_root_from(user_data_dir),
+            openbot: None,
         });
     }
     if app_running {
@@ -909,6 +1156,7 @@ struct Snapshot {
     email: Option<String>,
     root: Option<PathBuf>,
     endpoint: Endpoint,
+    openbot: Option<PathBuf>,
 }
 
 async fn try_language_server(server: &LanguageServer) -> Option<Snapshot> {
@@ -937,6 +1185,7 @@ async fn try_language_server(server: &LanguageServer) -> Option<Snapshot> {
                     email,
                     root: server.state_root.clone(),
                     endpoint: (scheme.to_string(), port, token.to_string()),
+                    openbot: server.openbot.clone(),
                 });
             }
         }
@@ -952,6 +1201,7 @@ async fn try_language_server(server: &LanguageServer) -> Option<Snapshot> {
                         email,
                         root: server.state_root.clone(),
                         endpoint: (scheme.to_string(), port, token.to_string()),
+                        openbot: server.openbot.clone(),
                     });
                 }
             }
@@ -1397,6 +1647,70 @@ fn extract_email(document: &Value) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn only_openbot_acp_servers_count_as_openbot() {
+        let exe = r"c:\users\ana\appdata\roaming\openbot\provider-runtimes\antigravity\win32-x64\1.5.7\bin\antigravity.exe";
+        assert!(is_openbot_server(exe, &format!("{exe} acp --gemini-dir=c:\\users\\ana\\.gemini")));
+        assert!(!is_openbot_server(exe, &format!("{exe} --version")));
+        let ide = r"c:\users\ana\appdata\local\programs\antigravity\antigravity.exe";
+        assert!(!is_openbot_server(ide, &format!("{ide} acp")));
+    }
+
+    #[test]
+    fn a_saved_fingerprint_finds_the_slot_without_keeping_the_email() {
+        let fingerprint = email_fingerprint(" Ana@Example.com ");
+        assert_eq!(fingerprint, email_fingerprint("ana@example.com"));
+        assert_eq!(fingerprint.len(), 64);
+        assert!(!fingerprint.contains("ana"));
+        let saved = HashMap::from([
+            ("antigravity-openbot".to_string(), fingerprint.clone()),
+            ("antigravity".to_string(), fingerprint.clone()),
+            ("antigravity-2".to_string(), email_fingerprint("bia@example.com")),
+        ]);
+        assert_eq!(slot_for_fingerprint(&saved, &fingerprint).as_deref(), Some("antigravity"));
+        assert_eq!(slot_for_fingerprint(&saved, &email_fingerprint("other@example.com")), None);
+    }
+
+    #[test]
+    fn openbot_accounts_get_their_own_slots_and_names() {
+        assert_eq!(openbot_slot_for_index(0), "antigravity-openbot");
+        assert_eq!(openbot_slot_for_index(2), "antigravity-openbot3");
+        assert_eq!(format_antigravity_name("antigravity-openbot", true), "Antigravity · OpenBot");
+        assert_eq!(format_antigravity_name("antigravity-openbot3", true), "Antigravity · OpenBot 3");
+        assert!(slot_numeric_order("antigravity-4") < slot_numeric_order("antigravity-openbot"));
+        assert!(slot_numeric_order("antigravity-openbot") < slot_numeric_order("antigravity-openbot2"));
+    }
+
+    #[test]
+    fn an_openbot_server_is_tied_to_its_account_by_the_log_name() {
+        let base = std::env::temp_dir().join(format!("ai-dock-openbot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let first = base.join("a1").join("antigravity-acp");
+        let second = base.join("b2").join("antigravity-acp");
+        std::fs::create_dir_all(first.join("log")).unwrap();
+        std::fs::create_dir_all(second.join("log")).unwrap();
+        std::fs::write(first.join("log").join("acp-server-20261112_180506-21360.log"), "").unwrap();
+        std::fs::write(second.join("log").join("acp-server-20261112_180526-1360.log"), "").unwrap();
+        let roots = vec![first.clone(), second.clone()];
+        let found = openbot_root_for_pid(&roots, 1360);
+        let first_found = openbot_root_for_pid(&roots, 21360);
+        let missing = openbot_root_for_pid(&roots, 99);
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(found, Some(second));
+        assert_eq!(first_found, Some(first));
+        assert_eq!(missing, None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn loopback_ports_match_the_whole_process_id() {
+        let netstat = "  TCP    127.0.0.1:57326        0.0.0.0:0              LISTENING       1360\n\
+                       \x20 TCP    127.0.0.1:57327        0.0.0.0:0              LISTENING       21360\n\
+                       \x20 TCP    10.0.0.2:5000          0.0.0.0:0              LISTENING       1360\n";
+        assert_eq!(local_ports(netstat, 1360), vec![57326]);
+        assert_eq!(local_ports(netstat, 21360), vec![57327]);
+    }
 
     fn trajectory(status: &str, model: Option<&str>) -> Value {
         let mut summary = json!({ "status": status, "stepCount": 4 });

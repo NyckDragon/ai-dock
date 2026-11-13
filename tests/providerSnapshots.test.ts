@@ -78,3 +78,17 @@ test("provider without prior reading does not invent last-good data", () => {
   assert.equal(merged.updatedAt, 400);
   assert.equal(merged.lastErrorAt, 400);
 });
+
+test("a closed Antigravity account keeps its bars, a slot dropped on purpose does not", () => {
+  const previous = [
+    provider({ id: "antigravity-2", name: "Antigravity · Conta 2" }),
+    provider({ id: "grok-bot", name: "Grok Bot" }),
+    provider({ id: "antigravity-openbot", name: "Antigravity · OpenBot" })
+  ];
+
+  const merged = mergeProviderSnapshots(previous, [provider()], 400);
+
+  assert.deepEqual(merged.map((item) => item.id), ["claude", "antigravity-2"]);
+  assert.equal(merged[1].error, "Aplicativo fechado");
+  assert.equal(merged[1].stale, true);
+});
