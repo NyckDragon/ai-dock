@@ -174,6 +174,24 @@ pub fn get_antigravity_instances() -> Vec<AntigravityInstanceInfo> {
     all_instances
 }
 
+/// The slot an Antigravity window belongs to. The account folder it runs from
+/// decides it: an email can move between folders (a window signed in with the
+/// wrong account), so it only places windows whose folder names no account.
+fn slot_for_snapshot(root: Option<&PathBuf>, email: Option<&str>, known: &[AntigravityInstanceInfo]) -> String {
+    let (detected, _) = detect_profile_slot(root);
+    if detected != "antigravity" {
+        return detected;
+    }
+    let is_home_root = root.is_none_or(|r| dirs::home_dir().is_some_and(|home| r.starts_with(home.join(".gemini"))));
+    if is_home_root {
+        return detected;
+    }
+    email
+        .and_then(|em| known.iter().find(|ki| ki.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(em))))
+        .map(|ki| ki.slot_id.clone())
+        .unwrap_or(detected)
+}
+
 /// File the account launcher writes in each account folder, holding only the
 /// email that account is bound to. It is not a credential.
 const ACCOUNT_PIN_FILE: &str = ".conta_vinculada";
@@ -409,18 +427,7 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
     let mut endpoints = HashMap::new();
 
     for Snapshot { mut usage, email, root, endpoint, .. } in snapshots {
-        // Priority 1: Match against known instances by email
-        let matched_slot = email.as_ref().and_then(|em| {
-            let em_lower = em.to_lowercase();
-            known_instances.iter().find(|ki| {
-                ki.email.as_deref().map(|e| e.to_lowercase()) == Some(em_lower.clone())
-            }).map(|ki| ki.slot_id.clone())
-        });
-
-        let slot_id = matched_slot.unwrap_or_else(|| {
-            let (detected_id, _) = detect_profile_slot(root.as_ref());
-            detected_id
-        });
+        let slot_id = slot_for_snapshot(root.as_ref(), email.as_deref(), &known_instances);
 
         let effective_email = email.or_else(|| {
             known_instances
@@ -1681,6 +1688,29 @@ mod tests {
         assert!(!is_openbot_server(exe, &format!("{exe} --version")));
         let ide = r"c:\users\ana\appdata\local\programs\antigravity\antigravity.exe";
         assert!(!is_openbot_server(ide, &format!("{ide} acp")));
+    }
+
+    #[test]
+    fn the_account_folder_decides_the_slot_even_with_a_remembered_email() {
+        let known = vec![
+            AntigravityInstanceInfo {
+                slot_id: "antigravity-2".into(),
+                email: Some("bia@example.com".into()),
+                state_root: PathBuf::from(r"D:\Antigravity-Conta2\.gemini\antigravity"),
+            },
+            AntigravityInstanceInfo {
+                slot_id: "antigravity-4".into(),
+                email: Some("bia@example.com".into()),
+                state_root: PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity"),
+            },
+        ];
+        // Account 4's window stays in slot 4 although slot 2 once reported the same email.
+        let conta4 = PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity");
+        assert_eq!(slot_for_snapshot(Some(&conta4), Some("bia@example.com"), &known), "antigravity-4");
+        // A folder that names no account still finds its slot by email.
+        let other = PathBuf::from(r"E:\Perfis\Trabalho\.gemini\antigravity");
+        assert_eq!(slot_for_snapshot(Some(&other), Some("BIA@example.com"), &known), "antigravity-2");
+        assert_eq!(slot_for_snapshot(Some(&other), Some("ana@example.com"), &known), "antigravity");
     }
 
     #[test]
