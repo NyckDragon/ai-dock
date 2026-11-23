@@ -149,48 +149,54 @@
 .button--small { height: 30px; }
 .empty-state { border-radius: var(--radius-card); border-color: var(--card-border); background: var(--card-surface); }
 
-/* ---------- Settings: grouped cards, like a native settings menu ---------- */
-.settings .tabs { margin: 8px 14px 0; }
+/* ---------- Settings: each group is one card, like a native settings menu ---------- */
+.settings .tabs { margin: 8px 14px 0; gap: 2px; }
+.settings .tabs .settings-tab {
+  height: 52px;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+.settings .tabs .settings-tab svg { opacity: .75; }
+.settings .tabs .settings-tab.is-selected svg { opacity: 1; color: var(--accent-text); }
 .settings .panel-scroll { padding-top: 16px; }
-.settings-group {
-  margin-bottom: 18px;
-  padding: 0;
-  border-top: 0;
-}
+.settings-group { margin-bottom: 20px; padding: 0; border-top: 0; }
 .settings-group:first-child { padding-top: 0; }
-.settings-label {
-  margin: 0 4px 8px;
-  font-size: var(--fs-2xs);
-  letter-spacing: .07em;
-  color: var(--text-3);
-}
-/* The rows of a group sit on one card. */
-.settings-group > .setting-row,
-.settings-group > .select-setting-row,
-.settings-group > .mascot-row,
-.settings-group > .pause-row,
-.settings-group > .provider-list {
-  padding-left: 14px;
-  padding-right: 14px;
+.settings-label { margin: 0 6px 8px; font-size: var(--fs-2xs); letter-spacing: .07em; color: var(--text-3); }
+.settings-card {
+  display: grid;
+  padding: 4px 14px;
+  border-radius: var(--radius-card);
   background: var(--card-surface);
+  box-shadow: var(--top-light);
 }
-.settings-group > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row, .provider-list):first-of-type {
-  border-top-left-radius: var(--radius-card);
-  border-top-right-radius: var(--radius-card);
-}
-.settings-group > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row, .provider-list):last-of-type {
-  border-bottom-left-radius: var(--radius-card);
-  border-bottom-right-radius: var(--radius-card);
-}
-.setting-row + .setting-row,
-.select-setting-row + .select-setting-row,
-.mascot-row + .setting-row { border-top-color: var(--hairline); }
-.setting-row,
-.select-setting-row { min-height: 56px; }
+.settings-card > * + * { border-top: 1px solid var(--hairline); }
+.settings-card > .hint,
+.settings-card > .segmented,
+.settings-card > .segmented-title,
+.settings-card > .notice,
+.settings-card > .mode-preview-layout,
+.settings-card > .signal-legend { border-top: 0; }
+.settings-card > .segmented { margin: 10px 0; }
+.settings-card > .segmented-title { margin: 12px 0 0; font-size: var(--fs-sm); font-weight: 600; }
+.settings-card > .hint { margin: 0 0 12px; }
+.settings-card > .notice { margin: 0 0 10px; }
+.settings-card > .mode-preview-layout { margin: 10px 0; }
+.settings-card .setting-row,
+.settings-card .select-setting-row { min-height: 58px; padding: 10px 0; }
 .setting-row__copy strong,
 .select-setting-row__copy strong { font-size: var(--fs-sm); font-weight: 600; }
-.settings .hint { margin: 8px 4px 0; }
-.settings .segmented-title { margin: 14px 4px 8px; font-weight: 600; }
+.setting-row__copy small,
+.select-setting-row__copy small { font-size: var(--fs-2xs); }
+.settings-card > .provider-list { margin: 8px 0; gap: 2px; }
+.provider-list__item {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.provider-list__item:hover { background: var(--card-surface-hover); }
 .select-input {
   height: 34px;
   border-radius: var(--radius-control);
@@ -200,12 +206,83 @@
 .switch { width: 40px; height: 24px; }
 .mode-picker button {
   border-radius: 12px;
-  background: var(--card-surface);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border-color: transparent;
 }
 .mode-picker button:hover { background: var(--card-surface-hover); border-color: transparent; }
 .mode-picker button.is-selected { background: var(--accent-soft); border-color: var(--accent-border); }
 .mode-preview { border-radius: var(--radius-card); }
+
+/* Account names */
+.account-names { display: grid; padding: 12px 0 6px; }
+.account-names__title { font-size: var(--fs-sm); font-weight: 600; }
+.account-names .hint { margin: 2px 0 8px; }
+.account-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.account-name-row + .account-name-row { border-top: 1px solid var(--hairline); }
+.account-name-row__badge {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--brand-antigravity) 16%, transparent);
+  color: var(--brand-antigravity);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.account-name-row__field { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.account-name-row__input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.account-name-row__input:hover { background: var(--card-surface-hover); }
+.account-name-row__input:focus { outline: none; border-color: var(--accent-border); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.account-name-row__input::placeholder { color: var(--text-2); }
+.account-name-row__field small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+
+/* In-app tooltip for the time mark (a native one opens behind the dock). */
+.quota-track-wrap { position: relative; margin: -6px 0; padding: 6px 0; outline: none; }
+.quota-tip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--card-border), 0 8px 24px rgba(0, 0, 0, .35);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.quota-track-wrap:hover .quota-tip,
+.quota-track-wrap:focus-within .quota-tip { opacity: 1; transform: none; transition-delay: 250ms; }
 
 /* ---------- First-run tour ---------- */
 .onboarding { padding: 26px 20px 20px; }
@@ -293,3 +370,14 @@
 .cost-table tr + tr td { border-top-color: var(--hairline); }
 .cost-table__bar { height: 5px; }
 .cost-table__bar--brand i { background: currentColor; opacity: .9; }
+
+/* Inside a settings card, nested panels lose their own box. */
+.settings-card > .option,
+.settings-card > .claude-card,
+.settings-card > .connect-card {
+  margin: 10px 0;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: none;
+}
+.settings-card > .connect-card { margin: 0; padding: 12px 0; border: 0; border-radius: 0; background: none; }

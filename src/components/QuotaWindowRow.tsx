@@ -74,28 +74,34 @@ export function QuotaWindowRow({
           {value}% <small>{word}</small>
         </strong>
       </div>
-      <div
-        className={"quota-track quota-track--" + tone}
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={value}
-        aria-valuetext={value + "% " + word}
-        title={markHint}
-      >
-        <i
-          style={{
-            width: value + "%",
-            backgroundColor: tone === "good" && modelColor ? modelColor : undefined
-          }}
-        />
-        {timeMark != null ? (
-          <b
-            className="quota-track__tick"
-            style={{ left: timeMark + "%" }}
-            aria-hidden="true"
+      <div className="quota-track-wrap" tabIndex={markHint ? 0 : undefined}>
+        <div
+          className={"quota-track quota-track--" + tone}
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={value}
+          aria-valuetext={value + "% " + word}
+        >
+          <i
+            style={{
+              width: value + "%",
+              backgroundColor: tone === "good" && modelColor ? modelColor : undefined
+            }}
           />
+          {timeMark != null ? (
+            <b
+              className="quota-track__tick"
+              style={{ left: timeMark + "%" }}
+              aria-hidden="true"
+            />
+          ) : null}
+        </div>
+        {markHint ? (
+          <span className="quota-tip" role="tooltip">
+            {markHint}
+          </span>
         ) : null}
       </div>
       <div className="quota-row__meta">

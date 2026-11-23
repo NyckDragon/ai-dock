@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Pencil, Power, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Move, Palette, Pencil, Plug, Power, RotateCcw, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { intlLocale, t, tr } from "../lib/i18n";
@@ -27,11 +27,11 @@ export const COMPACT_MODES: { id: CompactMode; title: string; description: strin
   { id: "classic", title: "Clássico", description: "Ícone + status" }
 ];
 
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "appearance", label: "Aparência" },
-  { id: "position", label: "Posição" },
-  { id: "general", label: "Geral" },
-  { id: "connections", label: "Conexões" }
+const TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
+  { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "position", label: "Posição", icon: Move },
+  { id: "general", label: "Geral", icon: SlidersHorizontal },
+  { id: "connections", label: "Conexões", icon: Plug }
 ];
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -70,7 +70,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="settings-group">
       <h3 className="settings-label">{title}</h3>
-      {children}
+      <div className="settings-card">{children}</div>
     </section>
   );
 }
@@ -88,10 +88,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
             id={"settings-tab-" + item.id}
             aria-selected={tab === item.id}
             aria-controls="settings-tabpanel"
-            className={tab === item.id ? "is-selected" : ""}
+            className={"settings-tab" + (tab === item.id ? " is-selected" : "")}
             onClick={() => onTab(item.id)}
           >
-            {t(item.label)}
+            <item.icon size={16} aria-hidden="true" />
+            <span>{t(item.label)}</span>
           </button>
         ))}
       </div>
@@ -1291,68 +1292,60 @@ function ConnectionsTab({
               : t("Junta Gemini, Claude+GPT e Argon em 1 slot com anéis concêntricos por conta.")}
         </p>
 
-        <div className="antigravity-accounts">
-          <label className="field-label">{t("Contas e instâncias conectadas")}</label>
-          <p className="hint">
-            {t("Personalize o nome de exibição de cada conta (ex: Pessoal, Trabalho).")}
-          </p>
-          <div className="antigravity-accounts__list">
-            {antigravityProviders.map((ag) => {
-              const alias = settings.providerAliases[ag.id] || "";
-              const original = rawById.get(ag.id);
-              const email = ag.email || original?.email;
-              return (
-                <div key={ag.id} className="antigravity-account-row">
-                  <div className="antigravity-account-row__info">
-                    <span className="antigravity-account-row__badge">
-                      {ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "")}
-                    </span>
-                    <div className="antigravity-account-row__copy">
-                      <strong>{alias || ag.name}</strong>
-                      <small className="antigravity-account-row__email">
-                        {email || (original ? tr(original.name) : t("Instância local"))}
-                      </small>
-                    </div>
-                  </div>
-                  <div className="antigravity-account-row__input-wrap">
-                    <input
-                      type="text"
-                      className="antigravity-account-input"
-                      placeholder={t("Nome (ex: Pessoal, Trabalho)")}
-                      value={alias}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const next = { ...settings.providerAliases };
-                        if (val.trim()) {
-                          next[ag.id] = val;
-                        } else {
-                          delete next[ag.id];
-                        }
-                        update({ providerAliases: next });
-                      }}
-                    />
-                    {alias ? (
-                      <button
-                        type="button"
-                        className="text-button text-button--small"
-                        onClick={() => {
-                          const next = { ...settings.providerAliases };
-                          delete next[ag.id];
-                          update({ providerAliases: next });
-                        }}
-                        title={t("Restaurar padrão")}
-                      >
-                        {t("Padrão")}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-            {antigravityProviders.length === 0 ? (
-              <small className="hint is-empty">{t("Nenhuma conta do Antigravity conectada no momento.")}</small>
-            ) : null}
-          </div>
+        <div className="account-names">
+          <strong className="account-names__title">{t("Nome de cada conta")}</strong>
+          <p className="hint">{t("Aparece no dock, no painel e na lista de contas. Deixe vazio para usar o nome padrão.")}</p>
+          {antigravityProviders.map((ag) => {
+            const alias = settings.providerAliases[ag.id] || "";
+            const original = rawById.get(ag.id);
+            const email = ag.email || original?.email;
+            const number = ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "");
+            const defaultName = t("Conta {number}", { number });
+            return (
+              <div key={ag.id} className="account-name-row">
+                <span className="account-name-row__badge" aria-hidden="true">
+                  {number}
+                </span>
+                <span className="account-name-row__field">
+                  <input
+                    type="text"
+                    className="account-name-row__input"
+                    aria-label={t("Nome da {name}", { name: defaultName })}
+                    placeholder={defaultName}
+                    value={alias}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const next = { ...settings.providerAliases };
+                      if (val.trim()) {
+                        next[ag.id] = val;
+                      } else {
+                        delete next[ag.id];
+                      }
+                      update({ providerAliases: next });
+                    }}
+                  />
+                  <small>{email || t("Instância local")}</small>
+                </span>
+                {alias ? (
+                  <button
+                    type="button"
+                    className="icon-button icon-button--small"
+                    aria-label={t("Voltar ao nome padrão de {name}", { name: alias })}
+                    onClick={() => {
+                      const next = { ...settings.providerAliases };
+                      delete next[ag.id];
+                      update({ providerAliases: next });
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          {antigravityProviders.length === 0 ? (
+            <small className="hint">{t("Nenhuma conta do Antigravity conectada no momento.")}</small>
+          ) : null}
         </div>
       </Group>
 

@@ -31,6 +31,11 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "Nome de cada conta": "Name of each account",
+  "Aparece no dock, no painel e na lista de contas. Deixe vazio para usar o nome padrão.": "Shown in the dock, the panel and the account list. Leave it empty to use the default name.",
+  "Conta {number}": "Account {number}",
+  "Nome da {name}": "Name of {name}",
+  "Voltar ao nome padrão de {name}": "Go back to the default name of {name}",
   "Contas do Antigravity": "Antigravity accounts",
   "Sessão de 5h de cada conta": "Each account's 5h session",
   "Use agora": "Use now",
