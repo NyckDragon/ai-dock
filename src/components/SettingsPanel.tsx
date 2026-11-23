@@ -27,6 +27,16 @@ export const COMPACT_MODES: { id: CompactMode; title: string; description: strin
   { id: "classic", title: "Clássico", description: "Ícone + status" }
 ];
 
+export const SETTINGS_TABS = TABS_LIST();
+function TABS_LIST() {
+  return [
+    { id: "appearance" as SettingsTab, label: "Aparência", icon: Palette },
+    { id: "position" as SettingsTab, label: "Posição", icon: Move },
+    { id: "general" as SettingsTab, label: "Geral", icon: SlidersHorizontal },
+    { id: "connections" as SettingsTab, label: "Conexões", icon: Plug }
+  ];
+}
+
 const TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Aparência", icon: Palette },
   { id: "position", label: "Posição", icon: Move },
@@ -64,6 +74,8 @@ export type SettingsPanelProps = {
   onReplayOnboarding: () => void;
   onQuit: () => void;
   withDialog: <T>(run: () => Promise<T> | T) => Promise<T>;
+  /** The wide panel lists the sections in its sidebar, so the tab row is not drawn. */
+  hideTabs?: boolean;
 };
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -79,7 +91,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const { tab, onTab } = props;
   return (
     <div className="settings">
-      <div className="tabs" role="tablist" aria-label={t("Seções das configurações")}>
+      {props.hideTabs ? null : <div className="tabs" role="tablist" aria-label={t("Seções das configurações")}>
         {TABS.map((item) => (
           <button
             type="button"
@@ -95,8 +107,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
             <span>{t(item.label)}</span>
           </button>
         ))}
-      </div>
-      <div className="panel-scroll" role="tabpanel" id="settings-tabpanel" aria-labelledby={"settings-tab-" + tab}>
+      </div>}
+      <div className="panel-scroll" role="tabpanel" id="settings-tabpanel" aria-labelledby={props.hideTabs ? undefined : "settings-tab-" + tab}>
         {tab === "appearance" ? <AppearanceTab {...props} /> : null}
         {tab === "position" ? <PositionTab {...props} /> : null}
         {tab === "general" ? <GeneralTab {...props} /> : null}

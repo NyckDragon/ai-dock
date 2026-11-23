@@ -195,6 +195,10 @@ fn same_placement(previous: &Placement, side: &str, mode: &str, pixels: DockPixe
 /// the hover starts again.
 static LAST_PLACEMENT: Mutex<Option<Placement>> = Mutex::new(None);
 
+/// The open panel is a real window: a sidebar plus a two-column content area.
+const EXPANDED_WIDTH: f64 = 760.0;
+const EXPANDED_HEIGHT: f64 = 820.0;
+
 /// Width stays 58 in the collapsed dock unless the cat needs the extra 6px.
 fn dock_span(
     mode: &str,
@@ -207,13 +211,13 @@ fn dock_span(
 ) -> (f64, f64, f64) {
     let (width_extra, rise) = mascot_span(mode, mascot, overlay_height, overlay_width);
     let logical_width = match mode {
-        "expanded" => 380.0,
+        "expanded" => EXPANDED_WIDTH,
         "peek" => PEEK_WIDTH + width_extra,
         "hidden" => 12.0,
         _ => PILL_WIDTH + width_extra,
     };
     let logical_height = if mode == "expanded" {
-        560.0_f64.min(max_h)
+        EXPANDED_HEIGHT.min(max_h)
     } else {
         (height.unwrap_or(320.0) + rise).clamp(120.0, max_h)
     };
@@ -901,7 +905,7 @@ mod tests {
         assert_eq!((width, height), (12.0, 300.0));
 
         let (width, height, _) = dock_span("expanded", Some(260.0), Some(260.0), true, 40.0, 200.0, 1000.0);
-        assert_eq!((width, height), (380.0, 560.0));
+        assert_eq!((width, height), (760.0, 820.0));
 
         // Peek is already wider than the cat. Height still grows upward.
         let (width, height, anchor) = dock_span("peek", Some(560.0), Some(260.0), true, 0.0, 0.0, 2000.0);

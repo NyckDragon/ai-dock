@@ -1,16 +1,17 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
-import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Coins, Gauge, RefreshCw, ScrollText, Sparkles, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CostsView } from "./components/CostsView";
 import { DockPill } from "./components/DockPill";
 import { Onboarding } from "./components/Onboarding";
 import { PromptLibrary } from "./components/PromptLibrary";
 import { ProviderPeek } from "./components/ProviderPeek";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPanel, SETTINGS_TABS } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
+import { HealthChip } from "./components/HealthChip";
 import { antigravityAccounts } from "./lib/accountsOverview";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
@@ -80,6 +81,12 @@ function applyStoredColor(name: "--question" | "--permission" | "--done", color:
 }
 
 const TONE_RANK: Record<QuotaTone, number> = { empty: 0, good: 1, warning: 2, danger: 3 };
+
+const PANEL_VIEWS: { id: PanelView; label: string; icon: LucideIcon }[] = [
+  { id: "usage", label: "Uso", icon: Gauge },
+  { id: "costs", label: "Custos", icon: Coins },
+  { id: "prompts", label: "Prompts", icon: ScrollText }
+];
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -708,8 +715,8 @@ export default function App() {
 
   return (
     <main className={"app-shell app-shell--" + settings.side}>
-      <div className="dock-panel">
-        <header className="app-header" data-tauri-drag-region>
+      <div className="dock-panel dock-panel--wide">
+        <aside className="panel-nav" data-tauri-drag-region>
           <div className="brand" data-tauri-drag-region>
             <span className="brand-mark" aria-hidden="true">
               <Sparkles size={16} />
@@ -722,7 +729,46 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="header-actions">
+
+          <HealthChip providers={visibleProviders} />
+
+          <nav className="panel-nav__group" aria-label={t("Conteúdo do painel")}>
+            {PANEL_VIEWS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={"panel-nav__item" + (!settingsOpen && view === item.id ? " is-selected" : "")}
+                aria-current={!settingsOpen && view === item.id ? "page" : undefined}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setView(item.id);
+                  if (item.id === "prompts") setPromptFocusKey((key) => key + 1);
+                }}
+              >
+                <item.icon size={16} aria-hidden="true" />
+                <span>{t(item.label)}</span>
+                {item.id === "prompts" && promptState.prompts.length ? <small>{promptState.prompts.length}</small> : null}
+              </button>
+            ))}
+          </nav>
+
+          <nav className="panel-nav__group" aria-label={t("Configurações")}>
+            <span className="panel-nav__label">{t("Configurações")}</span>
+            {SETTINGS_TABS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={"panel-nav__item" + (settingsOpen && settingsTab === item.id ? " is-selected" : "")}
+                aria-current={settingsOpen && settingsTab === item.id ? "page" : undefined}
+                onClick={() => openSettings(item.id)}
+              >
+                <item.icon size={16} aria-hidden="true" />
+                <span>{t(item.label)}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="panel-nav__footer">
             <button
               type="button"
               className={"icon-button" + (loading ? " is-spinning" : "")}
@@ -732,35 +778,23 @@ export default function App() {
             >
               <RefreshCw size={15} />
             </button>
-            <button
-              type="button"
-              className={"icon-button" + (settingsOpen ? " is-active" : "")}
-              onClick={() => (settingsOpen ? setSettingsOpen(false) : openSettings())}
-              aria-label={t("Configurações")}
-              aria-pressed={settingsOpen}
-              title={t("Configurações")}
-            >
-              <Settings2 size={16} />
-            </button>
             <button type="button" className="icon-button" onClick={collapse} aria-label={t("Recolher (Esc)")} title={t("Recolher (Esc)")}>
               <CollapseIcon size={17} />
             </button>
           </div>
-        </header>
+        </aside>
 
-        {settingsOpen ? (
-          <>
-            <div className="subheader">
-              <h2>{t("Configurações")}</h2>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setSettingsOpen(false)}
-                aria-label={t("Fechar configurações")}
-              >
-                <X size={15} />
-              </button>
-            </div>
+        <section className="panel-main">
+          <header className="panel-main__head" data-tauri-drag-region>
+            <h1 data-tauri-drag-region>
+              {settingsOpen
+                ? t(SETTINGS_TABS.find((item) => item.id === settingsTab)?.label ?? "Configurações")
+                : t(PANEL_VIEWS.find((item) => item.id === view)?.label ?? "Uso")}
+            </h1>
+            <small data-tauri-drag-region>{settingsOpen ? t("Configurações") : status}</small>
+          </header>
+
+          {settingsOpen ? (
             <SettingsPanel
               tab={settingsTab}
               onTab={setSettingsTab}
@@ -784,44 +818,9 @@ export default function App() {
               }}
               onQuit={() => void quitApp()}
               withDialog={withDialog}
+              hideTabs
             />
-          </>
-        ) : (
-          <>
-            <div className="view-tabs" role="tablist" aria-label={t("Conteúdo do painel")}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "usage"}
-                className={view === "usage" ? "is-selected" : ""}
-                onClick={() => setView("usage")}
-              >
-                {t("Uso")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "costs"}
-                className={view === "costs" ? "is-selected" : ""}
-                onClick={() => setView("costs")}
-              >
-                {t("Custos")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "prompts"}
-                className={view === "prompts" ? "is-selected" : ""}
-                onClick={() => {
-                  setView("prompts");
-                  setPromptFocusKey((key) => key + 1);
-                }}
-              >
-                Prompts
-                {promptState.prompts.length ? <small>{promptState.prompts.length}</small> : null}
-              </button>
-            </div>
-
+          ) : (
             <div className="panel-scroll" role="tabpanel">
               {view === "usage" ? (
                 <div className="usage-stack">
@@ -875,8 +874,8 @@ export default function App() {
                 />
               )}
             </div>
-          </>
-        )}
+          )}
+        </section>
 
         {showOnboarding ? (
           <Onboarding

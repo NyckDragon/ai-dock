@@ -30,7 +30,7 @@ function nativeWidth(mode: DockMode, mascot: boolean, overlayWidth: number): num
     extra =
       mode === "peek" ? Math.max(0, overlay - PEEK_WIDTH) : Math.max(MASCOT_SIZE - PILL_WIDTH, overlay - PILL_WIDTH);
   }
-  if (mode === "expanded") return 380;
+  if (mode === "expanded") return 760;
   if (mode === "peek") return PEEK_WIDTH + extra;
   if (mode === "hidden") return 12;
   return PILL_WIDTH + extra;

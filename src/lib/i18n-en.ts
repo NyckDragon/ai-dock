@@ -31,6 +31,11 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "1 conta logada errado": "1 account signed in wrong",
+  "{count} contas logadas errado": "{count} accounts signed in wrong",
+  "{count} perto do limite": "{count} near the limit",
+  "Tudo com folga": "All with room to spare",
+  "{count} ativos": "{count} active",
   "Nome de cada conta": "Name of each account",
   "Aparece no dock, no painel e na lista de contas. Deixe vazio para usar o nome padrão.": "Shown in the dock, the panel and the account list. Leave it empty to use the default name.",
   "Conta {number}": "Account {number}",
