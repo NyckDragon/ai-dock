@@ -134,6 +134,12 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
   return invoke<ProviderUsage[]>("get_provider_usage");
 }
 
+/** Antigravity slot id to the email its launcher bound it to. */
+export async function fetchAntigravityAccountPins(): Promise<Record<string, string>> {
+  if (!isTauri()) return {};
+  return invoke<Record<string, string>>("get_antigravity_account_pins");
+}
+
 export async function fetchActivity(): Promise<ProviderActivity[]> {
   if (!isTauri()) return [];
   return invoke<ProviderActivity[]>("get_provider_activity");

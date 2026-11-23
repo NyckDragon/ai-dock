@@ -161,6 +161,8 @@
 .slot-incident--minor { background: var(--warning); }
 .slot-incident--major,
 .slot-incident--critical { background: var(--danger); }
+/* The window is signed in with another account than the one it is bound to. */
+.slot-incident--account { background: var(--permission); }
 
 /* Notification pause */
 .pause-row {

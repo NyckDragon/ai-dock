@@ -174,6 +174,32 @@ pub fn get_antigravity_instances() -> Vec<AntigravityInstanceInfo> {
     all_instances
 }
 
+/// File the account launcher writes in each account folder, holding only the
+/// email that account is bound to. It is not a credential.
+const ACCOUNT_PIN_FILE: &str = ".conta_vinculada";
+
+/// The account folder holds the pin; `state_root` is that folder, or its
+/// `.gemini` or `.gemini/antigravity` subfolder.
+fn read_account_pin(state_root: &Path) -> Option<String> {
+    state_root
+        .ancestors()
+        .take(3)
+        .find_map(|dir| std::fs::read_to_string(dir.join(ACCOUNT_PIN_FILE)).ok())
+        .map(|text| text.trim().to_lowercase())
+        .filter(|email| email.contains('@') && !email.contains(char::is_whitespace))
+}
+
+/// Slot id to the email its launcher bound it to. The dock compares it with the
+/// email Antigravity reports, to warn when a window opened with another account.
+#[tauri::command]
+pub fn get_antigravity_account_pins() -> HashMap<String, String> {
+    get_antigravity_instances()
+        .into_iter()
+        .filter(|instance| !instance.slot_id.starts_with("antigravity-openbot"))
+        .filter_map(|instance| read_account_pin(&instance.state_root).map(|pin| (instance.slot_id, pin)))
+        .collect()
+}
+
 /// OpenBot account folder to the dock slot it was matched to, kept for the run so
 /// activity can light the right slot between quota refreshes.
 static OPENBOT_SLOTS: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
@@ -1655,6 +1681,22 @@ mod tests {
         assert!(!is_openbot_server(exe, &format!("{exe} --version")));
         let ide = r"c:\users\ana\appdata\local\programs\antigravity\antigravity.exe";
         assert!(!is_openbot_server(ide, &format!("{ide} acp")));
+    }
+
+    #[test]
+    fn the_account_pin_is_found_from_any_state_folder_of_the_account() {
+        let account = std::env::temp_dir().join(format!("ai-dock-pin-{}", std::process::id()));
+        let state = account.join(".gemini").join("antigravity");
+        std::fs::create_dir_all(&state).unwrap();
+        assert_eq!(read_account_pin(&state), None);
+
+        std::fs::write(account.join(ACCOUNT_PIN_FILE), " Ana@Example.com \r\n").unwrap();
+        assert_eq!(read_account_pin(&state).as_deref(), Some("ana@example.com"));
+        assert_eq!(read_account_pin(&account).as_deref(), Some("ana@example.com"));
+
+        std::fs::write(account.join(ACCOUNT_PIN_FILE), "not an email").unwrap();
+        assert_eq!(read_account_pin(&state), None);
+        let _ = std::fs::remove_dir_all(&account);
     }
 
     #[test]

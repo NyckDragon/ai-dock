@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
+import { wrongAccount } from "../lib/accounts";
 import { waitKind, type WaitKind } from "../lib/finish";
 import { t } from "../lib/i18n";
 import {
@@ -260,7 +261,8 @@ function slotLabel(
     activity?.state === "waiting" ? ", " + t("esperando você") : activity?.state === "working" ? ", " + t("trabalhando") : "";
   const stale = provider.stale && remaining != null ? " (" + t("última leitura, não atualizou") + ")" : "";
   const incident = status ? " · " + statusText(status) : "";
-  return provider.name + ": " + quota + stale + state + incident;
+  const account = wrongAccount(provider) ? " · " + t("logada em outra conta") : "";
+  return provider.name + ": " + quota + stale + state + incident + account;
 }
 
 /** One quota mark lights with the warning. Several families light only the named pool. */
@@ -514,7 +516,11 @@ function PillSlot({
   const tone = quotaTone(effectiveRemaining);
   const label = percentLabel(effectiveRemaining, display, provider.id, showSign);
   const aria = slotLabel(provider, effectiveRemaining, display, activity, status);
-  const incident = status ? <i className={"slot-incident slot-incident--" + status.level} aria-hidden="true" /> : null;
+  const incident = wrongAccount(provider) ? (
+    <i className="slot-incident slot-incident--account" aria-hidden="true" />
+  ) : status ? (
+    <i className={"slot-incident slot-incident--" + status.level} aria-hidden="true" />
+  ) : null;
   const degrees = effectiveRemaining == null ? 0 : shownPercent(effectiveRemaining, display, provider.id) * 3.6;
 
   let body;

@@ -35,6 +35,8 @@ export type ProviderUsage = {
   connected: boolean;
   plan?: string | null;
   email?: string | null;
+  /** Antigravity: the email this account's launcher bound it to. */
+  expectedEmail?: string | null;
   windows: UsageWindow[];
   error?: string | null;
   /** True when the windows are the last good reading, kept after a failed refresh. */

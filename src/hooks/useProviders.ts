@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadHistory, recordHistory, type UsageHistory } from "../lib/history";
 import { loadProviderCache, saveProviderCache } from "../lib/providerCache";
 import { mergeProviderSnapshots } from "../lib/snapshots";
-import { fetchUsage } from "../lib/tauri";
+import { withAccountPins } from "../lib/accounts";
+import { fetchAntigravityAccountPins, fetchUsage } from "../lib/tauri";
 import type { ProviderUsage } from "../types";
 
 const MAX_BACKOFF = 4;
@@ -59,7 +60,8 @@ export function useProviders(refreshMinutes: number) {
 
       const job = (async () => {
         try {
-          const next = await fetchUsage();
+          const pins = fetchAntigravityAccountPins().catch(() => ({}));
+          const next = withAccountPins(await fetchUsage(), await pins);
           const updatedAt = Date.now();
           setProviders((current) => {
             const merged = mergeProviderSnapshots(current, next, updatedAt);

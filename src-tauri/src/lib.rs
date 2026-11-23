@@ -48,6 +48,7 @@ pub fn run() {
             commands::focus::return_focus,
             commands::obsidian::scan_obsidian_prompts,
             commands::providers::get_provider_usage,
+            commands::antigravity::get_antigravity_account_pins,
             commands::activity::get_provider_activity,
             commands::providers::provider_setup_status,
             commands::providers::install_provider_cli,

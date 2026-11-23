@@ -29,6 +29,9 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "logada em outra conta": "signed in to another account",
+  "Esta janela está logada em {live}, mas a conta vinculada é {expected}. Saia e entre com a conta vinculada.":
+    "This window is signed in as {live}, but it is bound to {expected}. Sign out and sign in with the bound account.",
   "não conectado": "not connected",
   "sem dados de quota": "no quota data",
   "trabalhando": "working",

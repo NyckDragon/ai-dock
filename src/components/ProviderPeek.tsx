@@ -1,4 +1,5 @@
 import { forwardRef, Fragment } from "react";
+import { wrongAccount } from "../lib/accounts";
 import { formatAge } from "../lib/format";
 import { t, tr, trLabel } from "../lib/i18n";
 import type { PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
@@ -53,6 +54,15 @@ export const ProviderPeek = forwardRef<
       </div>
 
       {incident ? <StatusBadge status={incident} /> : null}
+
+      {wrongAccount(provider) ? (
+        <div className="notice notice--error">
+          {t("Esta janela está logada em {live}, mas a conta vinculada é {expected}. Saia e entre com a conta vinculada.", {
+            live: provider.email ?? "",
+            expected: provider.expectedEmail ?? ""
+          })}
+        </div>
+      ) : null}
 
       {provider.error ? (
         <div className={"notice " + (provider.stale || SOFT_NOTICES.has(provider.error) ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
