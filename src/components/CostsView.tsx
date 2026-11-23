@@ -4,7 +4,7 @@ import { formatTokens, formatUsd, summarizeCosts, type CostDay, type CostGroup }
 import { intlLocale, t, tr } from "../lib/i18n";
 import type { CostReport } from "../types";
 import { Segmented } from "./controls";
-import { ProviderIcon } from "./ProviderIcon";
+import { brandColorClass, ProviderIcon } from "./ProviderIcon";
 
 const RANGES = [1, 3, 7, 30] as const;
 const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", antigravity: "Antigravity" };
@@ -105,7 +105,7 @@ function GroupTable({
                     {iconId ? <ProviderIcon providerId={iconId} size={14} brand /> : null}
                     <span title={group.key}>{label ? label(group.key) : group.key}</span>
                   </span>
-                  <span className="cost-table__bar" aria-hidden="true">
+                  <span className={"cost-table__bar" + (iconId ? " cost-table__bar--brand " + brandColorClass(iconId) : "")} aria-hidden="true">
                     <i style={{ width: ((group.cost || group.tokens) / max) * 100 + "%" }} />
                   </span>
                 </th>

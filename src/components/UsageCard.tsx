@@ -6,7 +6,7 @@ import { t, tr, trLabel } from "../lib/i18n";
 import { balanceReading, displayWord, featuredWindow, quotaTone, shownPercent } from "../lib/quota";
 import type { HeadlineWindow, HistoryRange, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
 import { Sparkline } from "./Sparkline";
 import { StatusBadge } from "./StatusBadge";
@@ -43,7 +43,8 @@ export const UsageCard = forwardRef<
       )
     : undefined;
   const displayKindUsed = shown ? shownPercent(0, display, provider.id) === 100 : false;
-  const showTrend = Boolean(shown) && (provider.windows.length > 1 || (trend?.length || 0) > 1);
+  // Only a real history earns the line: an empty chart is noise.
+  const showTrend = Boolean(shown) && (trend?.length || 0) > 1;
 
   return (
     <article
@@ -53,7 +54,7 @@ export const UsageCard = forwardRef<
     >
       <div className="usage-card__top">
         <div className="usage-card__identity">
-          <ProviderIcon providerId={provider.id} size={18} brand />
+          <ProviderChip providerId={provider.id} />
           <div>
             <div className="usage-card__name">{provider.name}</div>
             {provider.stale ? (
@@ -87,7 +88,7 @@ export const UsageCard = forwardRef<
       {shown && showTrend ? (
         <div className="usage-card__trend">
           <span>
-            {provider.windows.length > 1 ? t("Em destaque: {window}", { window: trLabel(shown.label) }) : RANGE_TEXT[historyRange]()}
+            {RANGE_TEXT[historyRange]()}
           </span>
           <Sparkline
             points={trend}

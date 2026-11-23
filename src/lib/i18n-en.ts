@@ -6,7 +6,8 @@ export const EN: Record<string, string> = {
   // Panel, header and tabs
   "AI Dock oculto. Passe o mouse para mostrar.": "AI Dock hidden. Hover to show it.",
   "Abrir no painel": "Open in panel",
-  "Tempo da janela que já passou": "Time of the window already gone by",
+  "O traço branco marca o tempo: já passou {time}% desta janela e você usou {used}%. Se a barra passar do traço, o ritmo está acima do normal.":
+    "The white mark is time: {time}% of this window has gone by and you used {used}%. If the bar passes the mark, you are going faster than normal.",
   "Abrir painel": "Open panel",
   "Abrir painel do AI Dock": "Open the AI Dock panel",
   "Aguardando leitura": "Waiting for a reading",
@@ -30,6 +31,12 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "Contas do Antigravity": "Antigravity accounts",
+  "Sessão de 5h de cada conta": "Each account's 5h session",
+  "Use agora": "Use now",
+  "mais folga até o reset": "most room until the reset",
+  "fechado": "closed",
+  "conta errada": "wrong account",
   "logada em outra conta": "signed in to another account",
   "Esta janela está logada em {live}, mas a conta vinculada é {expected}. Saia e entre com a conta vinculada.":
     "This window is signed in as {live}, but it is bound to {expected}. Sign out and sign in with the bound account.",

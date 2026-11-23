@@ -4,7 +4,7 @@ import { formatAge } from "../lib/format";
 import { t, tr, trLabel } from "../lib/i18n";
 import type { PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
 import { StatusBadge } from "./StatusBadge";
 
@@ -41,7 +41,7 @@ export const ProviderPeek = forwardRef<
     <aside ref={ref} className="provider-peek" onClick={onOpen} aria-label={provider.name}>
       <div className="provider-peek__head">
         <span className="provider-peek__brand">
-          <ProviderIcon providerId={provider.id} size={18} brand />
+          <ProviderChip providerId={provider.id} />
           <span>
             <strong>{provider.name}</strong>
             <small>

@@ -6,6 +6,7 @@ import "./styles/panel.css";
 import "./styles/prompts.css";
 import "./styles/settings.css";
 import "./styles/costs.css";
+import "./styles/theme-a.css";
 import App from "./App";
 
 async function start() {

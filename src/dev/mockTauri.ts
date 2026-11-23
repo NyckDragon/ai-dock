@@ -66,13 +66,37 @@ const usage = [
   }
 ];
 
+function demoCosts() {
+  const day = (back: number) => new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10);
+  const rows = [
+    ["claude", "claude-opus-5-5", "ai-dock", 8.4],
+    ["claude", "claude-sonnet-5-5", "site-medina", 3.1],
+    ["codex", "gpt-6-codex", "ai-dock", 2.2],
+    ["claude", "claude-opus-5-5", "nave-seguidores", 5.6],
+    ["codex", "gpt-6-codex", "dm-automation", 1.4]
+  ] as const;
+  return Array.from({ length: 7 }, (_, back) =>
+    rows.map(([provider, model, project, cost], index) => ({
+      date: day(back),
+      provider,
+      model,
+      project,
+      inputTokens: 120_000 * (index + 1),
+      outputTokens: 18_000 * (index + 1),
+      cacheWriteTokens: 40_000,
+      cacheReadTokens: 900_000,
+      costUsd: Math.round(cost * (1 + ((back * 7 + index) % 5) / 6) * 100) / 100
+    }))
+  ).flat();
+}
+
 const handlers: Record<string, Handler> = {
   get_provider_usage: () => usage,
   get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
   get_provider_activity: () => [],
   get_provider_status: () => [],
   get_monitors: () => [{ index: 0, name: "Tela 1", width: 1920, height: 1080, scaleFactor: 1 }],
-  get_local_costs: () => ({ entries: [], prices: "none", files: 0 }),
+  get_local_costs: () => ({ entries: demoCosts(), prices: "online", files: 42 }),
   provider_setup_status: () => ({ installed: true, authenticated: true, version: "demo", npmAvailable: true }),
   claude_web_status: () => usage[0],
   scan_obsidian_prompts: () => []

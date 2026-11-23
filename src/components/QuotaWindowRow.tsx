@@ -1,6 +1,6 @@
 import { absoluteDate, formatPace, formatReset } from "../lib/format";
 import { t, trLabel } from "../lib/i18n";
-import { clampPercent, displayWord, quotaTone, shownPercent, timeMarkPercent, windowPace } from "../lib/quota";
+import { clampPercent, displayWord, quotaTone, shownPercent, timeMarkPercent, windowElapsedPercent, windowPace } from "../lib/quota";
 import type { PercentDisplay, UsageWindow } from "../types";
 
 export function QuotaWindowRow({
@@ -37,6 +37,14 @@ export function QuotaWindowRow({
   const tone = quotaTone(remaining);
   const pace = stale ? null : formatPace(windowPace(window, now));
   const timeMark = stale ? null : timeMarkPercent(window, display, providerId, now);
+  const elapsed = timeMark == null ? null : windowElapsedPercent(window, now);
+  const markHint =
+    elapsed == null
+      ? undefined
+      : t("O traço branco marca o tempo: já passou {time}% desta janela e você usou {used}%. Se a barra passar do traço, o ritmo está acima do normal.", {
+          time: String(Math.round(elapsed)),
+          used: String(Math.round(100 - remaining))
+        });
   const exact = absoluteDate(window.resetAt);
   const label = trLabel(window.label);
 
@@ -74,6 +82,7 @@ export function QuotaWindowRow({
         aria-valuemax={100}
         aria-valuenow={value}
         aria-valuetext={value + "% " + word}
+        title={markHint}
       >
         <i
           style={{
@@ -85,7 +94,6 @@ export function QuotaWindowRow({
           <b
             className="quota-track__tick"
             style={{ left: timeMark + "%" }}
-            title={t("Tempo da janela que já passou")}
             aria-hidden="true"
           />
         ) : null}

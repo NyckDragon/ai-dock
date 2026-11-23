@@ -10,6 +10,8 @@ import { PromptLibrary } from "./components/PromptLibrary";
 import { ProviderPeek } from "./components/ProviderPeek";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
+import { AccountsOverview } from "./components/AccountsOverview";
+import { antigravityAccounts } from "./lib/accountsOverview";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
 import { useDockWindow } from "./hooks/useDockWindow";
@@ -823,6 +825,7 @@ export default function App() {
             <div className="panel-scroll" role="tabpanel">
               {view === "usage" ? (
                 <div className="usage-stack">
+                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setFocusProvider} />
                   {visibleProviders.length === 0 && loading
                     ? [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
                     : visibleProviders.map((provider) => (

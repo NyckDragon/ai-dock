@@ -13,6 +13,27 @@ const ICONS: Record<string, string> = {
   "antigravity-argon": "/provider-icons/gemini.svg"
 };
 
+/** The brand a provider id belongs to: "antigravity-3" is Antigravity, "grok-bot" is Grok. */
+function brandOf(normalized: string) {
+  if (normalized.startsWith("antigravity")) return "antigravity";
+  if (normalized.startsWith("grok")) return "grok";
+  return normalized.replace(/[^a-z0-9-]/g, "");
+}
+
+/** Class that sets `color` to the provider's brand color. */
+export function brandColorClass(providerId: string) {
+  return "provider-brand--" + brandOf(providerId.toLowerCase());
+}
+
+/** The provider icon on a tinted chip in its brand color, for card headers. */
+export function ProviderChip({ providerId, size = 18 }: { providerId: string; size?: number }) {
+  return (
+    <span className={"provider-chip " + brandColorClass(providerId)} aria-hidden="true">
+      <ProviderIcon providerId={providerId} size={size} />
+    </span>
+  );
+}
+
 export function ProviderIcon({
   providerId,
   size = 18,

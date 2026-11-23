@@ -1,0 +1,295 @@
+/* Direction A ("vidro na borda"), applied to the whole app: the pill, the hover
+   card, the open panel, settings and the first-run tour share one surface
+   language. Loaded last, so it refines the base styles without rewriting them.
+
+   Rules:
+   - one panel surface; cards inside it are a lighter layer, never boxes in boxes;
+   - a 1px light line on top of each glass surface, hairline borders elsewhere;
+   - the number is the loudest thing on a card; labels and meta are quiet;
+   - every provider is recognised by its brand color chip;
+   - controls are 32px+ tall, segmented controls look like one piece. */
+
+:root {
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --chip-size: 34px;
+  --card-surface: color-mix(in srgb, var(--text) 4%, transparent);
+  --card-surface-hover: color-mix(in srgb, var(--text) 6.5%, transparent);
+  --card-border: color-mix(in srgb, var(--text) 8%, transparent);
+  --hairline: color-mix(in srgb, var(--text) 7%, transparent);
+  --top-light: inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+}
+
+/* ---------- Surfaces ---------- */
+.dock-panel {
+  background: var(--bg-panel);
+  border-color: var(--card-border);
+  box-shadow: var(--top-light);
+}
+:root[data-glass="on"] .dock-panel { backdrop-filter: blur(28px) saturate(1.4); }
+.provider-peek {
+  border-radius: 18px;
+  border-color: var(--card-border);
+  box-shadow: var(--top-light);
+}
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-pill { backdrop-filter: blur(24px) saturate(1.4); }
+
+/* ---------- Header ---------- */
+.app-header {
+  height: 60px;
+  padding: 0 10px 0 16px;
+  border-bottom-color: var(--hairline);
+}
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.brand-name { font-size: 15px; }
+.header-actions { gap: 2px; }
+.app-header .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-3);
+}
+.app-header .icon-button:hover { background: var(--card-surface-hover); color: var(--text); }
+.app-header .icon-button.is-active { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+
+/* ---------- Tabs and segmented controls: one piece ---------- */
+.view-tabs,
+.tabs,
+.segmented {
+  padding: 3px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.view-tabs { margin: 12px 14px 0; }
+.view-tabs button,
+.tabs button,
+.segmented button {
+  height: 32px;
+  border-radius: 9px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.view-tabs button.is-selected,
+.tabs button.is-selected,
+.segmented button.is-selected {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+  box-shadow: var(--top-light);
+}
+
+/* ---------- Usage cards ---------- */
+.panel-scroll { padding: 14px 14px 18px; }
+.usage-stack { gap: 8px; }
+.usage-card {
+  padding: 14px 14px 12px;
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  transition: background var(--dur-fast) ease, border-color 400ms ease, box-shadow 400ms ease;
+}
+.usage-card:hover { background: var(--card-surface-hover); }
+.usage-card.is-highlighted { border-color: var(--accent-border); }
+.usage-card__identity { gap: 11px; }
+.provider-chip {
+  width: var(--chip-size);
+  height: var(--chip-size);
+  flex: 0 0 var(--chip-size);
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+}
+.provider-chip .provider-icon { color: inherit; }
+.usage-card__name { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
+.usage-card__status { margin-top: 2px; color: var(--text-3); }
+.usage-card__status svg { color: var(--good); }
+.usage-card__status.is-off svg { color: var(--text-3); }
+.usage-card__headline strong { font-size: 30px; letter-spacing: -.03em; }
+.usage-card__headline small { margin-top: 4px; }
+.usage-card__trend { margin-top: 10px; }
+.usage-card__windows {
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* One quota window */
+.quota-row { gap: 6px; }
+.quota-row__labels { font-size: var(--fs-sm); color: var(--text-2); }
+.quota-row__labels strong { font-size: var(--fs-sm); }
+.quota-track { height: 8px; }
+.quota-row--compact .quota-track { height: 6px; }
+.quota-track__tick { top: -4px; bottom: -4px; width: 2px; }
+.quota-row__meta { font-size: var(--fs-2xs); }
+
+/* ---------- Hover card ---------- */
+.provider-peek { padding: 16px; }
+.provider-peek__brand { gap: 11px; }
+.provider-peek__brand strong { font-size: 15px; }
+.provider-peek__windows { gap: 14px; }
+.provider-peek__divider { background: var(--hairline); }
+.provider-peek__open {
+  height: 36px;
+  border-radius: var(--radius-control);
+  background: var(--card-surface);
+}
+.provider-peek__open:hover { background: var(--card-surface-hover); }
+
+/* ---------- Notices and buttons ---------- */
+.notice { border-radius: 12px; padding: 10px 12px; }
+.button { height: 36px; border-radius: var(--radius-control); border-color: var(--card-border); }
+.button--small { height: 30px; }
+.empty-state { border-radius: var(--radius-card); border-color: var(--card-border); background: var(--card-surface); }
+
+/* ---------- Settings: grouped cards, like a native settings menu ---------- */
+.settings .tabs { margin: 8px 14px 0; }
+.settings .panel-scroll { padding-top: 16px; }
+.settings-group {
+  margin-bottom: 18px;
+  padding: 0;
+  border-top: 0;
+}
+.settings-group:first-child { padding-top: 0; }
+.settings-label {
+  margin: 0 4px 8px;
+  font-size: var(--fs-2xs);
+  letter-spacing: .07em;
+  color: var(--text-3);
+}
+/* The rows of a group sit on one card. */
+.settings-group > .setting-row,
+.settings-group > .select-setting-row,
+.settings-group > .mascot-row,
+.settings-group > .pause-row,
+.settings-group > .provider-list {
+  padding-left: 14px;
+  padding-right: 14px;
+  background: var(--card-surface);
+}
+.settings-group > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row, .provider-list):first-of-type {
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+}
+.settings-group > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row, .provider-list):last-of-type {
+  border-bottom-left-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+}
+.setting-row + .setting-row,
+.select-setting-row + .select-setting-row,
+.mascot-row + .setting-row { border-top-color: var(--hairline); }
+.setting-row,
+.select-setting-row { min-height: 56px; }
+.setting-row__copy strong,
+.select-setting-row__copy strong { font-size: var(--fs-sm); font-weight: 600; }
+.settings .hint { margin: 8px 4px 0; }
+.settings .segmented-title { margin: 14px 4px 8px; font-weight: 600; }
+.select-input {
+  height: 34px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: var(--card-border);
+}
+.switch { width: 40px; height: 24px; }
+.mode-picker button {
+  border-radius: 12px;
+  background: var(--card-surface);
+  border-color: transparent;
+}
+.mode-picker button:hover { background: var(--card-surface-hover); border-color: transparent; }
+.mode-picker button.is-selected { background: var(--accent-soft); border-color: var(--accent-border); }
+.mode-preview { border-radius: var(--radius-card); }
+
+/* ---------- First-run tour ---------- */
+.onboarding { padding: 26px 20px 20px; }
+.onboarding h2 { font-size: 22px; letter-spacing: -.01em; }
+.detect-list li {
+  border-color: transparent;
+  border-radius: 12px;
+  background: var(--card-surface);
+}
+
+/* ---------- Antigravity accounts side by side ---------- */
+.accounts {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.accounts__head { display: flex; align-items: center; gap: 11px; }
+.accounts__head > div { display: grid; gap: 2px; }
+.accounts__head strong { font-size: 15px; font-weight: 600; }
+.accounts__head small { font-size: var(--fs-2xs); color: var(--text-3); }
+.accounts__best {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--good) 35%, transparent);
+  border-radius: 12px;
+  background: var(--good-soft);
+  color: var(--text);
+  text-align: left;
+}
+.accounts__best span { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+.accounts__best strong { font-size: var(--fs-md); font-weight: 700; }
+.accounts__best small { margin-left: auto; font-size: var(--fs-2xs); color: var(--text-3); }
+.accounts__grid { display: grid; gap: 6px; }
+.accounts__item {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  text-align: left;
+}
+.accounts__item:hover { background: var(--card-surface-hover); }
+.accounts__item.is-best { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.accounts__item.is-wrong { border-color: color-mix(in srgb, var(--permission) 55%, transparent); }
+.accounts__item.is-off { opacity: .55; }
+.accounts__item > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.accounts__pool { display: grid; gap: 4px; }
+.accounts__pool small { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-3); }
+.accounts__pool b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.accounts__track { display: block; height: 5px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.accounts__track > i { display: block; height: 100%; border-radius: inherit; }
+.accounts__note { font-size: 11px; color: var(--text-3); }
+.accounts__note--wrong { color: var(--permission); font-weight: 600; }
+
+/* ---------- Costs ---------- */
+.costs { gap: 14px; }
+.cost-hero {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.cost-hero strong { font-size: 34px; letter-spacing: -.03em; }
+.cost-chart {
+  padding: 12px 12px 8px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.cost-chart__slot i { border-radius: 6px 6px 3px 3px; }
+.cost-table {
+  padding: 12px 14px 6px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.cost-table .settings-label { margin: 0 0 4px; }
+.cost-table tr + tr th,
+.cost-table tr + tr td { border-top-color: var(--hairline); }
+.cost-table__bar { height: 5px; }
+.cost-table__bar--brand i { background: currentColor; opacity: .9; }
