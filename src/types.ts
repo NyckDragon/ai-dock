@@ -151,6 +151,10 @@ export type Settings = {
   notificationsPausedUntil: number | null;
   language: Language;
   historyRange: HistoryRange;
+  /** Columns of the usage list in the open panel. */
+  usageColumns: 1 | 2;
+  /** Usage cards the user folded down to their headline. */
+  collapsedCards: string[];
   antigravityGroupMode: AntigravityGroupMode;
   activityIndicator: ActivityIndicator;
   pulseActiveBar: boolean;

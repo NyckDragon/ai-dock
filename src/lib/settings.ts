@@ -51,6 +51,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsPausedUntil: null,
   language: "auto",
   historyRange: "24h",
+  usageColumns: 2,
+  collapsedCards: [],
   antigravityGroupMode: "bars",
   activityIndicator: "sweep",
   pulseActiveBar: true,
@@ -139,6 +141,10 @@ function normalize(value: Partial<Settings>): Settings {
     glassEnabled: merged.glassEnabled === true,
     glassOpacity: clampGlass(merged.glassOpacity),
     historyRange: ["24h", "7d", "30d"].includes(merged.historyRange) ? merged.historyRange : "24h",
+    usageColumns: merged.usageColumns === 1 ? 1 : 2,
+    collapsedCards: Array.isArray(merged.collapsedCards)
+      ? merged.collapsedCards.filter((id: unknown): id is string => typeof id === "string")
+      : [],
     notificationsPausedUntil:
       typeof merged.notificationsPausedUntil === "number" && merged.notificationsPausedUntil > Date.now()
         ? merged.notificationsPausedUntil

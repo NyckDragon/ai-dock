@@ -501,8 +501,12 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   animation: sweep 1.2s linear infinite;
   pointer-events: none;
 }
-.gauge--circle[data-activity="working"]::after { border-radius: 50%; }
-.gauge--concentric[data-activity="working"]::after { inset: -3px; border-radius: 50%; }
+/* The glow follows the shape of the gauge: round gauges get a round ring.
+   Same specificity as the rules above, so the shape always wins. */
+.dock-pill[data-activity-indicator="sweep"] .gauge--circle[data-activity="working"]::after,
+.gauge--circle[data-activity-indicator="sweep"][data-activity="working"]::after { border-radius: 50%; }
+.dock-pill[data-activity-indicator="sweep"] .gauge--concentric[data-activity="working"]::after,
+.gauge--concentric[data-activity-indicator="sweep"][data-activity="working"]::after { inset: -3px; border-radius: 50%; }
 
 /* Pulse activity indicator: calm, soothing sinusoidal breath (2.6s) */
 @keyframes icon-breathe {

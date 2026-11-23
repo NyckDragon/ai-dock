@@ -13,6 +13,7 @@ async function start() {
   const params = new URLSearchParams(location.search);
   if (import.meta.env.DEV && params.has("demo")) {
     (await import("./dev/mockTauri")).installDemoBridge();
+    if (params.has("audit")) (await import("./dev/uiAudit")).installUiAudit();
     const design = params.get("design");
     if (design) {
       await import("./dev/designs.css");

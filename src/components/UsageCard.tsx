@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, History } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, History } from "lucide-react";
 import { forwardRef } from "react";
 import { formatAge } from "../lib/format";
 import { historyKey, pointsInRange, type UsageHistory } from "../lib/history";
@@ -30,8 +30,14 @@ export const UsageCard = forwardRef<
     now: number;
     highlighted?: boolean;
     onConnect?: () => void;
+    /** Folded down to the name and the big number. */
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
   }
->(function UsageCard({ provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect }, ref) {
+>(function UsageCard(
+  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse },
+  ref
+) {
   const shown = featuredWindow(provider, featured);
   const balance = balanceReading(provider);
   const headline = shown ? shownPercent(shown.remainingPercent, display, provider.id) : null;
@@ -49,7 +55,7 @@ export const UsageCard = forwardRef<
   return (
     <article
       ref={ref}
-      className={"usage-card" + (highlighted ? " is-highlighted" : "") + (provider.stale ? " is-stale" : "")}
+      className={"usage-card" + (highlighted ? " is-highlighted" : "") + (provider.stale ? " is-stale" : "") + (collapsed ? " is-collapsed" : "")}
       aria-label={provider.name}
     >
       <div className="usage-card__top">
@@ -83,8 +89,21 @@ export const UsageCard = forwardRef<
             <small>{displayWord(display, provider.id)}</small>
           </div>
         ) : null}
+        {onToggleCollapse ? (
+          <button
+            type="button"
+            className="usage-card__fold"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? t("Mostrar detalhes de {name}", { name: provider.name }) : t("Recolher {name}", { name: provider.name })}
+            onClick={onToggleCollapse}
+          >
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
+      {collapsed ? null : (
+      <>
       {shown && showTrend ? (
         <div className="usage-card__trend">
           <span>
@@ -120,6 +139,8 @@ export const UsageCard = forwardRef<
       ) : null}
 
       <ActivityBlock activity={activity} now={now} />
+      </>
+      )}
     </article>
   );
 });

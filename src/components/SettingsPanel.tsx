@@ -817,6 +817,19 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
         ) : null}
       </Group>
 
+      <Group title={t("Painel aberto")}>
+        <Segmented
+          label={t("Cartões por linha no Uso")}
+          value={String(settings.usageColumns)}
+          onChange={(value) => update({ usageColumns: value === "1" ? 1 : 2 })}
+          options={[
+            { value: "1", label: t("1 por linha") },
+            { value: "2", label: t("2 por linha") }
+          ]}
+        />
+        <p className="hint">{t("Com 2 por linha, os cartões se encaixam sem deixar buraco. Clique na seta de um cartão para recolher.")}</p>
+      </Group>
+
       <Group title={t("Histórico no card")}>
         <Segmented
           label={t("Período do gráfico de histórico")}
@@ -1100,9 +1113,12 @@ function GeneralTab({
       </Group>
 
       <Group title={t("Sobre")}>
-        <p className="hint">
-          AI Dock {version ? "v" + version : ""} · {t("quota das IAs e prompts do Obsidian.")}
-        </p>
+        <div className="about-row">
+          <span className="setting-row__copy">
+            <strong>AI Dock {version ? "v" + version : ""}</strong>
+            <small>{t("Quota das IAs e prompts do Obsidian.")}</small>
+          </span>
+        </div>
         <div className="button-row">
           <button type="button" className="button button--ghost" onClick={onReplayOnboarding}>
             {t("Rever introdução")}

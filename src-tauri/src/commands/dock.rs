@@ -103,7 +103,8 @@ struct DockLayout {
 #[allow(clippy::too_many_arguments)]
 fn dock_rect(
     side: &str,
-    mode: &str,
+    // Every mode touches the edge now; kept so callers and tests stay readable.
+    _mode: &str,
     screen: Screen,
     scale: f64,
     logical_width: f64,

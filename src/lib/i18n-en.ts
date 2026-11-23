@@ -31,6 +31,13 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "Painel aberto": "Open panel",
+  "Cartões por linha no Uso": "Cards per row in Usage",
+  "1 por linha": "1 per row",
+  "2 por linha": "2 per row",
+  "Com 2 por linha, os cartões se encaixam sem deixar buraco. Clique na seta de um cartão para recolher.": "With 2 per row, the cards fit together without gaps. Click a card's arrow to fold it.",
+  "Mostrar detalhes de {name}": "Show details of {name}",
+  "Recolher {name}": "Fold {name}",
   "1 conta logada errado": "1 account signed in wrong",
   "{count} contas logadas errado": "{count} accounts signed in wrong",
   "{count} perto do limite": "{count} near the limit",
@@ -313,7 +320,7 @@ export const EN: Record<string, string> = {
   "Até amanhã": "Until tomorrow",
   "Enviar notificação de teste": "Send a test notification",
   "Sobre": "About",
-  "quota das IAs e prompts do Obsidian.": "AI quotas and Obsidian prompts.",
+  "Quota das IAs e prompts do Obsidian.": "AI quotas and Obsidian prompts.",
   "Rever introdução": "Replay introduction",
 
   // Settings: connections

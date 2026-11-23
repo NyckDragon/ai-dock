@@ -93,7 +93,23 @@ function demoCosts() {
 const handlers: Record<string, Handler> = {
   get_provider_usage: () => usage,
   get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
-  get_provider_activity: () => [],
+  get_provider_activity: () => [
+    {
+      providerId: "claude",
+      state: "working",
+      confidence: "high",
+      sessions: [
+        { id: "c1", title: "ai-dock", detail: "Editando theme-a.css", state: "working", since: Date.now() - 60_000 },
+        { id: "c2", title: "site-medina", detail: "Rodando testes", state: "working", since: Date.now() - 240_000 }
+      ]
+    },
+    {
+      providerId: "codex",
+      state: "working",
+      confidence: "high",
+      sessions: [{ id: "x1", title: "Agent Pauli", detail: "Executando tarefa", state: "working", since: Date.now() - 30_000 }]
+    }
+  ],
   get_provider_status: () => [],
   get_monitors: () => [{ index: 0, name: "Tela 1", width: 1920, height: 1080, scaleFactor: 1 }],
   get_local_costs: () => ({ entries: demoCosts(), prices: "online", files: 42 }),

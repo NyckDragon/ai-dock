@@ -823,7 +823,7 @@ export default function App() {
           ) : (
             <div className="panel-scroll" role="tabpanel">
               {view === "usage" ? (
-                <div className="usage-stack">
+                <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
                   <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setFocusProvider} />
                   {visibleProviders.length === 0 && loading
                     ? [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
@@ -844,6 +844,14 @@ export default function App() {
                           now={now}
                           highlighted={focusProvider === provider.id}
                           onConnect={provider.id === "claude" ? reconnectClaude : undefined}
+                          collapsed={settings.collapsedCards.includes(provider.id)}
+                          onToggleCollapse={() =>
+                            update({
+                              collapsedCards: settings.collapsedCards.includes(provider.id)
+                                ? settings.collapsedCards.filter((id) => id !== provider.id)
+                                : [...settings.collapsedCards, provider.id]
+                            })
+                          }
                         />
                       ))}
                   {visibleProviders.length === 0 && !loading ? (

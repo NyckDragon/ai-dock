@@ -480,3 +480,136 @@
 /* Costs: the totals and chart on top, the three tables side by side. */
 .dock-panel--wide .costs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dock-panel--wide .costs > :not(.cost-table) { grid-column: 1 / -1; }
+
+/* ---------- Interface standard (08_Padrao_de_Interface_UI.md) ----------
+   One rhythm inside every settings card: rows carry their own 12px padding,
+   everything else (sliders, segmented controls, option lists, buttons) gets
+   12px above and below, so nothing touches the card edge. */
+.settings-card { padding: 4px 16px; }
+.settings-card > :not(.setting-row):not(.select-setting-row):not(.mascot-row):not(.about-row):not(.hint):not(.account-names):not(.connect-card) {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.settings-card > .hint { margin: -4px 0 12px; }
+.settings-card > .hint:first-child { margin-top: 12px; }
+.settings-card .setting-row,
+.settings-card .select-setting-row { align-items: center; padding: 12px 0; }
+.settings-card .setting-row__copy,
+.settings-card .select-setting-row__copy { align-self: center; }
+.mascot-row { align-items: center; }
+.settings-card .switch { flex: 0 0 40px; align-self: center; }
+
+/* Slider rows: label, slider and button on one centered line. */
+.range-row { align-items: center; gap: 12px; min-height: 36px; }
+.range-row .button { height: 32px; }
+
+/* Option lists inside a card are rows, not cards. */
+.settings-card .option-list { gap: 0; }
+.settings-card .option {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 10px 8px;
+  margin: 0 -8px;
+}
+.settings-card .option + .option { border-top: 0; }
+.settings-card .option:hover { background: var(--card-surface-hover); }
+.settings-card .option.is-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.settings-card .mode-picker { gap: 4px; }
+.settings-card .mode-picker button { background: transparent; box-shadow: none; }
+.settings-card .mode-picker button:hover { background: var(--card-surface-hover); }
+.settings-card .mode-picker button.is-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.settings-card .mode-preview { background: color-mix(in srgb, var(--text) 3%, transparent); }
+
+/* Pause choices are one segmented control. */
+.pause-row { padding: 12px 0 0; gap: 8px; }
+.pause-row > span { font-size: var(--fs-sm); color: var(--text); }
+.pause-row__options {
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.pause-row__options .chip {
+  flex: 1 1 0;
+  height: 32px;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  font-size: var(--fs-xs);
+}
+.pause-row__options .chip:last-child { flex: 1.4 1 0; }
+.pause-row__options .chip:hover { background: var(--card-surface-hover); }
+
+/* Every button: same height, radius and centered content. */
+.button,
+.button--small,
+.button--block,
+.button--ghost,
+.button--danger,
+.button--primary { border-radius: var(--radius-control); justify-content: center; align-items: center; }
+.button { height: 36px; }
+.button-row { gap: 8px; margin: 12px 0; }
+.button-row .button { flex: 1 1 0; }
+
+/* About */
+.about-row { display: flex; align-items: center; padding: 12px 0; }
+
+/* ---------- Usage list: no gaps, user picks 1 or 2 per row, cards fold ---------- */
+.dock-panel--wide .usage-stack.usage-stack--cols-2 {
+  display: block;
+  columns: 2;
+  column-gap: 12px;
+}
+.dock-panel--wide .usage-stack--cols-2 > * {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+.dock-panel--wide .usage-stack--cols-2 > .accounts,
+.dock-panel--wide .usage-stack--cols-2 > .empty-state { column-span: all; }
+.dock-panel--wide .usage-stack.usage-stack--cols-1 { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+.usage-card__top { align-items: center; }
+.usage-card__identity { flex: 1 1 auto; min-width: 0; }
+.usage-card__identity > div { min-width: 0; }
+.usage-card__name,
+.usage-card__status {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.usage-card__headline { flex: 0 0 auto; }
+.usage-card__fold {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin: 0 -6px 0 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) ease;
+}
+.usage-card__fold:hover { background: var(--card-surface-hover); color: var(--text); }
+.usage-card.is-collapsed .usage-card__fold { transform: rotate(-90deg); }
+.usage-card.is-collapsed { padding-bottom: 14px; }
+
+/* Card head like ClaudeBar's tiles: name and status get the full width,
+   the big number sits on its own line with its word on the right. */
+.usage-card__top { flex-wrap: wrap; row-gap: 10px; }
+.usage-card__identity { order: 1; flex: 1 1 0; }
+.usage-card__fold { order: 2; }
+.usage-card__headline {
+  order: 3;
+  flex: 1 0 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  line-height: 1;
+}
+.usage-card__headline strong { font-size: 34px; }
+.usage-card__headline small { margin: 0; font-size: var(--fs-xs); }
+.usage-card.is-collapsed .usage-card__headline { margin-bottom: 0; }
