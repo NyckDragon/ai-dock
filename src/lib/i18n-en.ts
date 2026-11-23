@@ -6,6 +6,7 @@ export const EN: Record<string, string> = {
   // Panel, header and tabs
   "AI Dock oculto. Passe o mouse para mostrar.": "AI Dock hidden. Hover to show it.",
   "Abrir no painel": "Open in panel",
+  "Tempo da janela que já passou": "Time of the window already gone by",
   "Abrir painel": "Open panel",
   "Abrir painel do AI Dock": "Open the AI Dock panel",
   "Aguardando leitura": "Waiting for a reading",

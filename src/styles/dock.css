@@ -32,6 +32,9 @@
 }
 .compact-shell--right .dock-pill { right: 0; left: auto; }
 .compact-shell--left .dock-pill { left: 0; right: auto; }
+/* The pill is part of the screen edge: round and bordered only on the inner side. */
+.compact-shell--right .dock-pill { border-radius: 20px 0 0 20px; border-right-width: 0; }
+.compact-shell--left .dock-pill { border-radius: 0 20px 20px 0; border-left-width: 0; }
 
 .dock-pill {
   position: relative;
@@ -389,6 +392,22 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   color: var(--text);
 }
 .gauge--circle .gauge__face { border-radius: 50%; }
+/* Time mark on the ring: how much of the featured window has gone by. */
+.gauge__tick {
+  position: absolute;
+  z-index: 2;
+  top: -2px;
+  left: 50%;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  transform-origin: 1px 20px;
+  transform: rotate(var(--tick-angle, 0deg));
+  pointer-events: none;
+}
 .gauge--good { --ring-color: var(--good); }
 .gauge--warning { --ring-color: var(--warning); }
 .gauge--danger { --ring-color: var(--danger); }

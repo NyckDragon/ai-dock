@@ -300,3 +300,16 @@ test("an OpenBot-only Antigravity account lights its own pool slots", () => {
   assert.equal(activityForSlot(activities, "antigravity-gemini"), undefined);
   assert.equal(activityForSlot(account("antigravity-openbot2", "argon"), "antigravity-openbot2-argon")?.state, "working");
 });
+
+test("the time mark shows how much of the window has gone by", async () => {
+  const { windowElapsedPercent, timeMarkPercent } = await import("../src/lib/quota.ts");
+  const now = Date.UTC(2026, 10, 23, 12, 0, 0);
+  // A 5h session that resets in 2h: 3 of 5 hours are gone.
+  const session = { id: "session", label: "Sessão · 5h", remainingPercent: 62, resetAt: new Date(now + 2 * 3_600_000).toISOString() };
+  assert.equal(Math.round(windowElapsedPercent(session, now) ?? -1), 60);
+  assert.equal(Math.round(timeMarkPercent(session, "used", "claude", now) ?? -1), 60);
+  assert.equal(Math.round(timeMarkPercent(session, "remaining", "claude", now) ?? -1), 40);
+  // No known length or no reset: no mark.
+  assert.equal(windowElapsedPercent({ id: "balance", label: "Saldo", remainingPercent: 50, resetAt: session.resetAt }, now), null);
+  assert.equal(windowElapsedPercent({ ...session, resetAt: null }, now), null);
+});

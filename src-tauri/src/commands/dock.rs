@@ -115,11 +115,11 @@ fn dock_rect(
     let width = physical_px(logical_width, scale);
     let height = physical_px(logical_height, scale);
     let margin = physical_px(10.0, scale);
-    let edge_gap = if mode == "hidden" { 0 } else { margin };
+    // The dock is part of the screen edge: no gap on that side, in every mode.
     let x = if side == "left" {
-        screen.origin_x + edge_gap
+        screen.origin_x
     } else {
-        screen.origin_x + screen.width as i32 - width - edge_gap
+        screen.origin_x + screen.width as i32 - width
     };
     let monitor_height = (screen.height as f64).max(1.0);
     let offset = vertical_offset.clamp(-MAX_OFFSET, MAX_OFFSET) / 100.0;
@@ -996,7 +996,8 @@ mod tests {
     #[test]
     fn growth_uses_the_new_size_and_keeps_the_pill_on_the_edge() {
         let scale = 1.25;
-        let gap = super::physical_px(10.0, scale);
+        // The dock touches the screen edge.
+        let gap = 0;
         let compact = placed("right", "compact", 64.0, 364.0, 300.0, 64.0);
         let peek = placed("right", "peek", 338.0, 624.0, 300.0, 64.0);
         let signal = placed("right", "compact", 180.0, 386.0, 300.0, 86.0);

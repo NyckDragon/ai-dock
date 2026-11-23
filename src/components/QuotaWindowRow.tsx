@@ -1,6 +1,6 @@
 import { absoluteDate, formatPace, formatReset } from "../lib/format";
 import { t, trLabel } from "../lib/i18n";
-import { clampPercent, displayWord, quotaTone, shownPercent, windowPace } from "../lib/quota";
+import { clampPercent, displayWord, quotaTone, shownPercent, timeMarkPercent, windowPace } from "../lib/quota";
 import type { PercentDisplay, UsageWindow } from "../types";
 
 export function QuotaWindowRow({
@@ -36,6 +36,7 @@ export function QuotaWindowRow({
   const word = displayWord(display, providerId);
   const tone = quotaTone(remaining);
   const pace = stale ? null : formatPace(windowPace(window, now));
+  const timeMark = stale ? null : timeMarkPercent(window, display, providerId, now);
   const exact = absoluteDate(window.resetAt);
   const label = trLabel(window.label);
 
@@ -80,6 +81,14 @@ export function QuotaWindowRow({
             backgroundColor: tone === "good" && modelColor ? modelColor : undefined
           }}
         />
+        {timeMark != null ? (
+          <b
+            className="quota-track__tick"
+            style={{ left: timeMark + "%" }}
+            title={t("Tempo da janela que já passou")}
+            aria-hidden="true"
+          />
+        ) : null}
       </div>
       <div className="quota-row__meta">
         <span title={exact ? t("Reset {date}", { date: exact }) : undefined}>{formatReset(window.resetAt, now)}</span>

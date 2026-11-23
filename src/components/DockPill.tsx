@@ -24,10 +24,12 @@ import {
   clampPercent,
   displayWord,
   balanceReading,
+  featuredWindow,
   percentLabel,
   providerHeadroom,
   quotaTone,
-  shownPercent
+  shownPercent,
+  timeMarkPercent
 } from "../lib/quota";
 import type {
   ActivityIndicator,
@@ -513,6 +515,8 @@ function PillSlot({
   })();
 
   const effectiveRemaining = activeModelHeadroom ?? remaining;
+  const featured = featuredWindow(provider, headline);
+  const timeMark = featured && !provider.stale ? timeMarkPercent(featured, display, provider.id) : null;
   const tone = quotaTone(effectiveRemaining);
   const label = percentLabel(effectiveRemaining, display, provider.id, showSign);
   const aria = slotLabel(provider, effectiveRemaining, display, activity, status);
@@ -592,6 +596,9 @@ function PillSlot({
           <span className="gauge__face">
             <SlotIcon providerId={provider.id} size={mode === "ring" ? 16 : 14} signal={signal} />
           </span>
+          {mode === "ring" && timeMark != null ? (
+            <i className="gauge__tick" style={{ "--tick-angle": timeMark * 3.6 + "deg" } as CSSProperties} aria-hidden="true" />
+          ) : null}
         </span>
         <span className="slot-value">{label}</span>
       </>
