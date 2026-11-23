@@ -791,12 +791,15 @@ $all | Where-Object {
             }
         }
 
+        let state_root = state_root_from(user_data_dir);
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -830,6 +833,32 @@ fn local_ports(netstat: &str, pid: u32) -> Vec<u16> {
     ports.sort_unstable();
     ports.dedup();
     ports
+}
+
+/// Antigravity 2.34 stopped passing the server token on the command line: the
+/// server writes it, with its pid and ports, to `daemon/hub_<port>.json` in the
+/// account's state folder. The token only opens that local server.
+fn with_daemon_token(csrf: String, extension_csrf: String, state_root: Option<&Path>, pid: u32) -> (String, String) {
+    if !csrf.is_empty() {
+        return (csrf, extension_csrf);
+    }
+    let Some(token) = state_root.and_then(|root| daemon_token(&root.join("daemon"), pid)) else {
+        return (csrf, extension_csrf);
+    };
+    let extension = if extension_csrf.is_empty() { token.clone() } else { extension_csrf };
+    (token, extension)
+}
+
+fn daemon_token(daemon_dir: &Path, pid: u32) -> Option<String> {
+    std::fs::read_dir(daemon_dir)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("hub_"))
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .filter_map(|text| serde_json::from_str::<Value>(&text).ok())
+        .find(|doc| doc.get("pid").and_then(Value::as_u64) == Some(pid as u64))
+        .and_then(|doc| doc.get("csrfToken").and_then(Value::as_str).map(str::to_string))
+        .filter(|token| !token.is_empty())
 }
 
 /// The `.gemini/antigravity` folder of the account an app instance runs with. An
@@ -969,12 +998,15 @@ fn discover() -> Discovery {
             }
             parent = *next;
         }
+        let state_root = state_root_from(user_data_dir);
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -1088,12 +1120,15 @@ fn discover() -> Discovery {
             }
             parent = *next;
         }
+        let state_root = state_root_from(user_data_dir);
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -1688,6 +1723,26 @@ mod tests {
         assert!(!is_openbot_server(exe, &format!("{exe} --version")));
         let ide = r"c:\users\ana\appdata\local\programs\antigravity\antigravity.exe";
         assert!(!is_openbot_server(ide, &format!("{ide} acp")));
+    }
+
+    #[test]
+    fn the_server_token_comes_from_the_daemon_file_of_the_same_pid() {
+        let root = std::env::temp_dir().join(format!("ai-dock-daemon-{}", std::process::id()));
+        let daemon = root.join("daemon");
+        std::fs::create_dir_all(&daemon).unwrap();
+        std::fs::write(daemon.join("hub_1.json"), r#"{"pid":11,"httpsPort":1,"httpPort":2,"csrfToken":"old"}"#).unwrap();
+        std::fs::write(daemon.join("hub_3.json"), r#"{"pid":22,"httpsPort":3,"httpPort":4,"csrfToken":"live"}"#).unwrap();
+        std::fs::write(daemon.join("notes.json"), r#"{"pid":22,"csrfToken":"wrong"}"#).unwrap();
+
+        let (csrf, ext) = with_daemon_token(String::new(), String::new(), Some(&root), 22);
+        assert_eq!((csrf.as_str(), ext.as_str()), ("live", "live"));
+        // A token on the command line still wins.
+        let (csrf, _) = with_daemon_token("flag".into(), "flag".into(), Some(&root), 22);
+        assert_eq!(csrf, "flag");
+        // No file for the pid: nothing is guessed.
+        let (csrf, _) = with_daemon_token(String::new(), String::new(), Some(&root), 33);
+        assert!(csrf.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
