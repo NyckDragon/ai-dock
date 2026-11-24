@@ -31,6 +31,7 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "escala {value}%": "scale {value}%",
   "Painel aberto": "Open panel",
   "Cartões por linha no Uso": "Cards per row in Usage",
   "1 por linha": "1 per row",

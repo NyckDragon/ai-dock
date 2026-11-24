@@ -258,7 +258,7 @@
 }
 .account-name-row__input:hover { background: var(--card-surface-hover); }
 .account-name-row__input:focus { outline: none; border-color: var(--accent-border); background: color-mix(in srgb, var(--text) 6%, transparent); }
-.account-name-row__input::placeholder { color: var(--text-2); }
+.account-name-row__input::placeholder { color: var(--text); opacity: 1; }
 .account-name-row__field small {
   overflow: hidden;
   white-space: nowrap;
@@ -564,17 +564,9 @@
 .settings-card > .about-row + .button-row { border-top: 0; margin: 12px 0 14px; }
 
 /* ---------- Usage list: no gaps, user picks 1 or 2 per row, cards fold ---------- */
-.dock-panel--wide .usage-stack.usage-stack--cols-2 {
-  display: block;
-  columns: 2;
-  column-gap: 12px;
-}
-.dock-panel--wide .usage-stack--cols-2 > * {
-  break-inside: avoid;
-  margin-bottom: 12px;
-}
-.dock-panel--wide .usage-stack--cols-2 > .accounts,
-.dock-panel--wide .usage-stack--cols-2 > .empty-state { column-span: all; }
+.dock-panel--wide .usage-stack.usage-stack--cols-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.usage-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.usage-columns__col { display: grid; gap: 12px; min-width: 0; }
 .dock-panel--wide .usage-stack.usage-stack--cols-1 { display: grid; grid-template-columns: minmax(0, 1fr); }
 
 .usage-card__top { align-items: center; }
@@ -627,3 +619,89 @@
 .settings-card > .segmented + .hint { margin-top: -2px; }
 .settings-card > .hint + .segmented-title { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--hairline); }
 .settings-card > .hint + :is(.setting-row, .select-setting-row, .mascot-row) { border-top: 1px solid var(--hairline); }
+
+/* Costs in the wide panel: same surface for every block, tables keep their own
+   height, and a table left alone on its row takes the full width. */
+.cost-hero { border: 0; }
+.dock-panel--wide .costs { align-items: start; }
+.dock-panel--wide .costs > .cost-table { grid-column: 1 / -1; }
+/* Every card surface carries the same top light. */
+.usage-card,
+.accounts,
+.cost-chart,
+.cost-table,
+.cost-hero,
+.settings-card { box-shadow: var(--top-light); }
+.usage-card.is-highlighted { box-shadow: var(--top-light), 0 0 0 1px var(--accent-border); }
+
+/* ---------- Prompts: one card, rows split by hairlines ---------- */
+.prompt-list {
+  gap: 0;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.prompt-row {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+}
+.prompt-row { position: relative; }
+.prompt-row + .prompt-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--hairline);
+}
+.prompt-row.is-active,
+.prompt-row:hover { background: var(--card-surface-hover); border: 0; }
+.prompt-row.is-active { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.prompt-row.is-active::before,
+.prompt-row:hover::before,
+.prompt-row.is-active + .prompt-row::before,
+.prompt-row:hover + .prompt-row::before { display: none; }
+.search-box { border-radius: var(--radius-control); }
+/* A dependent control (glass transparency) sits close to the switch it belongs to. */
+.settings-card > .setting-row + .glass-opacity { margin-top: -2px; padding-bottom: 4px; }
+.glass-opacity .range-row { min-height: 32px; }
+/* A titled control that follows an option row starts a new unit: divider first. */
+.settings-card > :is(.setting-row, .select-setting-row, .mascot-row) + .segmented-title {
+  margin-top: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Provider list in Connections: brand chip, muted meta, only the state colored. */
+.provider-list__item { gap: 12px; padding: 8px; }
+.provider-list__item .provider-chip { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; }
+.provider-list__copy strong { font-size: var(--fs-sm); font-weight: 600; }
+.provider-list__copy small { color: var(--text-3); }
+.provider-list__copy small .is-on { color: var(--good); }
+.settings-card > .hint + .account-names { border-top: 1px solid var(--hairline); padding-top: 14px; }
+.account-name-row { padding: 10px 0; }
+.account-name-row__field { gap: 0; }
+.account-name-row__input { height: 26px; }
+.settings-card > .text-button { justify-self: start; margin: -4px 0 12px; }
+/* Hover card head: name and status on one line each, never wrapping. */
+.provider-peek__head { gap: 10px; }
+.provider-peek__brand { flex: 1 1 auto; min-width: 0; }
+.provider-peek__brand > span:last-child { display: grid; min-width: 0; }
+.provider-peek__brand strong,
+.provider-peek__brand small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* First-run tour in the wide panel: one comfortable centered column. */
+.dock-panel--wide .onboarding { align-items: center; padding: 40px 32px 28px; }
+.dock-panel--wide .onboarding > * { width: min(560px, 100%); }
+.dock-panel--wide .onboarding__actions { margin-top: auto; }
+.detect-list li { gap: 12px; padding: 8px 12px; }
+.detect-list .provider-chip { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; }
+.dock-panel--wide .onboarding { justify-content: center; }
+.dock-panel--wide .onboarding .onboarding__actions { margin-top: 28px; padding-top: 0; }
+/* An odd last option in a two-column picker takes the whole row (no hole). */
+.mode-picker:not(.mode-preview-layout .mode-picker) > button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.onboarding .segmented-title { display: block; margin: 18px 0 0; font-size: var(--fs-sm); font-weight: 600; }
+.onboarding .segmented-title + .segmented { margin-top: 8px; }

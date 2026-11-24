@@ -32,17 +32,17 @@ const usage = [
     id: "claude",
     name: "Claude",
     connected: true,
-    plan: "Max",
+    plan: "Max 5x",
     error: null,
-    windows: [win("session", "Sessão · 5h", 62, 2.2), win("weekly", "Semanal", 28, 98)]
+    windows: [win("session", "Sessão · 5h", 13, 2.05), win("weekly", "Semanal", 62, 19.5)]
   },
   {
     id: "codex",
     name: "Codex",
     connected: true,
-    plan: "Pro",
+    plan: "plus",
     error: null,
-    windows: [win("session", "Sessão · 5h", 81, 4), win("weekly", "Semanal", 74, 30)]
+    windows: [win("session", "Sessão · 5h", 11, 2.1), win("weekly", "Semanal", 86, 74)]
   },
   {
     id: "cursor",
@@ -52,17 +52,34 @@ const usage = [
     error: null,
     windows: [win("weekly", "Semanal", 34, 52)]
   },
-  account("antigravity", "Antigravity · Conta 1 (Principal)", "conta1@example.com", 46, 30),
-  account("antigravity-2", "Antigravity · Conta 2", "conta2@example.com", 72, 65),
-  account("antigravity-3", "Antigravity · Conta 3", "conta3@example.com", 91, 84),
-  account("antigravity-4", "Antigravity · Conta 4", "conta1@example.com", 12, 8),
   {
     id: "grok",
     name: "Grok",
-    connected: true,
+    connected: false,
     plan: "X Premium",
+    error: "A semana virou. Abra o Grok Bot para atualizar.",
+    windows: [win("weekly", "Semanal", 76, -2)]
+  },
+  account("antigravity", "Antigravity · Conta 1 (Principal)", "conta1@example.com", 87, 100),
+  account("antigravity-2", "Antigravity · Conta 2", "conta2@example.com", 72, 65),
+  account("antigravity-3", "Antigravity · Conta 3", "conta3@example.com", 91, 84),
+  account("antigravity-4", "Antigravity · Conta 4", "conta4@example.com", 12, 8),
+  {
+    id: "antigravity-openbot",
+    name: "Antigravity · OpenBot",
+    connected: true,
+    plan: "Google AI Pro",
+    email: "conta1@example.com",
     error: null,
-    windows: [win("weekly", "Semanal", 12, 52)]
+    windows: [win("gemini-session", "Gemini · 5h", 87, 3)]
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    connected: false,
+    plan: null,
+    error: "DeepSeek Harness não encontrado neste PC.",
+    windows: []
   }
 ];
 
@@ -97,28 +114,65 @@ const handlers: Record<string, Handler> = {
     {
       providerId: "claude",
       state: "working",
-      confidence: "high",
+      confidence: "inferred",
       sessions: [
-        { id: "c1", title: "ai-dock", detail: "Editando theme-a.css", state: "working", since: Date.now() - 60_000 },
-        { id: "c2", title: "site-medina", detail: "Rodando testes", state: "working", since: Date.now() - 240_000 }
+        { id: "c1", title: "ATI · Antigravity Contas - Login Preso por Conta · Correção #1", detail: "Usando Bash", state: "working", since: Date.now() - 20_000 },
+        { id: "c2", title: "ATI · Sistema Medina da Rocha · Criação #3", detail: "Executando tarefa", state: "working", since: Date.now() - 70_000 }
       ]
     },
     {
       providerId: "codex",
       state: "working",
       confidence: "high",
-      sessions: [{ id: "x1", title: "Agent Pauli", detail: "Executando tarefa", state: "working", since: Date.now() - 30_000 }]
+      sessions: [
+        { id: "x1", title: "Agent Pauli", detail: "Executando tarefa", state: "working", since: Date.now() - 10_000 },
+        { id: "x2", title: "Agent Averroes", detail: "Executando tarefa", state: "working", since: Date.now() - 60_000 },
+        { id: "x3", title: "Agent Pasteur", detail: "Executando tarefa", state: "working", since: Date.now() - 120_000 },
+        { id: "x4", title: "Agent Curie", detail: "Executando tarefa", state: "working", since: Date.now() - 180_000 }
+      ]
     }
   ],
+
   get_provider_status: () => [],
-  get_monitors: () => [{ index: 0, name: "Tela 1", width: 1920, height: 1080, scaleFactor: 1 }],
+  get_monitors: () => [
+    { index: 0, name: "\\\\.\\DISPLAY1", width: 1920, height: 1080, scaleFactor: 1 },
+    { index: 1, name: "\\\\.\\DISPLAY3", width: 3440, height: 1440, scaleFactor: 1 },
+    { index: 2, name: "\\\\.\\DISPLAY4", width: 2360, height: 1640, scaleFactor: 1.5 }
+  ],
   get_local_costs: () => ({ entries: demoCosts(), prices: "online", files: 42 }),
   provider_setup_status: () => ({ installed: true, authenticated: true, version: "demo", npmAvailable: true }),
   claude_web_status: () => usage[0],
-  scan_obsidian_prompts: () => []
+  scan_obsidian_prompts: () => [
+    { path: "Prompts/Revisar PR.md", title: "Revisar PR com foco em bugs", category: "Código", tags: ["review", "git"], favorite: true, content: "Revise o diff de {{branch}} procurando bugs reais..." },
+    { path: "Prompts/Legenda Reels.md", title: "Legenda de Reels sem cara de IA", category: "Conteúdo", tags: ["instagram"], favorite: true, content: "Escreva a legenda do Reels sobre {{tema}}..." },
+    { path: "Prompts/Handoff.md", title: "Handoff de conversa longa", category: "Organização", tags: ["handoff"], favorite: false, content: "Resuma o estado atual do projeto {{projeto|AI Dock}}..." },
+    { path: "Prompts/Landing.md", title: "Landing page com referências reais", category: "Design", tags: ["site", "design"], favorite: false, content: "Monte a landing de {{cliente}} a partir das referências..." },
+    { path: "Prompts/Carrossel.md", title: "Carrossel de 7 slides", category: "Conteúdo", tags: ["instagram", "carrossel"], favorite: false, content: "Crie um carrossel sobre {{tema}} com gancho no slide 1..." }
+  ]
 };
 
+/** The demo starts with the same choices as the real dock: names, glass, three monitors. */
+function seedDemoSettings() {
+  const key = "ai-dock-settings";
+  const current = JSON.parse(localStorage.getItem(key) || "{}");
+  if (current.demoSeeded) return;
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      ...current,
+      demoSeeded: true,
+      onboarded: true,
+      glassEnabled: true,
+      glassOpacity: 10,
+      monitorIndex: 1,
+      obsidianPath: "D:\\Obsidian\\Prompts",
+      providerAliases: { antigravity: "Nyco", "antigravity-2": "Nyck", "antigravity-3": "Jessy", "antigravity-4": "Juba" }
+    })
+  );
+}
+
 export function installDemoBridge() {
+  seedDemoSettings();
   let nextId = 1;
   const callbacks = new Map<number, (payload: unknown) => void>();
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {

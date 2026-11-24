@@ -711,6 +711,33 @@ export default function App() {
       : lastUpdatedAt
         ? t("Atualizado {age}", { age: formatAge(lastUpdatedAt, now) })
         : t("Aguardando leitura");
+  const renderUsageCard = (provider: (typeof visibleProviders)[number]) => (
+    <UsageCard
+      key={provider.id}
+      ref={(node) => {
+        if (node) cardRefs.current.set(provider.id, node);
+        else cardRefs.current.delete(provider.id);
+      }}
+      provider={provider}
+      activity={activityFor(provider.id)}
+      display={settings.display}
+      headline={settings.headline}
+      history={history}
+      historyRange={settings.historyRange}
+      status={statusFor(statuses, provider.id)}
+      now={now}
+      highlighted={focusProvider === provider.id}
+      onConnect={provider.id === "claude" ? reconnectClaude : undefined}
+      collapsed={settings.collapsedCards.includes(provider.id)}
+      onToggleCollapse={() =>
+        update({
+          collapsedCards: settings.collapsedCards.includes(provider.id)
+            ? settings.collapsedCards.filter((id) => id !== provider.id)
+            : [...settings.collapsedCards, provider.id]
+        })
+      }
+    />
+  );
   const CollapseIcon = settings.side === "right" ? ChevronRight : ChevronLeft;
 
   return (
@@ -825,35 +852,21 @@ export default function App() {
               {view === "usage" ? (
                 <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
                   <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setFocusProvider} />
-                  {visibleProviders.length === 0 && loading
-                    ? [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
-                    : visibleProviders.map((provider) => (
-                        <UsageCard
-                          key={provider.id}
-                          ref={(node) => {
-                            if (node) cardRefs.current.set(provider.id, node);
-                            else cardRefs.current.delete(provider.id);
-                          }}
-                          provider={provider}
-                          activity={activityFor(provider.id)}
-                          display={settings.display}
-                          headline={settings.headline}
-                          history={history}
-                          historyRange={settings.historyRange}
-                          status={statusFor(statuses, provider.id)}
-                          now={now}
-                          highlighted={focusProvider === provider.id}
-                          onConnect={provider.id === "claude" ? reconnectClaude : undefined}
-                          collapsed={settings.collapsedCards.includes(provider.id)}
-                          onToggleCollapse={() =>
-                            update({
-                              collapsedCards: settings.collapsedCards.includes(provider.id)
-                                ? settings.collapsedCards.filter((id) => id !== provider.id)
-                                : [...settings.collapsedCards, provider.id]
-                            })
-                          }
-                        />
+                  {visibleProviders.length === 0 && loading ? (
+                    [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
+                  ) : settings.usageColumns === 2 ? (
+                    // Alternate cards between two columns: reading order stays row by row,
+                    // and each column stacks on its own, so a tall card leaves no gap.
+                    <div className="usage-columns">
+                      {[0, 1].map((column) => (
+                        <div className="usage-columns__col" key={column}>
+                          {visibleProviders.filter((_, index) => index % 2 === column).map(renderUsageCard)}
+                        </div>
                       ))}
+                    </div>
+                  ) : (
+                    visibleProviders.map(renderUsageCard)
+                  )}
                   {visibleProviders.length === 0 && !loading ? (
                     <button type="button" className="empty-state" onClick={() => openSettings("connections")}>
                       <span>{t("Nenhum provider visível")}</span>

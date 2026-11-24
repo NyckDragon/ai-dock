@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Move, Palette, Pencil, Plug, Power, RotateCcw, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Move, Palette, Pencil, Plug, Power, RotateCcw, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { intlLocale, t, tr } from "../lib/i18n";
@@ -17,7 +17,7 @@ import type {
 import { ClaudeConnectCard } from "./ClaudeConnectCard";
 import { Segmented, Select, Switch } from "./controls";
 import { DockPill } from "./DockPill";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip, ProviderIcon } from "./ProviderIcon";
 
 export const COMPACT_MODES: { id: CompactMode; title: string; description: string }[] = [
   { id: "ring", title: "Círculo", description: "Anel de quota + %" },
@@ -915,7 +915,7 @@ function PositionTab({ settings, update, monitors }: SettingsPanelProps) {
                 <span className="option__copy">
                   <strong>{t("Tela {number}", { number: monitor.index + 1 })}</strong>
                   <small>
-                    {tr(monitor.name)} · {monitor.width} × {monitor.height}
+                    {monitor.width} × {monitor.height} · {t("escala {value}%", { value: String(Math.round(monitor.scaleFactor * 100)) })}
                   </small>
                 </span>
                 {monitor.index === settings.monitorIndex ? <Check size={15} /> : null}
@@ -1041,6 +1041,7 @@ function GeneralTab({
           checked={settings.closeOnBlur}
           onChange={(closeOnBlur) => update({ closeOnBlur })}
         />
+        <strong className="segmented-title">{t("Indicador de atividade")}</strong>
         <Segmented
           label={t("Indicador de atividade")}
           value={settings.activityIndicator}
@@ -1052,6 +1053,9 @@ function GeneralTab({
             { value: "none", label: t("Desativado") }
           ]}
         />
+        <p className="hint">
+          {t("Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.")}
+        </p>
         {settings.activityIndicator !== "none" ? (
           <Switch
             label={t("Pulsar barra em uso")}
@@ -1060,9 +1064,6 @@ function GeneralTab({
             onChange={(pulseActiveBar) => update({ pulseActiveBar })}
           />
         ) : null}
-        <p className="hint">
-          {t("Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.")}
-        </p>
       </Group>
 
       <Group title={t("Atualizar uso a cada")}>
@@ -1197,7 +1198,7 @@ function ConnectionsTab({
 
             return (
               <li key={id} className={"provider-list__item" + (hidden ? " is-hidden" : "")}>
-                <ProviderIcon providerId={id} size={16} brand />
+                <ProviderChip providerId={id} size={16} />
                 <span className="provider-list__copy">
                   {isEditing ? (
                     <div className="provider-alias-edit">
@@ -1234,17 +1235,13 @@ function ConnectionsTab({
                     </div>
                   ) : (
                     <>
-                      <strong>
-                        {name}
-                        {customAlias ? (
-                          <span className="provider-list__alias-tag" title={t("Nome personalizado")}>
-                            ★
-                          </span>
-                        ) : null}
-                      </strong>
-                      <small className={provider?.connected ? "is-on" : ""}>
+                      <strong>{name}</strong>
+                      <small>
+                        {customAlias ? originalName.replace(/^Antigravity\s*·\s*/i, "").replace(/\s*\(Principal\)$/i, "") + " · " : ""}
                         {provider?.email && !name.includes(provider.email) ? `${provider.email} · ` : ""}
-                        {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
+                        <span className={provider?.connected ? "is-on" : ""}>
+                          {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
+                        </span>
                       </small>
                     </>
                   )}
@@ -1327,12 +1324,14 @@ function ConnectionsTab({
             const alias = settings.providerAliases[ag.id] || "";
             const original = rawById.get(ag.id);
             const email = ag.email || original?.email;
+            const openbot = ag.id.startsWith("antigravity-openbot");
             const number = ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "");
-            const defaultName = t("Conta {number}", { number });
+            const openbotSuffix = openbot ? ag.id.replace("antigravity-openbot", "") : "";
+            const defaultName = openbot ? "OpenBot" + (openbotSuffix ? " " + openbotSuffix : "") : t("Conta {number}", { number });
             return (
               <div key={ag.id} className="account-name-row">
                 <span className="account-name-row__badge" aria-hidden="true">
-                  {number}
+                  {openbot ? <Bot size={15} /> : number}
                 </span>
                 <span className="account-name-row__field">
                   <input

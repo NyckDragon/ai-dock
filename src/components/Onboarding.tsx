@@ -3,7 +3,7 @@ import { useState } from "react";
 import { t } from "../lib/i18n";
 import type { ProviderUsage, Settings } from "../types";
 import { Segmented } from "./controls";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip } from "./ProviderIcon";
 import { CompactModePicker } from "./SettingsPanel";
 
 const STEPS = ["Seus providers", "Conectar o Claude", "Visual do dock"];
@@ -48,7 +48,7 @@ export function Onboarding({
           <ul className="detect-list">
             {providers.map((provider) => (
               <li key={provider.id}>
-                <ProviderIcon providerId={provider.id} size={16} brand />
+                <ProviderChip providerId={provider.id} size={16} />
                 <span className="detect-list__name">{provider.name}</span>
                 {provider.connected ? (
                   <CheckCircle2 size={15} className="tone-text--good" aria-label={t("Conectado")} />
@@ -87,6 +87,7 @@ export function Onboarding({
         <>
           <p className="hint">{t("Como o dock deve aparecer recolhido na borda da tela?")}</p>
           <CompactModePicker value={settings.compactMode} onChange={(compactMode) => update({ compactMode })} />
+          <strong className="segmented-title">{t("Lado da tela")}</strong>
           <Segmented
             label={t("Lado da tela")}
             value={settings.side}

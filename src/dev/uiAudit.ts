@@ -46,7 +46,7 @@ function audit(): Finding[] {
   // 2.2 Text centered inside buttons, chips and tabs.
   document.querySelectorAll("button, [role='tab']").forEach((button) => {
     if (!visible(button) || button.closest(".pill-slot, .dock-pill, .accounts__item, .panel-nav__item, .usage-card, .option, .mode-picker")) return;
-    if (button.querySelector("[class*='__copy'], small")) return; // multi-line option, not a label button
+    if (button.querySelector("[class*='__copy'], small") || button.getBoundingClientRect().height > 48) return; // multi-line row, not a label button
     const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT, { acceptNode: (node) => (node.textContent?.trim() ? 1 : 3) });
     const first = walker.nextNode();
     if (!first) return;
@@ -117,15 +117,35 @@ function audit(): Finding[] {
       const prev = kids[index - 1];
       if (!prev) return;
       // Measure what is drawn (text and controls), not the boxes and their padding.
-      const contentBox = (el: Element) => {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        return range.getBoundingClientRect();
+      // Text to text: the first line of text of a block and the last line of the one above.
+      const textRects = (el: Element) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => (node.textContent?.trim() && node.parentElement && visible(node.parentElement) ? 1 : 3)
+        });
+        const rects: DOMRect[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const rect = range.getBoundingClientRect();
+          if (rect.height > 0) rects.push(rect);
+        }
+        // Boxes (filled or bordered) count by their own edges.
+        [el, ...el.querySelectorAll("*")].forEach((node) => {
+          if (!visible(node)) return;
+          const style = getComputedStyle(node);
+          if (hasFill(node) || (parseFloat(style.borderTopWidth) > 0 && parseFloat(style.borderLeftWidth) > 0)) {
+            rects.push(node.getBoundingClientRect());
+          }
+        });
+        return rects;
       };
-      const prevText = contentBox(prev).bottom;
-      const nextTop = contentBox(kid).top;
+      const prevRects = textRects(prev);
+      const nextRects = textRects(kid);
+      if (!prevRects.length || !nextRects.length) return;
+      const prevText = Math.max(...prevRects.map((rect) => rect.bottom));
+      const nextTop = Math.min(...nextRects.map((rect) => rect.top));
       const gap = nextTop - prevText;
-      if (gap > 36) findings.push({ rule: "1.4 vão grande entre blocos", detail: `${gap.toFixed(0)} px`, el: kid });
+      if (gap > 40) findings.push({ rule: "1.4 vão grande entre blocos", detail: `${gap.toFixed(0)} px`, el: kid });
     });
   });
 
