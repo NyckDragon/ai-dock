@@ -4,17 +4,18 @@ import {
   sendNotification
 } from "@tauri-apps/plugin-notification";
 import { useEffect, useRef } from "react";
+import { activeAlertLevels, crossedAlert, soundName, type AlertSound } from "../lib/alerts";
 import { t } from "../lib/i18n";
 import { isTauri } from "../lib/tauri";
 import type { ProviderActivity, ProviderStatus, ProviderUsage, Settings } from "../types";
 
-const LOW_THRESHOLDS = [20, 5];
 const RESET_JUMP = 30;
 /** Failed refreshes in a row before a provider counts as broken. */
 const FAILURES_BEFORE_ALERT = 3;
 
 let permission: Promise<boolean> | null = null;
 let pausedUntil: number | null = null;
+let sound: AlertSound = "Default";
 
 export async function ensureNotificationPermission() {
   if (!isTauri()) return false;
@@ -34,6 +35,11 @@ export function setNotificationPause(until: number | null) {
   pausedUntil = until;
 }
 
+/** The sound every notification plays, from Settings → General. */
+export function setNotificationSound(next: AlertSound) {
+  sound = next;
+}
+
 export function notificationsPaused(now = Date.now()) {
   return pausedUntil != null && pausedUntil > now;
 }
@@ -42,7 +48,7 @@ export function notificationsPaused(now = Date.now()) {
 export async function notify(title: string, body: string, force = false) {
   if (!force && notificationsPaused()) return;
   if (!(await ensureNotificationPermission())) return;
-  sendNotification({ title, body });
+  sendNotification({ title, body, sound: soundName(sound) });
 }
 
 const NAMES: Record<string, string> = {
@@ -58,7 +64,8 @@ const NAMES: Record<string, string> = {
 const LEVEL_RANK: Record<string, number> = { none: 0, maintenance: 1, minor: 2, major: 3, critical: 4 };
 
 /**
- * Sends Windows notifications when a quota window crosses 20% or 5%, when it
+ * Sends Windows notifications when a quota window passes a usage level you chose
+ * (75, 90, 95% or your own), when it
  * resets, when an agent stops to wait for you, when a provider's service has an
  * incident, and when a provider keeps failing to refresh (and when it recovers).
  * The first reading only sets the baseline, so opening the app never floods the
@@ -80,6 +87,10 @@ export function useNotifications(
     setNotificationPause(settings.notificationsPausedUntil);
   }, [settings.notificationsPausedUntil]);
 
+  useEffect(() => {
+    setNotificationSound(settings.notifySound);
+  }, [settings.notifySound]);
+
   // Only fires after the silent renewal already failed, so it really needs you.
   useEffect(() => {
     const claude = providers.find((provider) => provider.id === "claude");
@@ -95,6 +106,7 @@ export function useNotifications(
     if (!providers.length) return;
     const previous = quotaRef.current;
     const next = new Map<string, number>();
+    const levels = activeAlertLevels(settings.alertLevels, settings.alertCustom);
 
     for (const provider of providers) {
       if (!provider.connected || settings.hiddenProviders.includes(provider.id)) continue;
@@ -107,13 +119,13 @@ export function useNotifications(
         if (before == null) continue;
 
         if (settings.notifyLowQuota) {
-          const crossed = LOW_THRESHOLDS.find((limit) => before > limit && now <= limit);
+          const crossed = crossedAlert(before, now, levels);
           if (crossed != null) {
             void notify(
-              t("{name}: {value}% restante", { name: provider.name, value: Math.round(now) }),
-              crossed === 5
+              t("{name}: {value}% usado", { name: provider.name, value: Math.round(100 - now) }),
+              crossed >= 95
                 ? t("{window} está quase no fim.", { window: window.label })
-                : t("{window} passou de 80% de uso.", { window: window.label })
+                : t("{window} passou de {limit}% de uso.", { window: window.label, limit: crossed })
             );
           }
         }
@@ -126,7 +138,7 @@ export function useNotifications(
       }
     }
     quotaRef.current = next;
-  }, [providers, settings.notifyLowQuota, settings.notifyReset, settings.hiddenProviders]);
+  }, [providers, settings.notifyLowQuota, settings.alertLevels, settings.alertCustom, settings.notifyReset, settings.hiddenProviders]);
 
   // A provider that keeps failing (its bars are the last good reading) and its recovery.
   useEffect(() => {

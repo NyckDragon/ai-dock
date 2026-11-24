@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Bot, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Move, Palette, Pencil, Plug, Power, RotateCcw, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { ALERT_LEVELS, alertTone, CUSTOM_ALERT_DEFAULT, CUSTOM_ALERT_MAX, CUSTOM_ALERT_MIN, type AlertSound } from "../lib/alerts";
 import { intlLocale, t, tr } from "../lib/i18n";
 import { currentPlatform } from "../lib/platform";
 import { compactSlots } from "../lib/quota";
@@ -1002,6 +1003,98 @@ function PauseNotifications({ settings, update }: Pick<SettingsPanelProps, "sett
   );
 }
 
+const ALERT_TEXT: Record<number, string> = {
+  75: "Atenção: ainda dá, mas vá com calma.",
+  90: "Uso alto: vale trocar de conta ou modelo.",
+  95: "Quase no fim da janela."
+};
+
+const SOUND_OPTIONS: { value: AlertSound; label: string }[] = [
+  { value: "Default", label: "Padrão" },
+  { value: "Reminder", label: "Lembrete" },
+  { value: "IM", label: "Mensagem" },
+  { value: "Alarm", label: "Alarme" },
+  { value: "silent", label: "Sem som" }
+];
+
+/** One usage level: colored dot, what it means and its own switch. */
+function AlertLevelRow({
+  level,
+  label,
+  description,
+  checked,
+  onChange
+}: {
+  level: number;
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} className="setting-row alert-level" onClick={() => onChange(!checked)}>
+      <i className={"alert-dot alert-dot--" + alertTone(level)} aria-hidden="true" />
+      <span className="setting-row__copy">
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <span className={"switch" + (checked ? " is-on" : "")} aria-hidden="true">
+        <i />
+      </span>
+    </button>
+  );
+}
+
+/** The levels under "Low quota", like Claude Usage Tracker: 75, 90, 95% and one of your own. */
+function QuotaAlertLevels({ settings, update }: Pick<SettingsPanelProps, "settings" | "update">) {
+  if (!settings.notifyLowQuota) return null;
+  const custom = settings.alertCustom;
+  return (
+    <>
+      {ALERT_LEVELS.map((level) => (
+        <AlertLevelRow
+          key={level}
+          level={level}
+          label={t("{value}% usado", { value: level })}
+          description={t(ALERT_TEXT[level])}
+          checked={settings.alertLevels.includes(level)}
+          onChange={(on) =>
+            update({
+              alertLevels: on
+                ? ALERT_LEVELS.filter((item) => item === level || settings.alertLevels.includes(item))
+                : settings.alertLevels.filter((item) => item !== level)
+            })
+          }
+        />
+      ))}
+      <AlertLevelRow
+        level={custom ?? CUSTOM_ALERT_DEFAULT}
+        label={t("Limite próprio")}
+        description={custom != null ? t("Avisa também em {value}% de uso.", { value: custom }) : t("Um ponto a mais, entre 50% e 99%.")}
+        checked={custom != null}
+        onChange={(on) => update({ alertCustom: on ? CUSTOM_ALERT_DEFAULT : null })}
+      />
+      {custom != null ? (
+        <div className="alert-custom">
+          <div className="range-row">
+            <span className="glass-opacity__label">{t("Avisar em")}</span>
+            <input
+              type="range"
+              min={CUSTOM_ALERT_MIN}
+              max={CUSTOM_ALERT_MAX}
+              step={1}
+              value={custom}
+              aria-label={t("Limite próprio")}
+              onChange={(event) => update({ alertCustom: Number(event.target.value) })}
+            />
+            <span className="range-value">{custom}%</span>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function GeneralTab({
   settings,
   update,
@@ -1088,10 +1181,11 @@ function GeneralTab({
       <Group title={t("Notificações")}>
         <Switch
           label={t("Quota baixa")}
-          description={t("Avisa quando uma janela passa de 80% e de 95% de uso.")}
+          description={t("Avisa quando uma janela passa dos limites ligados abaixo.")}
           checked={settings.notifyLowQuota}
           onChange={(notifyLowQuota) => update({ notifyLowQuota })}
         />
+        <QuotaAlertLevels settings={settings} update={update} />
         <Switch
           label={t("Limite renovado")}
           description={t("Avisa quando uma janela de uso reseta.")}
@@ -1116,6 +1210,14 @@ function GeneralTab({
           checked={settings.notifyFailures}
           onChange={(notifyFailures) => update({ notifyFailures })}
         />
+        <strong className="segmented-title">{t("Som dos avisos")}</strong>
+        <Segmented
+          label={t("Som dos avisos")}
+          value={settings.notifySound}
+          onChange={(notifySound) => update({ notifySound })}
+          options={SOUND_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))}
+        />
+        <p className="hint">{t("Vale para todos os avisos. Ouça com o botão de teste abaixo.")}</p>
         <PauseNotifications settings={settings} update={update} />
         <button type="button" className="button button--ghost button--block" onClick={onTestNotification}>
           {t("Enviar notificação de teste")}

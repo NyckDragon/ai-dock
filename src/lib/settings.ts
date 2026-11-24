@@ -1,4 +1,5 @@
 import type { CompactMode, Settings } from "../types";
+import { ALERT_LEVELS, ALERT_SOUNDS, clampCustomAlert } from "./alerts";
 import { currentPlatform } from "./platform";
 import { readJson, readRaw, removeKeys, writeJson } from "./storage";
 
@@ -44,6 +45,9 @@ export const DEFAULT_SETTINGS: Settings = {
   globalShortcut: true,
   autoPaste: false,
   notifyLowQuota: true,
+  alertLevels: [...ALERT_LEVELS],
+  alertCustom: null,
+  notifySound: "Default",
   notifyReset: true,
   notifyWaiting: true,
   notifyIncidents: true,
@@ -147,6 +151,11 @@ function normalize(value: Partial<Settings>): Settings {
     collapsedCards: Array.isArray(merged.collapsedCards)
       ? merged.collapsedCards.filter((id: unknown): id is string => typeof id === "string")
       : [],
+    alertLevels: Array.isArray(merged.alertLevels)
+      ? ALERT_LEVELS.filter((level) => merged.alertLevels.includes(level))
+      : [...ALERT_LEVELS],
+    alertCustom: clampCustomAlert(merged.alertCustom),
+    notifySound: ALERT_SOUNDS.includes(merged.notifySound) ? merged.notifySound : "Default",
     notificationsPausedUntil:
       typeof merged.notificationsPausedUntil === "number" && merged.notificationsPausedUntil > Date.now()
         ? merged.notificationsPausedUntil

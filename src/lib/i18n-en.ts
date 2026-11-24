@@ -185,9 +185,7 @@ export const EN: Record<string, string> = {
   "{name} não está atualizando": "{name} is not refreshing",
   "{name} voltou a atualizar": "{name} is refreshing again",
   "{name}: limite renovado": "{name}: limit reset",
-  "{name}: {value}% restante": "{name}: {value}% left",
   "{window} está quase no fim.": "{window} is almost used up.",
-  "{window} passou de 80% de uso.": "{window} is over 80% used.",
   "{window} voltou para {value}%.": "{window} is back to {value}%.",
 
   // Settings: tabs and groups
@@ -330,7 +328,6 @@ export const EN: Record<string, string> = {
     "If a provider rate-limits the request, the interval doubles on its own until it recovers.",
   "Notificações": "Notifications",
   "Quota baixa": "Low quota",
-  "Avisa quando uma janela passa de 80% e de 95% de uso.": "Notifies when a window passes 80% and 95% used.",
   "Limite renovado": "Limit reset",
   "Avisa quando uma janela de uso reseta.": "Notifies when a usage window resets.",
   "Agente esperando você": "Agent waiting for you",
@@ -600,5 +597,22 @@ export const EN: Record<string, string> = {
   "sem uso": "no use",
   "Menos": "Less",
   "Mais": "More",
-  "O dock guarda cada dia, então o mapa cresce com o uso.": "The dock saves each day, so the map grows as you use it."
+  "O dock guarda cada dia, então o mapa cresce com o uso.": "The dock saves each day, so the map grows as you use it.",
+  "Avisa quando uma janela passa dos limites ligados abaixo.": "Alerts when a window passes the levels switched on below.",
+  "{value}% usado": "{value}% used",
+  "Atenção: ainda dá, mas vá com calma.": "Heads-up: still fine, but slow down.",
+  "Uso alto: vale trocar de conta ou modelo.": "High use: consider another account or model.",
+  "Quase no fim da janela.": "Almost at the end of the window.",
+  "Limite próprio": "Your own level",
+  "Avisa também em {value}% de uso.": "Also alerts at {value}% used.",
+  "Um ponto a mais, entre 50% e 99%.": "One more point, between 50% and 99%.",
+  "Avisar em": "Alert at",
+  "Som dos avisos": "Alert sound",
+  "Lembrete": "Reminder",
+  "Mensagem": "Message",
+  "Alarme": "Alarm",
+  "Sem som": "No sound",
+  "Vale para todos os avisos. Ouça com o botão de teste abaixo.": "Used by every alert. Hear it with the test button below.",
+  "{name}: {value}% usado": "{name}: {value}% used",
+  "{window} passou de {limit}% de uso.": "{window} passed {limit}% used."
 };

@@ -1,3 +1,4 @@
+import type { AlertSound } from "./lib/alerts";
 export type DockSide = "left" | "right";
 export type CompactMode = "classic" | "percent" | "ring" | "square" | "bars";
 export type ThemePreference = "system" | "dark" | "light";
@@ -143,6 +144,12 @@ export type Settings = {
   globalShortcut: boolean;
   autoPaste: boolean;
   notifyLowQuota: boolean;
+  /** Usage levels (75, 90, 95) that send a notification. */
+  alertLevels: number[];
+  /** An extra level of your own (50–99), or null when off. */
+  alertCustom: number | null;
+  /** Windows toast sound for every notification; "silent" sends none. */
+  notifySound: AlertSound;
   notifyReset: boolean;
   notifyWaiting: boolean;
   notifyIncidents: boolean;

@@ -1049,3 +1049,24 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
 /* With a tool filtered, the day bars take its color like the map below. */
 .cost-chart__plot.has-brand .cost-chart__slot i { background: currentColor; }
 .cost-chart__tip { color: var(--text); }
+
+/* ---------- Quota alert levels (Notifications), like Claude Usage Tracker ----------
+   Each level is an option row with its colored dot; your own level gets a slider. */
+.alert-dot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+  background: currentColor;
+}
+/* Dots are signs, not text: the same vivid colors in both themes. */
+.alert-dot--yellow { color: #f2b705; }
+.alert-dot--orange { color: #f07f2e; }
+.alert-dot--red { color: #e5484d; }
+.settings-card > .setting-row + .alert-custom { margin: -2px 0 0; padding: 0 0 12px 22px; }
+.alert-custom .range-row { min-height: 32px; }
+.settings-card > .alert-custom + .setting-row { border-top: 1px solid var(--hairline); }
+.settings-card > .hint + .pause-row { margin-top: 0; padding-top: 14px; border-top: 1px solid var(--hairline); }
+/* A level that is off keeps its place but its dot goes quiet. */
+.alert-level[aria-checked="false"] .alert-dot { opacity: .35; box-shadow: none; }
