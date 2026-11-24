@@ -122,7 +122,6 @@ export const EN: Record<string, string> = {
   "Ver status": "View status",
 
   // Time and pace
-  "Esgota em {time}": "Runs out in {time}",
   "Esgotado": "Used up",
   "No ritmo": "On pace",
   "Reset pendente": "Reset pending",
@@ -134,8 +133,6 @@ export const EN: Record<string, string> = {
   "há {days}d": "{days}d ago",
   "há {hours}h {minutes}min": "{hours}h {minutes}min ago",
   "há {minutes} min": "{minutes} min ago",
-  "{value}% abaixo do ritmo": "{value}% under pace",
-  "{value}% acima do ritmo": "{value}% over pace",
 
   // Agent activity
   "+1 tarefa": "+1 task",
@@ -617,5 +614,11 @@ export const EN: Record<string, string> = {
   "{window} passou de {limit}% de uso.": "{window} passed {limit}% used.",
   "Contas": "Accounts",
   "Conta errada": "Wrong account",
-  "Sem acesso": "No access"
+  "Sem acesso": "No access",
+  "Ritmo: {value}% acima": "Pace: {value}% over",
+  "Ritmo: {value}% abaixo": "Pace: {value}% under",
+  "Ritmo: no limite": "Pace: at the edge",
+  "dura até o reset": "lasts until reset",
+  "acaba em {time}": "runs out in {time}",
+  "acaba {day} às {time}": "runs out {day} at {time}"
 };

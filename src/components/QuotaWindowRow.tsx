@@ -35,7 +35,7 @@ export function QuotaWindowRow({
   const value = shownPercent(remaining, display, providerId);
   const word = displayWord(display, providerId);
   const tone = quotaTone(remaining);
-  const pace = stale ? null : formatPace(windowPace(window, now));
+  const pace = stale ? null : formatPace(windowPace(window, now), now);
   const timeMark = stale ? null : timeMarkPercent(window, display, providerId, now);
   const elapsed = timeMark == null ? null : windowElapsedPercent(window, now);
   const markHint =

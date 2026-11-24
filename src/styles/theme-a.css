@@ -1114,3 +1114,17 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
 .nav-account--error .nav-account__note { color: var(--permission); }
 .nav-account--off { color: var(--text-3); }
 .nav-account--off .provider-chip { opacity: .55; }
+
+/* ---------- Pace phrase, like CodexBar: "Ritmo: 42% abaixo · dura até o reset" ----------
+   Wide rows keep reset and pace on one line; narrow ones (two-column cards, the
+   hover card, metric tiles) give the phrase its own line under the reset, so the
+   cards side by side always match. */
+.quota-row,
+.metric-tile { container-type: inline-size; }
+.metric-tile__foot { flex-wrap: wrap; row-gap: 3px; }
+.quota-row__meta .pace,
+.metric-tile__foot .pace { overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 359px) {
+  .quota-row__meta .pace,
+  .metric-tile__foot .pace { flex-basis: 100%; }
+}

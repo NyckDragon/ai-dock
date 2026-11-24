@@ -187,7 +187,7 @@ function WindowTile({ window, provider, display, now }: { window: UsageWindow; p
   const tone = quotaTone(remaining);
   const state = quotaState(remaining);
   const mark = provider.stale ? null : timeMarkPercent(window, display, provider.id, now);
-  const pace = provider.stale ? null : formatPace(windowPace(window, now));
+  const pace = provider.stale ? null : formatPace(windowPace(window, now), now);
 
   if (window.amount) {
     return (

@@ -136,16 +136,31 @@ test("pace projects when a 5h window runs out before its reset", () => {
   const pace = windowPace(window, now);
   assert.ok(pace);
   assert.ok(pace.runsOutIn != null && Math.abs(pace.runsOutIn - 26.3 * 60_000) < 60_000);
-  assert.equal(formatPace(pace)?.text, "Esgota em 26min");
-  assert.equal(formatPace(pace)?.tone, "danger");
+  assert.equal(formatPace(pace, now)?.text, "Ritmo: 42% acima · acaba em 26min");
+  assert.equal(formatPace(pace, now)?.tone, "danger");
 });
 
 test("pace reports a steady or slow window without a run-out time", () => {
   const now = Date.parse("2026-09-26T12:00:00Z");
   const steady = { id: "weekly", label: "Semanal", remainingPercent: 50, resetAt: new Date(now + 84 * HOUR).toISOString() };
-  assert.equal(formatPace(windowPace(steady, now))?.text, "No ritmo");
+  assert.equal(formatPace(windowPace(steady, now), now)?.text, "No ritmo · dura até o reset");
   const slow = { id: "session", label: "Sessão", remainingPercent: 90, resetAt: new Date(now + 2 * HOUR).toISOString() };
-  assert.equal(formatPace(windowPace(slow, now))?.text, "50% abaixo do ritmo");
+  assert.equal(formatPace(windowPace(slow, now), now)?.text, "Ritmo: 50% abaixo · dura até o reset");
+  assert.equal(formatPace(windowPace(slow, now), now)?.tone, "good");
+});
+
+test("pace over a steady rate that still lasts is a warning; a far run-out names the day", () => {
+  const now = new Date(2026, 8, 26, 12).getTime();
+  // Halfway through a week with 55% used: close to steady, but it runs out about 16h before the reset.
+  const weekStart = now - 84 * HOUR;
+  const over = { id: "weekly", label: "Semanal", remainingPercent: 45, resetAt: new Date(weekStart + 168 * HOUR).toISOString() };
+  const overPace = windowPace(over, now);
+  assert.equal(formatPace(overPace, now)?.tone, "warning");
+  const runOut = formatPace({ delta: 20, runsOutIn: 30 * HOUR }, now);
+  assert.equal(runOut?.text, "Ritmo: 20% acima · acaba dom às 18:00");
+  assert.equal(formatPace({ delta: -20, runsOutIn: null }, now)?.text, "Ritmo: 20% abaixo · dura até o reset");
+  assert.equal(formatPace({ delta: 3, runsOutIn: 2 * HOUR }, now)?.text, "Ritmo: no limite · acaba em 2h");
+  assert.equal(formatPace({ delta: 50, runsOutIn: 0 }, now)?.text, "Esgotado");
 });
 
 test("pace is skipped when the window length is unknown or just started", () => {
