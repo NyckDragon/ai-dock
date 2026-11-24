@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { withAccountPins, wrongAccount } from "../src/lib/accounts.ts";
+import { accountState, withAccountPins, wrongAccount } from "../src/lib/accounts.ts";
 import type { ProviderUsage } from "../src/types.ts";
 
 function slot(id: string, email: string | null, extra: Partial<ProviderUsage> = {}): ProviderUsage {
@@ -32,4 +32,12 @@ test("without a live reading there is nothing to compare", () => {
   assert.equal(wrongAccount(slot("antigravity-2", "ana@example.com", { ...bound, connected: false })), false);
   assert.equal(wrongAccount(slot("antigravity-2", "ana@example.com", { ...bound, stale: true })), false);
   assert.equal(wrongAccount(slot("antigravity-2", "ana@example.com")), false);
+});
+
+test("each account gets one sidebar state, the wrong login first", () => {
+  assert.equal(accountState(slot("claude", "a@example.com")), "ok");
+  assert.equal(accountState(slot("antigravity-2", "ana@example.com", { expectedEmail: "bia@example.com" })), "wrong");
+  assert.equal(accountState(slot("codex", null, { stale: true })), "stale");
+  assert.equal(accountState(slot("claude", null, { connected: false, error: "Sessão expirou" })), "error");
+  assert.equal(accountState(slot("grok", null, { connected: false })), "off");
 });

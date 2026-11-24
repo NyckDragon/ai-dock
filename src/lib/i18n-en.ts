@@ -614,5 +614,8 @@ export const EN: Record<string, string> = {
   "Sem som": "No sound",
   "Vale para todos os avisos. Ouça com o botão de teste abaixo.": "Used by every alert. Hear it with the test button below.",
   "{name}: {value}% usado": "{name}: {value}% used",
-  "{window} passou de {limit}% de uso.": "{window} passed {limit}% used."
+  "{window} passou de {limit}% de uso.": "{window} passed {limit}% used.",
+  "Contas": "Accounts",
+  "Conta errada": "Wrong account",
+  "Sem acesso": "No access"
 };

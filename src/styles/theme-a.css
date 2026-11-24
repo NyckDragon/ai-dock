@@ -1070,3 +1070,47 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
 .settings-card > .hint + .pause-row { margin-top: 0; padding-top: 14px; border-top: 1px solid var(--hairline); }
 /* A level that is off keeps its place but its dot goes quiet. */
 .alert-level[aria-checked="false"] .alert-dot { opacity: .35; box-shadow: none; }
+
+/* ---------- Accounts in the sidebar, like Claude Usage Tracker's profiles ----------
+   One compact row per account with its state dot; the list scrolls when long. */
+.nav-accounts { flex: 0 1 auto; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+.nav-accounts__list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.nav-accounts__list::-webkit-scrollbar { display: none; }
+.nav-accounts__list.has-more {
+  -webkit-mask-image: linear-gradient(180deg, #000 0 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(180deg, #000 0 calc(100% - 28px), transparent);
+}
+.nav-account { height: auto; min-height: 30px; gap: 8px; padding: 3px 10px; }
+.nav-account .provider-chip { --chip-size: 20px; border-radius: 6px; }
+.nav-account__copy { flex: 1 1 auto; min-width: 0; display: grid; }
+.nav-account__name,
+.nav-account__note { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nav-account__name { font-size: var(--fs-xs); }
+.panel-nav__item .nav-account__note {
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 10.5px;
+  line-height: 1.3;
+  text-align: left;
+  font-weight: 600;
+}
+.nav-account__dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); opacity: .5; }
+.nav-account--ok .nav-account__dot { background: var(--good); opacity: 1; box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent); }
+.nav-account--stale .nav-account__dot { background: var(--warning); opacity: 1; }
+.nav-account--wrong .nav-account__dot,
+.nav-account--error .nav-account__dot { background: var(--permission); opacity: 1; box-shadow: 0 0 6px color-mix(in srgb, var(--permission) 70%, transparent); }
+.nav-account--stale .nav-account__note { color: var(--warning); }
+.nav-account--wrong .nav-account__note,
+.nav-account--error .nav-account__note { color: var(--permission); }
+.nav-account--off { color: var(--text-3); }
+.nav-account--off .provider-chip { opacity: .55; }

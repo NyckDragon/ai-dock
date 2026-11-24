@@ -19,3 +19,17 @@ export function wrongAccount(provider: ProviderUsage): boolean {
   const live = provider.email?.trim().toLowerCase();
   return Boolean(expected && live && expected !== live);
 }
+
+export type AccountState = "ok" | "stale" | "wrong" | "error" | "off";
+
+/**
+ * The dot of an account in the sidebar: green when it reads fine, red when it
+ * is signed in with the wrong account or lost access, amber when the reading is
+ * old, gray when it was never connected.
+ */
+export function accountState(provider: ProviderUsage): AccountState {
+  if (wrongAccount(provider)) return "wrong";
+  if (provider.stale) return "stale";
+  if (provider.connected) return "ok";
+  return provider.error ? "error" : "off";
+}

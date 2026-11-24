@@ -12,6 +12,7 @@ import { SettingsPanel, SETTINGS_TABS } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
 import { HealthChip } from "./components/HealthChip";
+import { SidebarAccounts } from "./components/SidebarAccounts";
 import { summarizeCosts } from "./lib/costs";
 import { ProviderDetail } from "./components/ProviderDetail";
 import { ProviderTabs } from "./components/ProviderTabs";
@@ -785,8 +786,9 @@ export default function App() {
               <button
                 type="button"
                 key={item.id}
-                className={"panel-nav__item" + (!settingsOpen && view === item.id ? " is-selected" : "")}
-                aria-current={!settingsOpen && view === item.id ? "page" : undefined}
+                // With an account page open, the mark sits on the account in "Contas".
+                className={"panel-nav__item" + (!settingsOpen && view === item.id && !(item.id === "usage" && detailOpen) ? " is-selected" : "")}
+                aria-current={!settingsOpen && view === item.id && !(item.id === "usage" && detailOpen) ? "page" : undefined}
                 onClick={() => {
                   setSettingsOpen(false);
                   setDetailProvider(null);
@@ -800,6 +802,16 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <SidebarAccounts
+            providers={visibleProviders}
+            selectedId={!settingsOpen && view === "usage" ? detailOpen?.id ?? null : null}
+            onSelect={(providerId) => {
+              setSettingsOpen(false);
+              setView("usage");
+              setDetailProvider(providerId);
+            }}
+          />
 
           <nav className="panel-nav__group" aria-label={t("Configurações")}>
             <span className="panel-nav__label">{t("Configurações")}</span>
