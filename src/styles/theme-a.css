@@ -4,7 +4,7 @@
 
    Rules:
    - one panel surface; cards inside it are a lighter layer, never boxes in boxes;
-   - a 1px light line on top of each glass surface, hairline borders elsewhere;
+   - one even hairline ring around each surface (a top-only line looked cut at the corners);
    - the number is the loudest thing on a card; labels and meta are quiet;
    - every provider is recognised by its brand color chip;
    - controls are 32px+ tall, segmented controls look like one piece. */
@@ -17,7 +17,9 @@
   --card-surface-hover: color-mix(in srgb, var(--text) 6.5%, transparent);
   --card-border: color-mix(in srgb, var(--text) 8%, transparent);
   --hairline: color-mix(in srgb, var(--text) 7%, transparent);
-  --top-light: inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+  /* A thin ring, the same on all four sides: a top-only line thins out in the
+     rounded corners and makes the edge look cut. */
+  --top-light: inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 /* ---------- Surfaces ---------- */
@@ -972,7 +974,9 @@
   display: grid;
   justify-items: center;
   gap: 1px;
-  padding: 5px 0 6px;
+  /* Close to the brand it belongs to; the pill's 8px gap alone left it floating. */
+  margin-top: -4px;
+  padding: 3px 0 5px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -1128,3 +1132,101 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   .quota-row__meta .pace,
   .metric-tile__foot .pace { flex-basis: 100%; }
 }
+
+/* ---------- In-app tooltip (TooltipLayer) ----------
+   Windows draws native tooltips behind an always-on-top window, so every title
+   is drawn here instead. */
+.app-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.4;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: app-tooltip-in 120ms ease-out;
+}
+.app-tooltip--above { transform: translate(-50%, -100%); }
+@keyframes app-tooltip-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- OpenBot: one entry, a summary of everything inside it ---------- */
+.openbot-summary { display: grid; gap: 8px; }
+.openbot-summary__label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.openbot-summary__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.openbot-summary__head small { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.openbot-summary__head + .openbot-summary__accounts { margin-top: -4px; }
+.openbot-summary__accounts { display: grid; }
+.openbot-account {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding: 10px 0;
+}
+.openbot-account + .openbot-account { border-top: 1px solid var(--hairline); }
+.openbot-account.is-off { opacity: .55; }
+.openbot-account__name { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.openbot-account__name strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.openbot-account__name small { flex: 0 0 auto; font-size: 11px; color: var(--text-3); }
+.openbot-account__name small.is-wrong { color: var(--permission); font-weight: 600; }
+.openbot-account__pool { display: grid; gap: 4px; min-width: 0; }
+.openbot-account__pool small { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.openbot-account__pool b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.openbot-account__empty { grid-column: 1 / -1; font-size: 11px; color: var(--text-3); }
+.openbot-summary__runtimes { display: flex; flex-wrap: wrap; gap: 6px; }
+.openbot-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 999px;
+  background: var(--card-surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  font-size: 11.5px;
+}
+.openbot-runtime .provider-chip { --chip-size: 20px; border-radius: 999px; }
+.openbot-runtime__generic { color: var(--text-2); }
+.openbot-runtime strong { font-weight: 600; }
+.openbot-runtime small { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.openbot-summary__hint { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+.openbot-summary__accounts + .openbot-summary__label { margin-top: 4px; }
+
+/* ---------- Motion: the panel slides out of the screen edge, screens fade in ----------
+   Short and with a purpose (Padrão de Interface 7.2): it shows where the panel came
+   from and that the content changed. Off for people who ask for less motion. */
+.app-shell--right .dock-panel--wide { --panel-from: 18px; }
+.app-shell--left .dock-panel--wide { --panel-from: -18px; }
+.dock-panel--wide { animation: panel-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(var(--panel-from, 18px)) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+.panel-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: screen-in 200ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-panel--wide,
+  .panel-screen { animation: none; }
+}
+/* In the hover card the summary takes the place of the windows, with the same gap. */
+.provider-peek > .openbot-summary { margin-top: 14px; }

@@ -1,3 +1,4 @@
+import type { OpenBotOverview } from "./openbot";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -138,6 +139,12 @@ export async function fetchUsage(): Promise<ProviderUsage[]> {
 export async function fetchAntigravityAccountPins(): Promise<Record<string, string>> {
   if (!isTauri()) return {};
   return invoke<Record<string, string>>("get_antigravity_account_pins");
+}
+
+/** OpenBot's accounts (as dock slots) and the other AIs it has installed. */
+export async function fetchOpenBotOverview(): Promise<OpenBotOverview | null> {
+  if (!isTauri()) return null;
+  return invoke<OpenBotOverview>("get_openbot_overview");
 }
 
 export async function fetchActivity(): Promise<ProviderActivity[]> {

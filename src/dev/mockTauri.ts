@@ -64,15 +64,9 @@ const usage = [
   account("antigravity-2", "Antigravity · Conta 2", "conta2@example.com", 72, 65),
   account("antigravity-3", "Antigravity · Conta 3", "conta3@example.com", 91, 84),
   account("antigravity-4", "Antigravity · Conta 4", "conta4@example.com", 12, 8),
-  {
-    id: "antigravity-openbot",
-    name: "Antigravity · OpenBot",
-    connected: true,
-    plan: "Google AI Pro",
-    email: "conta1@example.com",
-    error: null,
-    windows: [win("gemini-session", "Gemini · 5h", 87, 3)]
-  },
+  // Like the real PC: two accounts only OpenBot uses, plus Nyck shared with the app.
+  account("antigravity-openbot", "Antigravity · OpenBot", "openbot.um@example.com", 37, 0),
+  account("antigravity-openbot3", "Antigravity · OpenBot 3", "openbot.tres@example.com", 76, 64),
   {
     id: "deepseek",
     name: "DeepSeek",
@@ -118,6 +112,7 @@ function demoCosts(days = 7) {
 
 const handlers: Record<string, Handler> = {
   get_provider_usage: () => usage,
+  get_openbot_overview: () => ({ slots: ["antigravity-2", "antigravity-openbot", "antigravity-openbot3"], runtimes: ["claude", "grok", "opencode"] }),
   get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
   get_provider_activity: () => [
     {

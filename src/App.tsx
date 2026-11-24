@@ -13,6 +13,9 @@ import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
 import { HealthChip } from "./components/HealthChip";
 import { SidebarAccounts } from "./components/SidebarAccounts";
+import { TooltipLayer } from "./components/TooltipLayer";
+import { OpenBotSummary } from "./components/OpenBotSummary";
+import { mergeOpenBot, mergeOpenBotActivity, type OpenBotOverview } from "./lib/openbot";
 import { summarizeCosts } from "./lib/costs";
 import { ProviderDetail } from "./components/ProviderDetail";
 import { ProviderTabs } from "./components/ProviderTabs";
@@ -49,6 +52,7 @@ import {
   onClaudeLogin,
   shareWebUserAgent,
   fetchMonitors,
+  fetchOpenBotOverview,
   focusDock,
   isTauri,
   onTrayAction,
@@ -62,7 +66,7 @@ import {
   setTrayTooltip
 } from "./lib/tauri";
 import type { DockGlassBox } from "./lib/tauri";
-import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
+import type { MonitorInfo, PanelView, ProviderUsage, Settings, SettingsTab } from "./types";
 
 const QUESTION_HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -125,7 +129,9 @@ export default function App() {
   }, []);
 
   const { providers, loading, lastUpdatedAt, failed, history, refresh } = useProviders(settings.refreshMinutes);
-  const activities = useActivity(expanded);
+  const rawActivities = useActivity(expanded);
+  // OpenBot's accounts show as one entry, so their work lights that one entry.
+  const activities = useMemo(() => mergeOpenBotActivity(rawActivities), [rawActivities]);
   const promptState = usePrompts(settings.obsidianPath, expanded);
   const statuses = useProviderStatus();
 
@@ -147,10 +153,27 @@ export default function App() {
   const todayCost = settings.pillTodayCost && todayCosts.report?.entries.length ? summarizeCosts(todayCosts.report.entries, 1).total.cost : null;
   const dock = useDockWindow(settings, expanded);
 
+  // Which slots are OpenBot accounts and what else it runs, read after each refresh.
+  const [openBot, setOpenBot] = useState<OpenBotOverview | null>(null);
+  useEffect(() => {
+    fetchOpenBotOverview()
+      .then(setOpenBot)
+      .catch(() => setOpenBot(null));
+  }, [providers]);
   const visibleProviders = useMemo(
-    () => arrangeProviders(displayProviders, settings),
-    [displayProviders, settings.providerOrder, settings.hiddenProviders]
+    () => mergeOpenBot(arrangeProviders(displayProviders, settings), openBot),
+    [displayProviders, settings.providerOrder, settings.hiddenProviders, openBot]
   );
+  const openBotSummary = (provider: ProviderUsage) =>
+    provider.members ? (
+      <OpenBotSummary
+        provider={provider}
+        providers={displayProviders}
+        runtimes={openBot?.runtimes ?? []}
+        display={settings.display}
+        headline={settings.headline}
+      />
+    ) : undefined;
   const slots = useMemo(
     () => compactSlots(visibleProviders, settings.antigravityGroupMode),
     [visibleProviders, settings.antigravityGroupMode]
@@ -691,6 +714,7 @@ export default function App() {
             onOffsetChange={(verticalOffset) => setSettings((current) => ({ ...current, verticalOffset }))}
             onOffsetCommit={(verticalOffset) => update({ verticalOffset })}
             onOpen={openPanel}
+            onLeaveSlots={dock.closePeek}
             onHoverSlot={(id) => {
               // An old reading gets a quiet refresh while the peek opens.
               if (!lastUpdatedAt || Date.now() - lastUpdatedAt > 60_000) void refresh({ background: true });
@@ -713,6 +737,7 @@ export default function App() {
                 display={settings.display}
                 now={now}
                 onOpen={() => openPanel(peekProvider.id)}
+                summary={openBotSummary(peekProvider)}
               />
             </div>
           ) : null}
@@ -732,6 +757,8 @@ export default function App() {
         : t("Aguardando leitura");
   const detailOpen = detailProvider ? visibleProviders.find((provider) => provider.id === detailProvider) ?? null : null;
 
+  const screenKey = settingsOpen ? "settings-" + settingsTab : detailOpen ? "detail-" + detailOpen.id : view;
+
   const renderUsageCard = (provider: (typeof visibleProviders)[number]) => (
     <UsageCard
       key={provider.id}
@@ -745,6 +772,7 @@ export default function App() {
       headline={settings.headline}
       history={history}
       historyRange={settings.historyRange}
+      summary={openBotSummary(provider)}
       status={statusFor(statuses, provider.id)}
       now={now}
       highlighted={focusProvider === provider.id}
@@ -764,6 +792,7 @@ export default function App() {
 
   return (
     <main className={"app-shell app-shell--" + settings.side}>
+      <TooltipLayer />
       <div className="dock-panel dock-panel--wide">
         <aside className="panel-nav" data-tauri-drag-region>
           <div className="brand" data-tauri-drag-region>
@@ -857,6 +886,8 @@ export default function App() {
             <small data-tauri-drag-region>{settingsOpen ? t("Configurações") : status}</small>
           </header>
 
+          {/* A new screen slides in; the key re-mounts it so the entrance plays again. */}
+          <div className="panel-screen" key={screenKey}>
           {settingsOpen ? (
             <SettingsPanel
               tab={settingsTab}
@@ -899,6 +930,7 @@ export default function App() {
                   now={now}
                   onSelect={setDetailProvider}
                   onBack={() => setDetailProvider(null)}
+                  summary={openBotSummary(detailOpen)}
                 />
               ) : view === "usage" ? (
                 <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
@@ -957,6 +989,7 @@ export default function App() {
               )}
             </div>
           )}
+          </div>
         </section>
 
         {showOnboarding ? (

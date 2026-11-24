@@ -437,7 +437,6 @@ function HorizontalBarsGauge({
               <div
                 key={bar.id}
                 className={"gauge-bars__track" + (isBarActive ? " gauge-bars__track--active" : "")}
-                title={`${bar.name}: ${bar.pct}%`}
               >
                 <div
                   className={
@@ -634,7 +633,6 @@ function PillSlot({
       data-signal={!signal.wait && signal.done ? "done" : undefined}
       data-pulse-bar={pulseActiveBar === false ? "false" : undefined}
       aria-label={aria}
-      title={aria}
       onMouseEnter={() => onHover?.(provider.id)}
       onFocus={() => onHover?.(provider.id)}
       onClick={(event) => {
@@ -677,6 +675,7 @@ export function DockPill({
   pillRef,
   onOpen,
   onHoverSlot,
+  onLeaveSlots,
   onMascotOverlay,
   onSeen,
   todayCost = null,
@@ -714,6 +713,8 @@ export function DockPill({
   pillRef?: Ref<HTMLDivElement>;
   onOpen?: (slotId?: string) => void;
   onHoverSlot?: (slotId: string) => void;
+  /** The pointer left the provider slots for another part of the pill (brand, today, mascot, arrow). */
+  onLeaveSlots?: () => void;
   onMascotOverlay?: (size: MascotOverlay) => Promise<void> | void;
   onSeen?: () => void;
 }) {
@@ -843,6 +844,14 @@ export function DockPill({
         if (target instanceof Element && target.closest(".dock-signals")) return;
         onSeen?.();
       }}
+      onMouseOver={(event) => {
+        // Reaching the brand, today's spend, the arrow or the mascot closes the provider
+        // card. The pill's edge does not: the pointer crosses it on the way to the card.
+        const target = event.target;
+        if (target instanceof Element && target.closest(".dock-pill__brand, .dock-pill__today, .dock-pill__chevron, .dock-mascot-stack")) {
+          onLeaveSlots?.();
+        }
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -869,7 +878,6 @@ export function DockPill({
           type="button"
           className="dock-pill__brand"
           aria-label={t("Abrir painel do AI Dock")}
-          title={t("Abrir painel")}
           onClick={(event) => {
             event.stopPropagation();
             if (draggedGestureRef.current) return;

@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, ChevronDown, History } from "lucide-react";
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { formatAge } from "../lib/format";
 import { historyKey, pointsInRange, type UsageHistory } from "../lib/history";
 import { t, tr, trLabel } from "../lib/i18n";
@@ -35,9 +35,11 @@ export const UsageCard = forwardRef<
     onToggleCollapse?: () => void;
     /** Opens this provider's own page. */
     onOpenDetail?: () => void;
+    /** Shown in place of the windows (OpenBot's summary of its accounts). */
+    summary?: ReactNode;
   }
 >(function UsageCard(
-  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse, onOpenDetail },
+  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse, onOpenDetail, summary },
   ref
 ) {
   const shown = featuredWindow(provider, featured);
@@ -138,7 +140,9 @@ export const UsageCard = forwardRef<
         </div>
       ) : null}
 
-      {provider.windows.length ? (
+      {summary ? (
+        summary
+      ) : provider.windows.length ? (
         <div className="usage-card__windows">
           {provider.windows.map((window) => (
             <QuotaWindowRow key={window.id} window={window} providerId={provider.id} display={display} now={now} stale={provider.stale} />

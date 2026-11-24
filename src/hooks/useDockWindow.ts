@@ -262,6 +262,8 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   );
 
   const closePeek = useCallback(() => {
+    // Already on its way out: a second call must not restart the timer.
+    if (peekPhaseRef.current === "closing") return;
     clearCloseTimer();
     peekTargetRef.current = null;
     if (peekPhaseRef.current === "closed") {

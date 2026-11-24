@@ -1,4 +1,4 @@
-import { forwardRef, Fragment } from "react";
+import { forwardRef, Fragment, type ReactNode } from "react";
 import { wrongAccount } from "../lib/accounts";
 import { formatAge } from "../lib/format";
 import { t, tr, trLabel } from "../lib/i18n";
@@ -25,8 +25,10 @@ export const ProviderPeek = forwardRef<
     display: PercentDisplay;
     now: number;
     onOpen: () => void;
+    /** Shown in place of the windows (OpenBot's summary of its accounts). */
+    summary?: ReactNode;
   }
->(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen }, ref) {
+>(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen, summary }, ref) {
   const status = provider.stale
     ? (provider.updatedAt
         ? t("Última leitura {age}", { age: formatAge(provider.updatedAt, now) })
@@ -68,7 +70,9 @@ export const ProviderPeek = forwardRef<
         <div className={"notice " + (provider.stale || SOFT_NOTICES.has(provider.error) ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
       ) : null}
 
-      {provider.windows.length ? (
+      {summary ? (
+        summary
+      ) : provider.windows.length ? (
         <div className={"provider-peek__windows" + (provider.stale ? " is-stale" : "")}>
           {provider.windows.map((window, idx) => {
             const prev = idx > 0 ? provider.windows[idx - 1] : null;

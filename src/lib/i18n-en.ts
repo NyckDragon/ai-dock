@@ -620,5 +620,11 @@ export const EN: Record<string, string> = {
   "Ritmo: no limite": "Pace: at the edge",
   "dura até o reset": "lasts until reset",
   "acaba em {time}": "runs out in {time}",
-  "acaba {day} às {time}": "runs out {day} at {time}"
+  "acaba {day} às {time}": "runs out {day} at {time}",
+  "1 conta": "1 account",
+  "{count} contas": "{count} accounts",
+  "também no Antigravity": "also in Antigravity",
+  "leitura antiga": "old reading",
+  "Outras IAs no OpenBot": "Other AIs in OpenBot",
+  "Os números das outras IAs são os que o dock lê da sua conta de cada uma.": "The other AIs' numbers are what the dock reads from your account in each one."
 };

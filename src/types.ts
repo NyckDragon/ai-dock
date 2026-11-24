@@ -44,6 +44,8 @@ export type ProviderUsage = {
   stale?: boolean;
   updatedAt?: number | null;
   lastErrorAt?: number | null;
+  /** OpenBot only: every account inside it, for its one summary. */
+  members?: ProviderUsage[];
 };
 
 export type StatusLevel = "none" | "maintenance" | "minor" | "major" | "critical";

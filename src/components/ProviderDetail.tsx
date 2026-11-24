@@ -1,5 +1,5 @@
 import { Clock3 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { formatTokens, formatUsd } from "../lib/costs";
 import { formatAge, formatPace, formatReset } from "../lib/format";
 import { historyKey, type UsageHistory } from "../lib/history";
@@ -35,7 +35,8 @@ export function ProviderDetail({
   history,
   now,
   onSelect,
-  onBack
+  onBack,
+  summary
 }: {
   provider: ProviderUsage;
   providers: ProviderUsage[];
@@ -48,6 +49,8 @@ export function ProviderDetail({
   now: number;
   onSelect: (providerId: string) => void;
   onBack: () => void;
+  /** OpenBot's summary of its accounts, under the windows. */
+  summary?: ReactNode;
 }) {
   const locale = intlLocale();
   const logKey = costKeyFor(provider.id);
@@ -138,6 +141,8 @@ export function ProviderDetail({
           </article>
         ) : null}
       </section>
+
+      {summary ? <section className="detail-card">{summary}</section> : null}
 
       {activity && activity.state !== "idle" ? (
         <section className="detail-card">

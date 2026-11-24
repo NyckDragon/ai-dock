@@ -332,6 +332,51 @@ fn remember_openbot_slot(root: &Path, slot_id: &str) {
     }
 }
 
+/// What OpenBot holds, for its one summary in the dock: the slots its Antigravity
+/// accounts were matched to (OpenBot-only slots and app windows of the same
+/// account) and the other AIs it has installed, by runtime folder name only.
+#[derive(serde::Serialize, Debug, Default, PartialEq)]
+pub struct OpenBotOverview {
+    slots: Vec<String>,
+    runtimes: Vec<String>,
+}
+
+/// Runtime folder names worth showing: not hidden, not the JS engine OpenBot
+/// ships, not Antigravity (its accounts are listed apart).
+fn openbot_runtime_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut names: Vec<String> = names
+        .into_iter()
+        .filter(|name| !name.starts_with('.') && name != "bun" && name != "antigravity")
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+#[tauri::command]
+pub fn get_openbot_overview() -> OpenBotOverview {
+    let mut slots: Vec<String> = OPENBOT_SLOTS
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|map| map.values().cloned().collect()))
+        .unwrap_or_default();
+    slots.sort_by_key(|slot| slot_numeric_order(slot));
+    slots.dedup();
+    let runtimes = dirs::config_dir()
+        .map(|dir| dir.join("OpenBot").join("provider-runtimes"))
+        .and_then(|dir| std::fs::read_dir(dir).ok())
+        .map(|entries| {
+            openbot_runtime_names(
+                entries
+                    .flatten()
+                    .filter(|entry| entry.path().is_dir())
+                    .filter_map(|entry| entry.file_name().to_str().map(str::to_string)),
+            )
+        })
+        .unwrap_or_default();
+    OpenBotOverview { slots, runtimes }
+}
+
 /// OpenBot folders whose work belongs to this slot.
 pub(crate) fn openbot_roots_for(slot_id: &str) -> Vec<PathBuf> {
     let Ok(guard) = OPENBOT_SLOTS.lock() else { return vec![] };
@@ -2165,6 +2210,12 @@ mod tests {
         assert_eq!(format_antigravity_name("antigravity-2", true), "Antigravity · Conta 2");
         assert_eq!(format_antigravity_name("antigravity-3", true), "Antigravity · Conta 3");
         assert_eq!(format_antigravity_name("antigravity-4", true), "Antigravity · Conta 4");
+    }
+
+    #[test]
+    fn openbot_runtimes_skip_hidden_engine_and_antigravity() {
+        let names = ["grok", ".downloads", "bun", "antigravity", "claude", "opencode", "claude"].map(String::from);
+        assert_eq!(openbot_runtime_names(names), vec!["claude", "grok", "opencode"]);
     }
 
     #[test]
