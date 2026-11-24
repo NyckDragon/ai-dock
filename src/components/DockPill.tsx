@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { wrongAccount } from "../lib/accounts";
+import { formatPillUsd } from "../lib/costs";
 import { waitKind, type WaitKind } from "../lib/finish";
 import { t } from "../lib/i18n";
 import {
@@ -677,7 +678,9 @@ export function DockPill({
   onOpen,
   onHoverSlot,
   onMascotOverlay,
-  onSeen
+  onSeen,
+  todayCost = null,
+  onOpenCosts
 }: {
   slots: ProviderUsage[];
   mode: CompactMode;
@@ -698,6 +701,9 @@ export function DockPill({
   mascotKind?: MascotKind;
   glass?: boolean;
   glassOpacity?: number;
+  /** Today's estimated spend, shown under the brand. Null hides it. */
+  todayCost?: number | null;
+  onOpenCosts?: () => void;
   interactive?: boolean;
   lockPosition?: boolean;
   verticalOffset?: number;
@@ -867,6 +873,29 @@ export function DockPill({
           <span className="dock-word">AI</span>
         </span>
       )}
+
+      {todayCost != null ? (
+        interactive ? (
+          <button
+            type="button"
+            className="dock-pill__today"
+            aria-label={t("Gasto estimado de hoje: {value}. Abrir custos", { value: formatPillUsd(todayCost) })}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (draggedGestureRef.current) return;
+              onOpenCosts?.();
+            }}
+          >
+            <small>{t("Hoje")}</small>
+            <strong>{formatPillUsd(todayCost)}</strong>
+          </button>
+        ) : (
+          <span className="dock-pill__today">
+            <small>{t("Hoje")}</small>
+            <strong>{formatPillUsd(todayCost)}</strong>
+          </span>
+        )
+      ) : null}
 
       <div className="dock-pill__slots">
         {slots.length === 0 && loading

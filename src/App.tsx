@@ -12,6 +12,7 @@ import { SettingsPanel, SETTINGS_TABS } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
 import { HealthChip } from "./components/HealthChip";
+import { summarizeCosts } from "./lib/costs";
 import { ProviderDetail } from "./components/ProviderDetail";
 import { ProviderTabs } from "./components/ProviderTabs";
 import { antigravityAccounts } from "./lib/accountsOverview";
@@ -136,6 +137,9 @@ export default function App() {
 
   useNotifications(displayProviders, activities, statuses, settings);
   const costs = useCosts(true, costDays);
+  // Today's spend for the pill: one small read every five minutes.
+  const todayCosts = useCosts(settings.pillTodayCost, 1);
+  const todayCost = settings.pillTodayCost && todayCosts.report?.entries.length ? summarizeCosts(todayCosts.report.entries, 1).total.cost : null;
   const dock = useDockWindow(settings, expanded);
 
   const visibleProviders = useMemo(
@@ -670,6 +674,12 @@ export default function App() {
             glassOpacity={settings.glassOpacity}
             onMascotOverlay={dock.setOverlay}
             onSeen={finish.dismiss}
+            todayCost={todayCost}
+            onOpenCosts={() => {
+              openPanel();
+              setDetailProvider(null);
+              setView("costs");
+            }}
             lockPosition={settings.lockPosition}
             verticalOffset={settings.verticalOffset}
             offsetRange={dock.offsetRange}
@@ -856,6 +866,7 @@ export default function App() {
               onQuit={() => void quitApp()}
               withDialog={withDialog}
               hideTabs
+              todayCost={todayCost}
             />
           ) : (
             <div className="panel-scroll" role="tabpanel">

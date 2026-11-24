@@ -52,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   language: "auto",
   historyRange: "24h",
   usageColumns: 2,
+  pillTodayCost: true,
   collapsedCards: [],
   antigravityGroupMode: "bars",
   activityIndicator: "sweep",
@@ -142,6 +143,7 @@ function normalize(value: Partial<Settings>): Settings {
     glassOpacity: clampGlass(merged.glassOpacity),
     historyRange: ["24h", "7d", "30d"].includes(merged.historyRange) ? merged.historyRange : "24h",
     usageColumns: merged.usageColumns === 1 ? 1 : 2,
+    pillTodayCost: merged.pillTodayCost !== false,
     collapsedCards: Array.isArray(merged.collapsedCards)
       ? merged.collapsedCards.filter((id: unknown): id is string => typeof id === "string")
       : [],

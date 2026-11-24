@@ -151,6 +151,8 @@ export type Settings = {
   notificationsPausedUntil: number | null;
   language: Language;
   historyRange: HistoryRange;
+  /** Today's estimated spend under the brand of the collapsed dock. */
+  pillTodayCost: boolean;
   /** Columns of the usage list in the open panel. */
   usageColumns: 1 | 2;
   /** Usage cards the user folded down to their headline. */

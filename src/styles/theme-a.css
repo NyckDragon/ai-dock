@@ -965,3 +965,32 @@
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
 }
+
+/* ---------- Today's spend under the pill brand (Token Monitor) ---------- */
+.dock-pill__today {
+  width: 46px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 5px 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  box-shadow: 0 1px 0 var(--hairline);
+}
+button.dock-pill__today { cursor: pointer; }
+button.dock-pill__today:hover { background: var(--card-surface-hover); }
+.dock-pill__today small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.dock-pill__today strong {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}

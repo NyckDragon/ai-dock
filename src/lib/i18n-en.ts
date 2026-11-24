@@ -31,6 +31,9 @@ export const EN: Record<string, string> = {
 
   // Dock slots
   "esperando você": "waiting for you",
+  "Gasto estimado de hoje: {value}. Abrir custos": "Estimated spend today: {value}. Open costs",
+  "Gasto de hoje na pílula": "Today's spend on the pill",
+  "Quanto o Claude Code, o Codex e o Antigravity custaram hoje pelo preço da API. Clique nele para abrir Custos.": "What Claude Code, Codex and Antigravity cost today at API prices. Click it to open Costs.",
   "Desatualizado": "Out of date",
   "Abrir a página de {name}": "Open the page of {name}",
   "Ainda sem dados neste período.": "No data in this period yet.",

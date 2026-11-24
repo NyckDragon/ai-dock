@@ -76,6 +76,8 @@ export type SettingsPanelProps = {
   withDialog: <T>(run: () => Promise<T> | T) => Promise<T>;
   /** The wide panel lists the sections in its sidebar, so the tab row is not drawn. */
   hideTabs?: boolean;
+  /** Today's spend, for the preview pill. */
+  todayCost?: number | null;
 };
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -604,7 +606,7 @@ function SignalSample({
   );
 }
 
-function AppearanceTab({ settings, update, providers, activities, finished }: SettingsPanelProps) {
+function AppearanceTab({ settings, update, providers, activities, finished, todayCost }: SettingsPanelProps) {
   const systemDark = useSystemDark();
   const previewSlots = useMemo(() => {
     const slots = compactSlots(providers, settings.antigravityGroupMode).slice(0, 3);
@@ -704,6 +706,7 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
                 mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
                 glass={settings.glassEnabled}
                 glassOpacity={settings.glassOpacity}
+                todayCost={settings.pillTodayCost ? todayCost ?? null : null}
                 interactive={false}
               />
             </div>
@@ -741,6 +744,12 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             </div>
           ) : null}
         </div>
+        <Switch
+          label={t("Gasto de hoje na pílula")}
+          description={t("Quanto o Claude Code, o Codex e o Antigravity custaram hoje pelo preço da API. Clique nele para abrir Custos.")}
+          checked={settings.pillTodayCost}
+          onChange={(pillTodayCost) => update({ pillTodayCost })}
+        />
         <Switch
           label={t("Vidro · beta")}
           description={t("Fundo translúcido na pill, no cartão do hover e no painel aberto.")}
