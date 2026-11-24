@@ -13,6 +13,7 @@ import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
 import { HealthChip } from "./components/HealthChip";
 import { ProviderDetail } from "./components/ProviderDetail";
+import { ProviderTabs } from "./components/ProviderTabs";
 import { antigravityAccounts } from "./lib/accountsOverview";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
@@ -863,6 +864,7 @@ export default function App() {
                   provider={detailOpen}
                   providers={visibleProviders}
                   activity={activityFor(detailOpen.id)}
+                  activityFor={activityFor}
                   status={statusFor(statuses, detailOpen.id)}
                   display={settings.display}
                   headline={settings.headline}
@@ -873,6 +875,15 @@ export default function App() {
                 />
               ) : view === "usage" ? (
                 <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
+                  {visibleProviders.length > 1 ? (
+                    <ProviderTabs
+                      providers={visibleProviders}
+                      display={settings.display}
+                      headline={settings.headline}
+                      activityFor={activityFor}
+                      onSelect={setDetailProvider}
+                    />
+                  ) : null}
                   <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setDetailProvider} />
                   {visibleProviders.length === 0 && loading ? (
                     [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)

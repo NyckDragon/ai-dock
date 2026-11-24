@@ -1,5 +1,5 @@
-import { ArrowLeft, Clock3 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Clock3 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { formatTokens, formatUsd } from "../lib/costs";
 import { formatAge, formatPace, formatReset } from "../lib/format";
 import { historyKey, type UsageHistory } from "../lib/history";
@@ -10,6 +10,7 @@ import { useCosts } from "../hooks/useCosts";
 import type { HeadlineWindow, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage, UsageWindow } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
 import { ProviderChip } from "./ProviderIcon";
+import { ProviderTabs } from "./ProviderTabs";
 import { StatusBadge } from "./StatusBadge";
 
 const DAYS = 30;
@@ -27,6 +28,7 @@ export function ProviderDetail({
   provider,
   providers,
   activity,
+  activityFor,
   status,
   display,
   headline,
@@ -38,6 +40,7 @@ export function ProviderDetail({
   provider: ProviderUsage;
   providers: ProviderUsage[];
   activity?: ProviderActivity;
+  activityFor: (providerId: string) => ProviderActivity | undefined;
   status?: ProviderStatus;
   display: PercentDisplay;
   headline: HeadlineWindow;
@@ -78,34 +81,19 @@ export function ProviderDetail({
     return costKey ? dailyCosts(entries, costKey, shownMetric, DAYS) : [];
   }, [shownMetric, featured, history, provider.id, costKey, entries]);
 
-  const tabsRef = useRef<HTMLElement>(null);
-  // The chosen provider's pill scrolls into view in the row.
-  useEffect(() => {
-    tabsRef.current?.querySelector(".is-selected")?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
-  }, [provider.id]);
   const showChart = costKey != null || featured != null;
 
   return (
     <div className="provider-detail">
-      <div className="provider-switch">
-      <button type="button" className="provider-tabs__back" onClick={onBack} aria-label={t("Voltar para o Uso")}>
-        <ArrowLeft size={15} aria-hidden="true" />
-      </button>
-      <nav className="provider-tabs" aria-label={t("Provedores")} ref={tabsRef}>
-        {providers.map((item) => (
-          <button
-            type="button"
-            key={item.id}
-            className={"provider-tabs__item" + (item.id === provider.id ? " is-selected" : "")}
-            aria-current={item.id === provider.id ? "page" : undefined}
-            onClick={() => onSelect(item.id)}
-          >
-            <ProviderChip providerId={item.id} size={14} />
-            <span>{item.name}</span>
-          </button>
-        ))}
-      </nav>
-      </div>
+      <ProviderTabs
+        providers={providers}
+        selectedId={provider.id}
+        display={display}
+        headline={headline}
+        activityFor={activityFor}
+        onSelect={onSelect}
+        onBack={onBack}
+      />
 
       <header className="provider-detail__head">
         <ProviderChip providerId={provider.id} size={22} />

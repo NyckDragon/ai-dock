@@ -894,3 +894,74 @@
   mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 28px), transparent);
 }
 .provider-switch .provider-tabs > :last-child { margin-right: 0; }
+
+/* ---------- Provider tabs (CodexBar): icon, name, usage bar ---------- */
+.provider-switch .provider-tabs { gap: 4px; padding-top: 2px; padding-bottom: 2px; }
+.provider-tab {
+  flex: 0 0 76px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 6px 9px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-2);
+}
+.provider-tab:hover { background: var(--card-surface-hover); color: var(--text); }
+.provider-tab.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+  color: var(--text);
+}
+.provider-tab.is-dim .provider-tab__icon,
+.provider-tab.is-dim .provider-tab__bar { opacity: .5; }
+.provider-tab__icon { position: relative; display: grid; }
+.provider-tab__icon .provider-chip { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
+.provider-tab__dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+.provider-tab__dot--working { background: var(--good); }
+.provider-tab__dot--waiting { background: var(--question); }
+.provider-tab__dot--wrong { background: var(--permission); }
+.provider-tab__name {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.provider-tab__bar {
+  width: 44px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--track);
+}
+.provider-tab__bar i { display: block; height: 100%; border-radius: inherit; background: var(--text-3); }
+.provider-tab__bar--good i { background: var(--good); }
+.provider-tab__bar--warning i { background: var(--warning); }
+.provider-tab__bar--danger i { background: var(--danger); }
+.provider-switch .provider-tabs__back { align-self: center; }
+/* The tab row sits on the same card surface as the rest of the panel. */
+.provider-switch {
+  padding: 6px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.provider-switch .provider-tabs { padding-left: 0; -webkit-mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent); }
+.provider-switch .provider-tabs__back { margin-left: 2px; background: transparent; box-shadow: none; }
+.provider-switch .provider-tabs__back:hover { background: var(--card-surface-hover); }
+.provider-switch .provider-tabs {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+}
