@@ -727,6 +727,8 @@ export function DockPill({
   );
   const isDraggingRef = useRef(false);
   const draggedGestureRef = useRef(false);
+  /** The pointer pressed on the pill; captured only once it moves far enough to be a drag. */
+  const pressedPointerRef = useRef<number | null>(null);
   const dragOriginRef = useRef({ x: 0, y: 0 });
   const dragStartOffsetRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -741,17 +743,26 @@ export function DockPill({
     isDraggingRef.current = false;
     draggedGestureRef.current = false;
     pendingOffsetRef.current = null;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // No capture yet: a capture now would send the click to the pill itself, so
+    // "Hoje" and the provider rings would open the panel instead of their page.
+    pressedPointerRef.current = event.pointerId;
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    if (pressedPointerRef.current !== event.pointerId) return;
+    // Released outside the pill before the drag began: this move is not a drag.
+    if ((event.buttons & 1) === 0 && !isDraggingRef.current) {
+      pressedPointerRef.current = null;
+      return;
+    }
     const dx = event.screenX - dragOriginRef.current.x;
     const dy = event.screenY - dragOriginRef.current.y;
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 6) {
       isDraggingRef.current = true;
       draggedGestureRef.current = true;
       setDragging(true);
+      // From here the drag follows the pointer even past the pill's edge.
+      event.currentTarget.setPointerCapture(event.pointerId);
     }
     if (isDraggingRef.current) {
       const screenH = window.screen.height || 1080;
@@ -779,6 +790,7 @@ export function DockPill({
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    pressedPointerRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }

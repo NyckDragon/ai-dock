@@ -591,5 +591,14 @@ export const EN: Record<string, string> = {
   "Nome (ex: Pessoal, Trabalho)": "Name (e.g. Personal, Work)",
   "Restaurar padrão": "Restore default",
   "Padrão": "Default",
-  "Nenhuma conta do Antigravity conectada no momento.": "No Antigravity account connected at the moment."
+  "Nenhuma conta do Antigravity conectada no momento.": "No Antigravity account connected at the moment.",
+  "Mapa de atividade": "Activity map",
+  "Atividade": "Activity",
+  "1 dia ativo": "1 active day",
+  "{count} dias ativos": "{count} active days",
+  "Últimos 6 meses": "Last 6 months",
+  "sem uso": "no use",
+  "Menos": "Less",
+  "Mais": "More",
+  "O dock guarda cada dia, então o mapa cresce com o uso.": "The dock saves each day, so the map grows as you use it."
 };

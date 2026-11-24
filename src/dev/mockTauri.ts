@@ -83,8 +83,17 @@ const usage = [
   }
 ];
 
-function demoCosts() {
-  const day = (back: number) => new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10);
+/** Like the real logs: up to 31 days back, lighter weekends, a few days off. */
+function demoCosts(days = 7) {
+  const day = (back: number) => {
+    const date = new Date(Date.now() - back * 86_400_000);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const weight = (back: number) => {
+    const weekday = new Date(Date.now() - back * 86_400_000).getDay();
+    if ([4, 11, 12, 19, 25, 26].includes(back)) return 0;
+    return (weekday === 0 || weekday === 6 ? 0.35 : 1) * (0.6 + ((back * 37) % 9) / 10);
+  };
   const rows = [
     ["claude", "claude-opus-5-5", "ai-dock", 8.4],
     ["claude", "claude-sonnet-5-5", "site-medina", 3.1],
@@ -92,17 +101,17 @@ function demoCosts() {
     ["claude", "claude-opus-5-5", "nave-seguidores", 5.6],
     ["codex", "gpt-6-codex", "dm-automation", 1.4]
   ] as const;
-  return Array.from({ length: 7 }, (_, back) =>
-    rows.map(([provider, model, project, cost], index) => ({
+  return Array.from({ length: Math.min(31, Math.max(1, days)) }, (_, back) =>
+    rows.filter((_, index) => weight(back) > 0 && (back === 0 || (back + index) % 3 !== 0)).map(([provider, model, project, cost], index) => ({
       date: day(back),
       provider,
       model,
       project,
-      inputTokens: 120_000 * (index + 1),
-      outputTokens: 18_000 * (index + 1),
+      inputTokens: Math.round(120_000 * (index + 1) * weight(back)),
+      outputTokens: Math.round(18_000 * (index + 1) * weight(back)),
       cacheWriteTokens: 40_000,
-      cacheReadTokens: 900_000,
-      costUsd: Math.round(cost * (1 + ((back * 7 + index) % 5) / 6) * 100) / 100
+      cacheReadTokens: Math.round(900_000 * weight(back)),
+      costUsd: Math.round(cost * weight(back) * (1 + ((back * 7 + index) % 5) / 6) * 100) / 100
     }))
   ).flat();
 }
@@ -139,7 +148,7 @@ const handlers: Record<string, Handler> = {
     { index: 1, name: "\\\\.\\DISPLAY3", width: 3440, height: 1440, scaleFactor: 1 },
     { index: 2, name: "\\\\.\\DISPLAY4", width: 2360, height: 1640, scaleFactor: 1.5 }
   ],
-  get_local_costs: () => ({ entries: demoCosts(), prices: "online", files: 42 }),
+  get_local_costs: (args) => ({ entries: demoCosts(Number(args.days) || 7), prices: "online", files: 42 }),
   provider_setup_status: () => ({ installed: true, authenticated: true, version: "demo", npmAvailable: true }),
   claude_web_status: () => usage[0],
   scan_obsidian_prompts: () => [

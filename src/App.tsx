@@ -18,6 +18,7 @@ import { ProviderTabs } from "./components/ProviderTabs";
 import { antigravityAccounts } from "./lib/accountsOverview";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
+import { loadDailyCosts } from "./lib/heatmap";
 import { useDockWindow } from "./hooks/useDockWindow";
 import { useFinishSignal } from "./hooks/useFinishSignal";
 import { useNotifications, notify } from "./hooks/useNotifications";
@@ -139,6 +140,9 @@ export default function App() {
   const costs = useCosts(true, costDays);
   // Today's spend for the pill: one small read every five minutes.
   const todayCosts = useCosts(settings.pillTodayCost, 1);
+  // The activity map keeps day totals beyond the logs: the costs view reads the longest range.
+  const monthCosts = useCosts(expanded && view === "costs" && costDays < 30, 31);
+  const daily = useMemo(() => loadDailyCosts(), [costs.report, monthCosts.report, todayCosts.report]);
   const todayCost = settings.pillTodayCost && todayCosts.report?.entries.length ? summarizeCosts(todayCosts.report.entries, 1).total.cost : null;
   const dock = useDockWindow(settings, expanded);
 
@@ -925,6 +929,7 @@ export default function App() {
                   days={costDays}
                   onDays={setCostDays}
                   onReload={() => void costs.reload()}
+                  daily={daily}
                 />
               ) : (
                 <PromptLibrary

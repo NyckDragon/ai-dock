@@ -2,7 +2,9 @@ import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { formatTokens, formatUsd, summarizeCosts, type CostDay, type CostGroup } from "../lib/costs";
 import { intlLocale, t, tr } from "../lib/i18n";
+import type { DailyStore } from "../lib/heatmap";
 import type { CostReport } from "../types";
+import { ActivityHeatmap } from "./ActivityHeatmap";
 import { Segmented } from "./controls";
 import { brandColorClass, ProviderIcon } from "./ProviderIcon";
 
@@ -20,7 +22,7 @@ function cleanProjectLabel(key: string): string {
   return parts[parts.length - 1] || key;
 }
 
-function DayColumns({ days, locale }: { days: CostDay[]; locale: string }) {
+function DayColumns({ days, locale, tool }: { days: CostDay[]; locale: string; tool: string }) {
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(...days.map((day) => day.cost), 0);
   if (max <= 0) return null;
@@ -34,7 +36,7 @@ function DayColumns({ days, locale }: { days: CostDay[]; locale: string }) {
         <span>{formatUsd(max, locale)}</span>
         <span>{formatUsd(0, locale)}</span>
       </div>
-      <div className="cost-chart__plot" onMouseLeave={() => setActive(null)}>
+      <div className={"cost-chart__plot" + (tool === "all" ? "" : " has-brand " + brandColorClass(tool))} onMouseLeave={() => setActive(null)}>
         {days.map((day, index) => (
           <button
             type="button"
@@ -125,13 +127,16 @@ export function CostsView({
   loading,
   days,
   onDays,
-  onReload
+  onReload,
+  daily
 }: {
   report: CostReport | null;
   loading: boolean;
   days: number;
   onDays: (days: number) => void;
   onReload: () => void;
+  /** Saved day totals for the activity map. */
+  daily: DailyStore;
 }) {
   const [selectedProvider, setSelectedProvider] = useState<string>("all");
   const locale = intlLocale();
@@ -211,7 +216,9 @@ export function CostsView({
             <small>{t("{tokens} tokens", { tokens: formatTokens(summary.total.tokens, locale) })}</small>
           </div>
 
-          {days > 1 ? <DayColumns days={summary.days} locale={locale} /> : null}
+          {days > 1 ? <DayColumns days={summary.days} locale={locale} tool={selectedProvider} /> : null}
+
+          <ActivityHeatmap store={daily} tool={selectedProvider} locale={locale} />
 
           <GroupTable
             title={t("Por ferramenta")}
