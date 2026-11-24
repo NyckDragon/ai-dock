@@ -7,6 +7,32 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Visual novo no app inteiro ("vidro na borda"), resumo do OpenBot por bots, troca de conta sugerida e um gato com mais vida.
+
+### Added
+
+- **Dock na borda:** a pill fica encostada na borda da tela, com um traço de tempo no anel e nas barras mostrando quanto falta para o reset. O contorno é igual nos quatro lados.
+- **Painel como janela:** o painel aberto ganha barra lateral com Uso, Custos, Prompts, Contas e Configurações. Ele desliza da borda ao abrir e ao fechar, e cada tela entra com um movimento curto. Tudo isso desliga com "menos movimento".
+- **Página de cada provedor:** blocos por janela de cota, custo de hoje, atividade recente e gráfico de 30 dias.
+- **Abas de provedor:** cada aba tem uma barrinha de uso. A pill mostra o gasto de hoje, e uma frase única resume o ritmo ("Ritmo: 42% abaixo · dura até o reset").
+- **Mapa de atividade em Custos:** o dock guarda o total de cada dia, então o mapa passa dos ~30 dias que os logs guardam e cresce com o tempo.
+- **Avisos de cota em 75, 90 e 95%:** cada nível tem bolinha, limite próprio e escolha de som.
+- **Contas na barra lateral:** cada conta tem uma bolinha de estado (conectada, desatualizada, conta errada, sem acesso ou não conectada).
+- **OpenBot por bots:** as contas do OpenBot viram um item só. O resumo mostra quem está trabalhando, com motor, modelo e conta de cada bot, além das contas paradas e dos motores instalados. O banco do OpenBot é aberto somente para leitura.
+- **Troca de conta sugerida (Windows):** quando a conta do Antigravity em uso chega a 15% ou menos no modelo usado e outra tem 50% ou mais, o dock sugere a troca, e "Ir para" traz a janela dela para a frente.
+- **Gato mais vivo:** sua quando uma cota passa de 90% e dá pulinhos quando uma janela renova. Tecla num notebook enquanto há agentes trabalhando. Depois que eles param, fica acordado por 3 minutos, olhando em volta e balançando o rabo de vez em quando, e então dorme com "Z". Os quadros novos usam a cabeça do gato original, com os mesmos olhos verdes e o mesmo tamanho.
+- **Balões em pixel art:** o "?" e o "!" do mascote viraram balões desenhados no mesmo estilo do gato.
+- **Modo demonstração:** `?demo` abre o app no navegador com dados realistas, e `?demo&audit` roda uma checagem automática de interface.
+
+### Fixed
+
+- **Conta errada no Antigravity:** o dock compara o e-mail ao vivo com o `.conta_vinculada` de cada conta e avisa na dica, nas contas e na barra lateral quando não batem.
+- **Slot do Antigravity:** a pasta da conta decide o slot, não o e-mail lembrado.
+- **Antigravity 2.34:** o token do servidor local passa a vir de `daemon/hub_*.json`, casado pelo processo.
+- **Dicas atrás do dock:** as dicas agora são desenhadas dentro do app. A dica nativa do Windows abria atrás da pill.
+- **Dica que não fechava:** a dica do provedor fecha ao passar no símbolo, no "Hoje", na seta ou no mascote.
+- **Canto cortado:** o brilho só no topo parecia cortado nos cantos; virou um contorno uniforme.
+
 ## [0.8.0-beta.3] - 2026-11-12
 
 Terceira versão de teste da 0.8.0, com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release.
