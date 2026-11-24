@@ -3,15 +3,53 @@ import type { ActivitySession, ProviderActivity, ProviderUsage, UsageWindow } fr
 /** The one dock entry that stands for everything inside OpenBot. */
 export const OPENBOT_ID = "antigravity-openbot";
 
-export type OpenBotTask = { runtime: string; title: string; since: number };
+/** One OpenBot bot: each has its own job, model and account. */
+export type OpenBotBot = {
+  name: string;
+  /** Engine it runs on: "antigravity", "grok", ... */
+  provider: string;
+  model: string;
+  /** Dock slot of its Antigravity account, when known. */
+  account: string | null;
+  /** OpenBot's folder id of that account. */
+  accountId: string | null;
+  /** Avatar color in OpenBot, 0–360. */
+  hue: number;
+  running: boolean;
+  /** ISO start of the turn it runs now. */
+  since: string | null;
+};
+/** One account folder of OpenBot (no id: the shared folder) and its dock slot. */
+export type OpenBotAccount = { id: string | null; slot: string | null };
 export type OpenBotOverview = {
   slots: string[];
   runtimes: string[];
-  /** Every account folder OpenBot has, with its dock slot when known. */
-  accounts?: (string | null)[];
-  /** Grok or Claude conversations running inside OpenBot now. */
-  tasks?: OpenBotTask[];
+  accounts?: OpenBotAccount[];
+  bots?: OpenBotBot[];
 };
+
+/** "KRZ · Operador Flow 2K" → tag "KRZ", label "Operador Flow 2K". Names without a short code keep their initials. */
+export function botName(name: string) {
+  const match = /^([\p{L}\d]{1,4})\s*[·•\-|:]\s*(.+)$/u.exec(name.trim());
+  if (match) return { tag: match[1].toUpperCase(), label: match[2] };
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return { tag: initials || "?", label: name.trim() };
+}
+
+/** "gemini-4-hydrogen" → "Gemini 4 Hydrogen". */
+export function modelLabel(model: string) {
+  return model
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => (/^\d/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
 
 /** A slot the backend opened only for an OpenBot account (no Antigravity window shows it). */
 export function isOpenBotSlot(id: string) {
@@ -65,15 +103,21 @@ export function mergeOpenBot(providers: ProviderUsage[], overview: OpenBotOvervi
 }
 
 /**
- * Work from any OpenBot account lights the one OpenBot entry, and so does a
- * Grok or Claude conversation running inside OpenBot.
+ * Work from any OpenBot account lights the one OpenBot entry, and so does a bot
+ * running on another engine (Grok, Claude). Antigravity bots already show
+ * through their account's own activity, so they are not added twice.
  */
-export function mergeOpenBotActivity(activities: ProviderActivity[], tasks: OpenBotTask[] = []): ProviderActivity[] {
+export function mergeOpenBotActivity(activities: ProviderActivity[], bots: OpenBotBot[] = []): ProviderActivity[] {
   const own = activities.filter((activity) => isOpenBotSlot(activity.providerId));
-  const extra: ActivitySession[] = tasks.map((task) => {
-    const { name } = runtimeInfo(task.runtime);
-    return { id: "openbot-" + task.runtime + "-" + task.since, title: task.title || name, detail: name, state: "working", since: task.since };
-  });
+  const extra: ActivitySession[] = bots
+    .filter((bot) => bot.running && bot.provider !== "antigravity")
+    .map((bot) => ({
+      id: "openbot-bot-" + bot.name,
+      title: bot.name,
+      detail: runtimeInfo(bot.provider).name + (bot.model ? " · " + modelLabel(bot.model) : ""),
+      state: "working",
+      since: (bot.since && Date.parse(bot.since)) || Date.now()
+    }));
   if (!extra.length && own.length < 2 && own.every((activity) => activity.providerId === OPENBOT_ID)) return activities;
   if (!own.length) {
     return [...activities, { providerId: OPENBOT_ID, state: "working", confidence: "direct", sessions: extra }];

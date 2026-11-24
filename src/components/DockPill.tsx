@@ -163,9 +163,7 @@ function MascotFigure({
             onMouseEnter={() => setHover("question")}
             onClick={() => toggle("question")}
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <text x="8" y="11.92" textAnchor="middle" fontSize="11">{"?"}</text>
-            </svg>
+            <PixelBalloon glyph="?" />
           </button>
           <button
             type="button"
@@ -178,9 +176,7 @@ function MascotFigure({
             onMouseEnter={() => setHover("bang")}
             onClick={() => toggle("bang")}
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <text x="8" y="11.85" textAnchor="middle" fontSize="11">{"!"}</text>
-            </svg>
+            <PixelBalloon glyph="!" />
           </button>
         </span>
       </span>
@@ -188,6 +184,12 @@ function MascotFigure({
         className={"dock-mascot dock-mascot--" + figure + (tight && pose !== "alert" ? " is-tight" : "") + (cheering ? " is-cheering" : "")}
         aria-hidden="true"
       >
+        {pose === "sleep" && !useRobot ? (
+          <span className="dock-mascot__zzz" aria-hidden="true">
+            <i />
+            <i />
+          </span>
+        ) : null}
         {cheering ? (
           <span className="dock-mascot__sparks">
             <i />
@@ -213,6 +215,38 @@ function MascotFigure({
         </span>
       </span>
     </span>
+  );
+}
+
+/**
+ * A speech balloon in pixel art, like the cat: an 11×9 grid of 2px squares
+ * (outline, soft fill, a tail toward the cat, the mark itself), so it stays
+ * crisp at any position instead of a small font glyph blurring on half pixels.
+ */
+const BALLOON_OUTLINE: [number, number][] = [
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((x): [number, number] => [x, 0]),
+  ...[1, 2, 3, 4, 5].flatMap((y): [number, number][] => [[0, y], [10, y]]),
+  ...[1, 4, 5, 6, 7, 8, 9].map((x): [number, number] => [x, 6]),
+  [2, 7],
+  [3, 7],
+  [2, 8]
+];
+const BALLOON_GLYPHS: Record<"?" | "!", [number, number][]> = {
+  "!": [[5, 1], [5, 2], [5, 3], [5, 5]],
+  "?": [[4, 1], [5, 1], [6, 1], [3, 2], [7, 2], [6, 3], [5, 3], [5, 5]]
+};
+
+function PixelBalloon({ glyph }: { glyph: "?" | "!" }) {
+  const cell = (key: string, [x, y]: [number, number], className: string) => (
+    <rect key={key + x + "-" + y} className={className} x={x} y={y} width={1} height={1} />
+  );
+  return (
+    <svg className="pixel-balloon" viewBox="0 0 11 9" width="22" height="18" shapeRendering="crispEdges" aria-hidden="true">
+      <rect className="pixel-balloon__fill" x={1} y={1} width={9} height={5} />
+      <rect className="pixel-balloon__fill" x={2} y={6} width={2} height={1} />
+      {BALLOON_OUTLINE.map((point) => cell("o", point, "pixel-balloon__line"))}
+      {BALLOON_GLYPHS[glyph].map((point) => cell("g", point, "pixel-balloon__mark"))}
+    </svg>
   );
 }
 

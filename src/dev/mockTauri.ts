@@ -112,12 +112,24 @@ function demoCosts(days = 7) {
 
 const handlers: Record<string, Handler> = {
   get_provider_usage: () => usage,
-  // Like the real PC: four account folders (one stopped), Grok working inside OpenBot.
+  // Like the real PC: OpenBot is a set of bots, each on an account and an engine.
   get_openbot_overview: () => ({
     slots: ["antigravity-2", "antigravity-openbot", "antigravity-openbot3"],
     runtimes: ["claude", "grok", "opencode"],
-    accounts: ["antigravity-2", "antigravity-openbot", null, "antigravity-openbot3"],
-    tasks: [{ runtime: "grok", title: "Plano de posts da semana", since: Date.now() - 95_000 }]
+    accounts: [
+      { id: null, slot: "antigravity-openbot" },
+      { id: "acc1", slot: "antigravity-openbot" },
+      { id: "acc2", slot: null },
+      { id: "acc3", slot: "antigravity-openbot3" }
+    ],
+    bots: [
+      { name: "PIN · Produtor Pinterest", provider: "antigravity", model: "gemini-4-hydrogen", account: "antigravity-openbot", accountId: "acc1", hue: 0, running: false, since: null },
+      { name: "KRZ · Operador Flow 2K", provider: "antigravity", model: "gemini-3.8-flash", account: "antigravity-openbot", accountId: "acc1", hue: 210, running: true, since: new Date(Date.now() - 95_000).toISOString() },
+      { name: "IG · Radar de Pautas", provider: "antigravity", model: "gemini-3.8-flash", account: "antigravity-openbot3", accountId: "acc3", hue: 330, running: false, since: null },
+      { name: "IG · Produtor Studio & Copy", provider: "antigravity", model: "gemini-4-neon", account: "antigravity-openbot3", accountId: "acc3", hue: 280, running: false, since: null },
+      { name: "QA · Auditor Geral", provider: "antigravity", model: "gemini-4-neon", account: null, accountId: "acc2", hue: 40, running: false, since: null },
+      { name: "Nicholas Benjamin", provider: "grok", model: "grok-4.7", account: null, accountId: "grokacc", hue: 150, running: true, since: new Date(Date.now() - 95_000).toISOString() }
+    ]
   }),
   get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
   get_provider_activity: () => [

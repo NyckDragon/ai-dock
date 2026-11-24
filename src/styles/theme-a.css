@@ -1301,20 +1301,35 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   100% { opacity: 0; transform: scale(.6) translateY(-4px); }
 }
 
-/* "?" and "!" as speech balloons: soft fill, a small tail toward the cat, a slow
-   float, sitting close to the head. */
+/* "?" and "!" as pixel-art speech balloons (PixelBalloon), drawn on whole
+   pixels so they stay sharp; a slow float, sitting close to the head. */
 .dock-signals { bottom: calc(100% - 2px); }
 .dock-signal--question,
 .dock-signal--bang {
-  width: 18px;
-  min-width: 18px;
-  border-radius: 9px 9px 9px 3px;
-  animation: signal-float 2.4s ease-in-out infinite;
+  width: 22px;
+  min-width: 22px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  animation: signal-float 2.4s steps(2, jump-none) infinite;
 }
-.dock-signal--question { background: color-mix(in srgb, var(--question) 16%, var(--bg-pill)); }
-.dock-signal--bang { background: color-mix(in srgb, var(--signal, var(--permission)) 16%, var(--bg-pill)); animation-delay: -1.2s; }
-.dock-pill--right .dock-signal--question,
-.dock-pill--right .dock-signal--bang { border-radius: 9px 9px 3px 9px; }
+.dock-signal--bang { animation-delay: -1.2s; }
+.dock-signal .pixel-balloon {
+  position: absolute;
+  inset: 0;
+  width: 22px;
+  height: 18px;
+  transform: none;
+}
+.dock-pill--right .pixel-balloon { transform: scaleX(-1); }
+.dock-pill--right .pixel-balloon__mark { transform: scaleX(-1); transform-origin: 5.5px 0; }
+/* A sticker: solid balloon in the notice color, a darker rim, the mark cut out dark. */
+.pixel-balloon__line { fill: color-mix(in srgb, currentColor 62%, #000); }
+.pixel-balloon__fill { fill: currentColor; }
+.pixel-balloon__mark { fill: #15131a; }
+.dock-signal--question { color: var(--question); }
+.dock-signal--bang { color: var(--signal, var(--permission)); }
 /* The notice sits beside the balloons, on their line, toward the screen center:
    the window keeps one 26px line above the cat, and a box above the balloons
    used to run past it and get cut. One line, ellipsis when long. */
@@ -1357,6 +1372,9 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }
 }
+/* The count sits on the balloon's top corner, on whole pixels too. */
+/* Above the balloon's outer corner, clear of the "?" itself and inside the 26px line. */
+.dock-signal--question[data-count]::after { top: -8px; right: auto; left: -10px; }
 @media (prefers-reduced-motion: reduce) {
   .dock-mascot--breathe.is-tight::after,
   .dock-mascot.is-cheering .dock-mascot__motion,
@@ -1376,12 +1394,6 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   background: var(--good);
   box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent);
 }
-.openbot-tasks { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.openbot-tasks li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.openbot-tasks .provider-chip { --chip-size: 20px; border-radius: 999px; }
-.openbot-tasks li > span { display: grid; min-width: 0; }
-.openbot-tasks strong { font-size: 11.5px; font-weight: 600; }
-.openbot-tasks small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--text-3); }
 
 /* ---------- Account switch hint (our own idea) ----------
    The account an agent works in is nearly out; another has room. One line of
@@ -1446,4 +1458,91 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
 }
 @media (prefers-reduced-motion: reduce) {
   .dock-mascot__blink { display: none; }
+}
+
+/* OpenBot's bots: avatar in the bot's own OpenBot color with its short code,
+   name, engine · model · account, and a live dot while it works. */
+.openbot-summary__head small.is-busy { color: var(--good); font-weight: 600; }
+.openbot-bots { display: grid; gap: 2px; margin: -2px 0 4px; padding: 0; list-style: none; }
+.openbot-bots li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 5px 0; }
+.openbot-bots li + li { border-top: 1px solid var(--hairline); }
+.bot-avatar {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: hsl(var(--bot-hue) 70% 55% / .18);
+  box-shadow: inset 0 0 0 1px hsl(var(--bot-hue) 70% 60% / .35);
+  color: hsl(var(--bot-hue) 80% 72%);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+:root[data-theme="light"] .bot-avatar { color: hsl(var(--bot-hue) 65% 35%); }
+.openbot-bots__copy { flex: 1 1 auto; display: grid; min-width: 0; }
+.openbot-bots__copy strong,
+.openbot-bots__copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.openbot-bots__copy strong { font-size: 12px; font-weight: 600; }
+.openbot-bots__copy small { font-size: 11px; color: var(--text-3); }
+.openbot-bots__live {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent);
+  animation: bot-live 1.6s ease-in-out infinite;
+}
+@keyframes bot-live { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .openbot-bots__live { animation: none; } }
+
+/* Asleep, the cat breathes slowly and lets out pixel "Z"s; on a new notice it
+   hops up. Both come from the drawing as it is: no new frames needed. */
+.dock-mascot--sleep .dock-mascot__motion {
+  transform-origin: 50% 100%;
+  animation: cat-sleep-breathe 3.4s ease-in-out infinite;
+}
+@keyframes cat-sleep-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.035); }
+}
+.dock-mascot--alert .dock-mascot__motion { animation: cat-hop 520ms cubic-bezier(.3, .7, .4, 1) 2; }
+.dock-mascot__zzz { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+/* A 4×4 pixel "Z" (top row, the diagonal, bottom row) from one 2px square and its shadows. */
+.dock-mascot__zzz i {
+  position: absolute;
+  top: 14px;
+  left: 48px;
+  width: 2px;
+  height: 2px;
+  background: var(--text-2);
+  box-shadow:
+    2px 0 var(--text-2), 4px 0 var(--text-2), 6px 0 var(--text-2),
+    4px 2px var(--text-2), 2px 4px var(--text-2),
+    0 6px var(--text-2), 2px 6px var(--text-2), 4px 6px var(--text-2), 6px 6px var(--text-2);
+  opacity: 0;
+  animation: cat-zzz 3.2s ease-out infinite;
+}
+.dock-mascot__zzz i:nth-child(2) { animation-delay: 1.6s; }
+.dock-pill--right .dock-mascot__zzz i { left: 8px; }
+@keyframes cat-zzz {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: .9; }
+  80% { opacity: .5; }
+  100% { opacity: 0; transform: translate(4px, -14px); }
+}
+.dock-pill--right .dock-mascot__zzz i { animation-name: cat-zzz-left; }
+@keyframes cat-zzz-left {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: .9; }
+  80% { opacity: .5; }
+  100% { opacity: 0; transform: translate(-4px, -14px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot--sleep .dock-mascot__motion,
+  .dock-mascot--alert .dock-mascot__motion { animation: none; }
+  .dock-mascot__zzz i { animation: none; opacity: .7; }
+  .dock-mascot__zzz i:nth-child(2) { display: none; }
 }

@@ -437,84 +437,67 @@ fn remember_openbot_slot(root: &Path, slot_id: &str) {
     }
 }
 
-/// Something running inside OpenBot right now, for its summary and its slot.
+/// One OpenBot bot, as the dock shows it. OpenBot is a set of bots, each with its
+/// own job, model and account; they come from OpenBot's own database, read-only.
 #[derive(serde::Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct OpenBotTask {
-    runtime: String,
-    /// Empty when the AI has not named the conversation yet.
-    title: String,
-    /// When the conversation started, in epoch ms.
-    since: i64,
+pub struct OpenBotBot {
+    name: String,
+    /// The engine it runs on: "antigravity", "grok", ...
+    provider: String,
+    model: String,
+    /// The dock slot of the Antigravity account it runs on, when known.
+    account: Option<String>,
+    /// OpenBot's folder id of that account, to group bots under their account.
+    account_id: Option<String>,
+    /// Its avatar color in OpenBot (0–360).
+    hue: i64,
+    running: bool,
+    /// When the turn it is running started (ISO time), while it runs.
+    since: Option<String>,
 }
 
-/// A conversation counts as running while its log was written in the last two minutes.
-const OPENBOT_TASK_FRESH: std::time::Duration = std::time::Duration::from_secs(120);
-
-fn epoch_ms(time: std::time::SystemTime) -> i64 {
-    time.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+fn openbot_db_path() -> Option<PathBuf> {
+    let path = dirs::config_dir()?.join("OpenBot").join("openbot.db");
+    path.is_file().then_some(path)
 }
 
-fn fresh(path: &Path, now: std::time::SystemTime) -> bool {
-    std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .map(|modified| now.duration_since(modified).map(|age| age <= OPENBOT_TASK_FRESH).unwrap_or(true))
-        .unwrap_or(false)
-}
-
-/// Session folders whose (percent-encoded or dashed) working folder is OpenBot's own.
-fn is_openbot_folder(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    lower.ends_with("%5copenbot") || lower.ends_with("-openbot") || lower == "openbot"
-}
-
-/// Grok runs inside OpenBot with OpenBot's folder as its working folder, so its
-/// sessions land in `~/.grok/sessions/<that folder>/<id>/`.
-fn openbot_grok_tasks(home: &Path, now: std::time::SystemTime) -> Vec<OpenBotTask> {
-    let Ok(groups) = std::fs::read_dir(home.join(".grok").join("sessions")) else { return vec![] };
-    let mut tasks = Vec::new();
-    for group in groups.flatten().filter(|entry| is_openbot_folder(&entry.file_name().to_string_lossy())) {
-        let Ok(sessions) = std::fs::read_dir(group.path()) else { continue };
-        for session in sessions.flatten().filter(|entry| entry.path().is_dir()) {
-            let dir = session.path();
-            if !fresh(&dir.join("updates.jsonl"), now) && !fresh(&dir.join("summary.json"), now) {
-                continue;
-            }
-            let summary: Value = std::fs::read_to_string(dir.join("summary.json"))
-                .ok()
-                .and_then(|raw| serde_json::from_str(&raw).ok())
-                .unwrap_or(Value::Null);
-            let title = summary["session_summary"].as_str().unwrap_or("").trim().chars().take(80).collect();
-            let since = std::fs::metadata(&dir)
-                .and_then(|meta| meta.created())
-                .map(epoch_ms)
-                .unwrap_or_else(|_| epoch_ms(now));
-            tasks.push(OpenBotTask { runtime: "grok".into(), title, since });
-        }
-    }
-    tasks
-}
-
-/// Claude Code keeps one folder per working folder in `~/.claude/projects`; the
-/// ones named after OpenBot's folder are conversations OpenBot started.
-fn openbot_claude_tasks(home: &Path, now: std::time::SystemTime) -> Vec<OpenBotTask> {
-    let Ok(projects) = std::fs::read_dir(home.join(".claude").join("projects")) else { return vec![] };
-    let mut tasks = Vec::new();
-    for project in projects.flatten().filter(|entry| is_openbot_folder(&entry.file_name().to_string_lossy())) {
-        let Ok(files) = std::fs::read_dir(project.path()) else { continue };
-        for file in files.flatten() {
-            let path = file.path();
-            if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") || !fresh(&path, now) {
-                continue;
-            }
-            let since = std::fs::metadata(&path)
-                .and_then(|meta| meta.created())
-                .map(epoch_ms)
-                .unwrap_or_else(|_| epoch_ms(now));
-            tasks.push(OpenBotTask { runtime: "claude".into(), title: String::new(), since });
-        }
-    }
-    tasks
+/// Every bot in OpenBot's order, with the turn it is running right now if any.
+fn read_openbot_bots(db: &Path, account_slot: impl Fn(&str) -> Option<String>) -> Vec<OpenBotBot> {
+    use rusqlite::{Connection, OpenFlags};
+    let Ok(conn) = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) else {
+        return vec![];
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(250));
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT a.agent_json, \
+           (SELECT u.started_at FROM projection_threads t \
+              JOIN projection_turns u ON u.turn_id = t.active_turn_id \
+             WHERE t.agent_id = a.agent_id AND u.status = 'running' \
+             ORDER BY u.started_at DESC LIMIT 1) \
+         FROM projection_agents a ORDER BY a.sort_order",
+    ) else {
+        return vec![];
+    };
+    let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))) else {
+        return vec![];
+    };
+    rows.flatten()
+        .filter_map(|(json, started)| {
+            let agent: Value = serde_json::from_str(&json).ok()?;
+            let name = agent["name"].as_str()?.trim().to_string();
+            Some(OpenBotBot {
+                name,
+                provider: agent["provider"].as_str().unwrap_or_default().to_string(),
+                model: agent["model"].as_str().unwrap_or_default().to_string(),
+                account: agent["providerAccountId"].as_str().and_then(&account_slot),
+                account_id: agent["providerAccountId"].as_str().map(str::to_string),
+                hue: agent["avatarHue"].as_i64().unwrap_or(250),
+                running: started.is_some(),
+                since: started,
+            })
+        })
+        .collect()
 }
 
 /// What OpenBot holds, for its one summary in the dock: the slots its Antigravity
@@ -526,8 +509,16 @@ pub struct OpenBotOverview {
     runtimes: Vec<String>,
     /// Every Antigravity account folder OpenBot has (the shared one first), with
     /// its dock slot when known. A stopped account the dock never saw has none.
-    accounts: Vec<Option<String>>,
-    tasks: Vec<OpenBotTask>,
+    accounts: Vec<OpenBotAccount>,
+    bots: Vec<OpenBotBot>,
+}
+
+/// One account folder of OpenBot: its folder id (none for the shared folder)
+/// and the dock slot it was matched to.
+#[derive(serde::Serialize, Debug, Default, PartialEq)]
+pub struct OpenBotAccount {
+    id: Option<String>,
+    slot: Option<String>,
 }
 
 /// Runtime folder names worth showing: not hidden, not the JS engine OpenBot
@@ -567,17 +558,28 @@ pub fn get_openbot_overview() -> OpenBotOverview {
             )
         })
         .unwrap_or_default();
-    let accounts = openbot_log_roots().into_iter().map(|root| known.get(&root).cloned()).collect();
-    let now = std::time::SystemTime::now();
-    let mut tasks = dirs::home_dir()
-        .map(|home| {
-            let mut tasks = openbot_grok_tasks(&home, now);
-            tasks.extend(openbot_claude_tasks(&home, now));
-            tasks
+    let shared = shared_acp_root();
+    let accounts = openbot_log_roots()
+        .into_iter()
+        .map(|root| OpenBotAccount {
+            id: if Some(&root) == shared.as_ref() {
+                None
+            } else {
+                root.parent().and_then(|dir| dir.file_name()).map(|name| name.to_string_lossy().into_owned())
+            },
+            slot: known.get(&root).cloned(),
+        })
+        .collect();
+    let accounts_dir = openbot_accounts_dir();
+    let bots = openbot_db_path()
+        .map(|db| {
+            read_openbot_bots(&db, |account_id| {
+                let root = accounts_dir.as_ref()?.join(account_id).join("antigravity-acp");
+                known.get(&root).cloned()
+            })
         })
         .unwrap_or_default();
-    tasks.sort_by_key(|task| task.since);
-    OpenBotOverview { slots, runtimes, accounts, tasks }
+    OpenBotOverview { slots, runtimes, accounts, bots }
 }
 
 /// OpenBot folders whose work belongs to this slot.
@@ -2435,27 +2437,33 @@ mod tests {
     }
 
     #[test]
-    fn openbot_tasks_come_from_fresh_sessions_in_its_folder() {
-        let home = std::env::temp_dir().join(format!("aidock-openbot-{}", std::process::id()));
-        let running = home.join(".grok/sessions/D%3A%5CApps%5COpenBot/one");
-        let elsewhere = home.join(".grok/sessions/C%3A%5CUsers%5Cme/two");
-        std::fs::create_dir_all(&running).unwrap();
-        std::fs::create_dir_all(&elsewhere).unwrap();
-        std::fs::write(running.join("summary.json"), r#"{"session_summary":"  Plano do site  "}"#).unwrap();
-        std::fs::write(elsewhere.join("summary.json"), r#"{"session_summary":"outro"}"#).unwrap();
-        let claude = home.join(".claude/projects/D--Apps-OpenBot");
-        std::fs::create_dir_all(&claude).unwrap();
-        std::fs::write(claude.join("a.jsonl"), "{}").unwrap();
+    fn openbot_bots_come_from_its_database_with_what_runs_now() {
+        let db = std::env::temp_dir().join(format!("aidock-openbot-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&db);
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE projection_agents (agent_id TEXT, sort_order INTEGER, agent_json TEXT);
+             CREATE TABLE projection_threads (thread_id TEXT, agent_id TEXT, active_turn_id TEXT);
+             CREATE TABLE projection_turns (turn_id TEXT, status TEXT, started_at TEXT);
+             INSERT INTO projection_agents VALUES
+               ('a', 1, '{\"name\":\"KRZ · Flow\",\"provider\":\"antigravity\",\"model\":\"gemini-4\",\"providerAccountId\":\"acc1\",\"avatarHue\":120}'),
+               ('b', 2, '{\"name\":\" Nicholas \",\"provider\":\"grok\",\"model\":\"grok-4.7\"}');
+             INSERT INTO projection_threads VALUES ('ta', 'a', 'turn1'), ('tb', 'b', 'turn2');
+             INSERT INTO projection_turns VALUES ('turn1', 'running', '2026-11-24T14:54:21Z'), ('turn2', 'completed', '2026-11-24T10:00:00Z');",
+        )
+        .unwrap();
+        drop(conn);
 
-        let now = std::time::SystemTime::now();
-        let grok = openbot_grok_tasks(&home, now);
-        assert_eq!(grok.len(), 1);
-        assert_eq!(grok[0].title, "Plano do site");
-        assert_eq!(openbot_claude_tasks(&home, now).len(), 1);
-        // Two hours later nothing is running.
-        let later = now + std::time::Duration::from_secs(7200);
-        assert!(openbot_grok_tasks(&home, later).is_empty());
-        let _ = std::fs::remove_dir_all(&home);
+        let bots = read_openbot_bots(&db, |id| (id == "acc1").then(|| "antigravity-openbot".to_string()));
+        assert_eq!(bots.len(), 2);
+        assert_eq!(bots[0].name, "KRZ · Flow");
+        assert_eq!(bots[0].account.as_deref(), Some("antigravity-openbot"));
+        assert!(bots[0].running);
+        assert_eq!(bots[0].since.as_deref(), Some("2026-11-24T14:54:21Z"));
+        assert_eq!(bots[1].name, "Nicholas");
+        assert_eq!(bots[1].provider, "grok");
+        assert!(!bots[1].running);
+        let _ = std::fs::remove_file(&db);
     }
 
     #[test]
@@ -2471,3 +2479,4 @@ mod tests {
         assert_eq!(slots, vec!["antigravity", "antigravity-2", "antigravity-3", "antigravity-4"]);
     }
 }
+

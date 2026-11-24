@@ -142,7 +142,7 @@ export default function App() {
       .then((next) => setOpenBot((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next)))
       .catch(() => setOpenBot(null));
   }, [providers, rawActivities]);
-  const activities = useMemo(() => mergeOpenBotActivity(rawActivities, openBot?.tasks), [rawActivities, openBot]);
+  const activities = useMemo(() => mergeOpenBotActivity(rawActivities, openBot?.bots), [rawActivities, openBot]);
   const promptState = usePrompts(settings.obsidianPath, expanded);
   const statuses = useProviderStatus();
 
@@ -205,16 +205,17 @@ export default function App() {
     lastSuggestionRef.current = suggestionKey;
   }, [suggestionKey]);
 
-  const openBotSummary = (provider: ProviderUsage) =>
+  const openBotSummary = (provider: ProviderUsage, full = false) =>
     provider.members ? (
       <OpenBotSummary
         provider={provider}
         providers={displayProviders}
         runtimes={openBot?.runtimes ?? []}
         accounts={openBot?.accounts}
-        tasks={openBot?.tasks}
+        bots={openBot?.bots}
         display={settings.display}
         headline={settings.headline}
+        full={full}
       />
     ) : undefined;
   const slots = useMemo(
@@ -998,7 +999,7 @@ export default function App() {
                   now={now}
                   onSelect={setDetailProvider}
                   onBack={() => setDetailProvider(null)}
-                  summary={openBotSummary(detailOpen)}
+                  summary={openBotSummary(detailOpen, true)}
                 />
               ) : view === "usage" ? (
                 <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>

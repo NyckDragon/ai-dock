@@ -150,7 +150,7 @@ export const UsageCard = forwardRef<
         </div>
       ) : null}
 
-      <ActivityBlock activity={activity} now={now} />
+      {summary ? null : <ActivityBlock activity={activity} now={now} />}
       </>
       )}
     </article>

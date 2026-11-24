@@ -1,37 +1,49 @@
 import { Bot } from "lucide-react";
+import type { CSSProperties } from "react";
 import { wrongAccount } from "../lib/accounts";
 import { sessionPools } from "../lib/accountsOverview";
 import { t } from "../lib/i18n";
-import { isOpenBotSlot, runtimeInfo, type OpenBotTask } from "../lib/openbot";
+import { botName, isOpenBotSlot, modelLabel, runtimeInfo, type OpenBotAccount, type OpenBotBot } from "../lib/openbot";
 import { displayWord, featuredWindow, shownPercent } from "../lib/quota";
 import type { HeadlineWindow, PercentDisplay, ProviderUsage } from "../types";
 import { ProviderChip } from "./ProviderIcon";
 
-type Row = { key: string; member?: ProviderUsage; number: number };
+type Row = { key: string; ids: (string | null)[]; member?: ProviderUsage };
 
 /**
- * The account rows: every account folder OpenBot has, in its order, so a
- * stopped account still shows as one. Without that list, the accounts with a
+ * One row per account: OpenBot's folders in order, the ones that turned out to
+ * be the same account folded together. Without that list, the accounts with a
  * reading are enough.
  */
-function accountRows(members: ProviderUsage[], accounts?: (string | null)[]): Row[] {
-  if (!accounts?.length) return members.map((member, index) => ({ key: member.id, member, number: index + 1 }));
+function accountRows(members: ProviderUsage[], accounts?: OpenBotAccount[]): Row[] {
+  if (!accounts?.length) return members.map((member) => ({ key: member.id, ids: [], member }));
   const byId = new Map(members.map((member) => [member.id, member]));
-  const seen = new Set<string>();
   const rows: Row[] = [];
-  accounts.forEach((slot, index) => {
-    if (slot && seen.has(slot)) return;
-    if (slot) seen.add(slot);
-    rows.push({ key: slot ?? "stopped-" + index, member: slot ? byId.get(slot) : undefined, number: index + 1 });
-  });
+  for (const account of accounts) {
+    const same = account.slot ? rows.find((row) => row.member?.id === account.slot || row.key === account.slot) : undefined;
+    if (same) {
+      same.ids.push(account.id);
+      continue;
+    }
+    rows.push({ key: account.slot ?? "folder-" + account.id, ids: [account.id], member: account.slot ? byId.get(account.slot) : undefined });
+  }
   for (const member of members) {
-    if (!seen.has(member.id)) rows.push({ key: member.id, member, number: rows.length + 1 });
+    if (!rows.some((row) => row.member?.id === member.id)) rows.push({ key: member.id, ids: [], member });
   }
   return rows;
 }
 
+function BotAvatar({ bot }: { bot: OpenBotBot }) {
+  return (
+    <span className="bot-avatar" style={{ "--bot-hue": bot.hue } as CSSProperties} aria-hidden="true">
+      {botName(bot.name).tag}
+    </span>
+  );
+}
+
 function RuntimeChip({ runtime, size = 12 }: { runtime: string; size?: number }) {
   const info = runtimeInfo(runtime);
+  if (runtime === "antigravity") return <ProviderChip providerId="antigravity" size={size} />;
   return info.providerId ? (
     <ProviderChip providerId={info.providerId} size={size} />
   ) : (
@@ -42,67 +54,110 @@ function RuntimeChip({ runtime, size = 12 }: { runtime: string; size?: number })
 }
 
 /**
- * Everything inside OpenBot in one place: each Antigravity account it has with
- * its Gemini and Claude + GPT sessions (a stopped one too), the other AIs it
- * has installed with the dock's own reading, and what runs in it right now.
+ * Everything inside OpenBot: its bots (who is working now, and on the page all
+ * of them), the Antigravity accounts they run on, and the engines installed,
+ * with the dock's own reading when it follows that AI too.
  */
 export function OpenBotSummary({
   provider,
   providers,
   runtimes,
   accounts,
-  tasks = [],
+  bots = [],
   display,
-  headline
+  headline,
+  full = false
 }: {
   provider: ProviderUsage;
-  /** Every provider the dock reads, for the other AIs' numbers. */
+  /** Every provider the dock reads, for the engines' numbers. */
   providers: ProviderUsage[];
   runtimes: string[];
-  accounts?: (string | null)[];
-  tasks?: OpenBotTask[];
+  accounts?: OpenBotAccount[];
+  bots?: OpenBotBot[];
   display: PercentDisplay;
   headline: HeadlineWindow;
+  /** The provider page lists every bot; the hover card only the busy ones. */
+  full?: boolean;
 }) {
   const members = provider.members ?? [];
   const rows = accountRows(members, accounts);
-  const busy = new Set(tasks.map((task) => task.runtime));
+  const running = bots.filter((bot) => bot.running);
+  const botsOf = (row: Row) =>
+    bots.filter((bot) => (bot.accountId != null && row.ids.includes(bot.accountId)) || (row.member && bot.account === row.member.id));
+  const engines = [...new Set(["antigravity", ...runtimes, ...bots.map((bot) => bot.provider)])].filter(Boolean);
+  let stopped = 0;
+
   return (
     <div className="openbot-summary">
+      {bots.length ? (
+        <>
+          <div className="openbot-summary__head">
+            <span className="openbot-summary__label">{bots.length === 1 ? t("1 bot") : t("{count} bots", { count: String(bots.length) })}</span>
+            <small className={running.length ? "is-busy" : ""}>
+              {running.length ? t("{count} trabalhando", { count: String(running.length) }) : t("todos parados")}
+            </small>
+          </div>
+          {(full ? bots : running).length ? (
+            <ul className="openbot-bots">
+              {(full ? bots : running).map((bot) => {
+                const { label } = botName(bot.name);
+                const account = bot.account ? providers.find((item) => item.id === bot.account) : undefined;
+                return (
+                  <li key={bot.name} className={bot.running ? "is-running" : ""}>
+                    <BotAvatar bot={bot} />
+                    <span className="openbot-bots__copy">
+                      <strong>{label}</strong>
+                      <small>
+                        {runtimeInfo(bot.provider).name}
+                        {bot.model ? " · " + modelLabel(bot.model) : ""}
+                        {account ? " · " + account.name.replace(/^Antigravity\s*·\s*/i, "") : ""}
+                      </small>
+                    </span>
+                    {bot.running ? <i className="openbot-bots__live" aria-label={t("trabalhando")} /> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </>
+      ) : null}
+
       <div className="openbot-summary__head">
-        <span className="openbot-summary__label">
-          {rows.length === 1 ? t("1 conta") : t("{count} contas", { count: String(rows.length) })}
-        </span>
+        <span className="openbot-summary__label">{rows.length === 1 ? t("1 conta") : t("{count} contas", { count: String(rows.length) })}</span>
         {members[0] ? <small>{"% " + displayWord(display, members[0].id)}</small> : null}
       </div>
       <div className="openbot-summary__accounts">
-        {rows.map(({ key, member, number }) => {
+        {rows.map((row) => {
+          const used = botsOf(row).length;
+          const usedText = used ? (used === 1 ? t("1 bot") : t("{count} bots", { count: String(used) })) : null;
+          const member = row.member;
           if (!member) {
+            stopped += 1;
             return (
-              <div key={key} className="openbot-account is-off">
+              <div key={row.key} className="openbot-account is-off">
                 <span className="openbot-account__name">
-                  <strong>{t("Conta {number} do OpenBot", { number: String(number) })}</strong>
-                  <small>{t("parada agora")}</small>
+                  <strong>{t("Conta parada {number}", { number: String(stopped) })}</strong>
+                  <small>{usedText ? usedText + " · " + t("sem leitura agora") : t("sem leitura agora")}</small>
                 </span>
-                <small className="openbot-account__empty">{t("Sem leitura enquanto o OpenBot não usa esta conta.")}</small>
               </div>
             );
           }
           const pools = sessionPools(member);
           const wrong = wrongAccount(member);
+          const note = wrong
+            ? t("conta errada")
+            : !isOpenBotSlot(member.id)
+              ? t("também no Antigravity")
+              : !member.connected
+                ? t("fechado")
+                : member.stale
+                  ? t("leitura antiga")
+                  : null;
           return (
-            <div key={key} className={"openbot-account" + (member.connected && !member.stale ? "" : " is-off")}>
+            <div key={row.key} className={"openbot-account" + (member.connected && !member.stale ? "" : " is-off")}>
               <span className="openbot-account__name">
                 <strong>{member.name.replace(/^Antigravity\s*·\s*/i, "")}</strong>
-                {wrong ? (
-                  <small className="is-wrong">{t("conta errada")}</small>
-                ) : !isOpenBotSlot(member.id) ? (
-                  <small>{t("também no Antigravity")}</small>
-                ) : !member.connected ? (
-                  <small>{t("fechado")}</small>
-                ) : member.stale ? (
-                  <small>{t("leitura antiga")}</small>
-                ) : null}
+                {note || usedText ? <small className={wrong ? "is-wrong" : ""}>{[usedText, note].filter(Boolean).join(" · ")}</small> : null}
               </span>
               {pools.length ? (
                 pools.map((pool) => {
@@ -127,45 +182,29 @@ export function OpenBotSummary({
         })}
       </div>
 
-      {runtimes.length ? (
-        <>
-          <span className="openbot-summary__label">{t("Outras IAs no OpenBot")}</span>
-          <div className="openbot-summary__runtimes">
-            {runtimes.map((runtime) => {
-              const info = runtimeInfo(runtime);
-              const reading = info.providerId ? providers.find((item) => item.id === info.providerId) : undefined;
-              const window = reading ? featuredWindow(reading, headline) : null;
-              const value = window && !window.amount ? shownPercent(window.remainingPercent, display, reading!.id) : null;
-              return (
-                <span key={runtime} className={"openbot-runtime" + (busy.has(runtime) ? " is-busy" : "")}>
-                  <RuntimeChip runtime={runtime} />
-                  <strong>{info.name}</strong>
-                  {value != null ? (
-                    <small>
-                      {value}% {displayWord(display, reading!.id)}
-                    </small>
-                  ) : null}
-                  {busy.has(runtime) ? <i className="openbot-runtime__busy" aria-label={t("trabalhando")} /> : null}
-                </span>
-              );
-            })}
-          </div>
-          {tasks.length ? (
-            <ul className="openbot-tasks" aria-label={t("Agora no OpenBot")}>
-              {tasks.map((task) => (
-                <li key={task.runtime + task.since}>
-                  <RuntimeChip runtime={task.runtime} size={11} />
-                  <span>
-                    <strong>{runtimeInfo(task.runtime).name}</strong>
-                    <small>{task.title || t("conversa sem título ainda")}</small>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="openbot-summary__hint">{t("Os números das outras IAs são os que o dock lê da sua conta de cada uma.")}</p>
-        </>
-      ) : null}
+      <span className="openbot-summary__label">{t("Motores")}</span>
+      <div className="openbot-summary__runtimes">
+        {engines.map((engine) => {
+          const info = runtimeInfo(engine);
+          const count = bots.filter((bot) => bot.provider === engine).length;
+          const reading = info.providerId ? providers.find((item) => item.id === info.providerId) : undefined;
+          const window = reading ? featuredWindow(reading, headline) : null;
+          const value = window && !window.amount ? shownPercent(window.remainingPercent, display, reading!.id) : null;
+          const busy = running.some((bot) => bot.provider === engine);
+          return (
+            <span key={engine} className={"openbot-runtime" + (busy ? " is-busy" : "")}>
+              <RuntimeChip runtime={engine} />
+              <strong>{engine === "antigravity" ? "Antigravity" : info.name}</strong>
+              <small>
+                {[count ? (count === 1 ? t("1 bot") : t("{count} bots", { count: String(count) })) : null, value != null ? value + "% " + displayWord(display, reading!.id) : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </small>
+              {busy ? <i className="openbot-runtime__busy" aria-label={t("trabalhando")} /> : null}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }

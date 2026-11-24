@@ -104,7 +104,8 @@ export const ProviderPeek = forwardRef<
         </p>
       ) : null}
 
-      <ActivityBlock activity={activity} now={now} />
+      {/* OpenBot's summary already lists the bots at work. */}
+      {summary ? null : <ActivityBlock activity={activity} now={now} />}
 
       <button
         type="button"

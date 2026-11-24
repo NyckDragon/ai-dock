@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { mergeOpenBot, mergeOpenBotActivity, runtimeInfo } from "../src/lib/openbot.ts";
+import { botName, mergeOpenBot, mergeOpenBotActivity, modelLabel, runtimeInfo } from "../src/lib/openbot.ts";
 import type { ProviderActivity, ProviderUsage } from "../src/types.ts";
 
 const account = (id: string, gemini: number, extra: Partial<ProviderUsage> = {}): ProviderUsage => ({
@@ -57,12 +57,29 @@ test("work in any OpenBot account lights the one entry", () => {
   assert.equal(merged[1].sessions.length, 2);
 });
 
-test("a Grok conversation inside OpenBot lights the entry even with no account working", () => {
-  const merged = mergeOpenBotActivity([], [{ runtime: "grok", title: "", since: 5 }]);
+test("a bot running on another engine lights the entry; Antigravity bots are not added twice", () => {
+  const bot = (name: string, provider: string, running: boolean) => ({
+    name,
+    provider,
+    model: provider === "grok" ? "grok-4.7" : "gemini-4-neon",
+    account: null,
+    accountId: null,
+    hue: 0,
+    running,
+    since: running ? "2026-11-24T14:54:21.517Z" : null
+  });
+  const merged = mergeOpenBotActivity([], [bot("Nicholas Benjamin", "grok", true), bot("KRZ · Flow", "antigravity", true), bot("IG · Radar", "grok", false)]);
   assert.equal(merged.length, 1);
   assert.equal(merged[0].providerId, "antigravity-openbot");
-  assert.equal(merged[0].state, "working");
-  assert.equal(merged[0].sessions[0].title, "Grok");
+  assert.deepEqual(merged[0].sessions.map((session) => session.title), ["Nicholas Benjamin"]);
+  assert.equal(merged[0].sessions[0].detail, "Grok · Grok 4.7");
+});
+
+test("bot names split into a short code and a label", () => {
+  assert.deepEqual(botName("KRZ · Operador Flow 2K"), { tag: "KRZ", label: "Operador Flow 2K" });
+  assert.deepEqual(botName("IG · Radar de Pautas"), { tag: "IG", label: "Radar de Pautas" });
+  assert.deepEqual(botName("Nicholas Benjamin"), { tag: "NB", label: "Nicholas Benjamin" });
+  assert.equal(modelLabel("gemini-4-hydrogen"), "Gemini 4 Hydrogen");
 });
 
 test("runtimes read as names, linked to the dock reading when there is one", () => {
