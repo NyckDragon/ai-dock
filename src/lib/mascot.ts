@@ -168,3 +168,45 @@ export function mascotNoticeText(notice: MascotNotice) {
   if (notice.kind === "done") return t("{name} finalizou", { name: notice.name });
   return t("{name} tem uma pergunta", { name: notice.name });
 }
+
+/** Used share at which the cat starts to sweat: 90% used, 10% left. */
+export const TIGHT_REMAINING = 10;
+/** A window that gains this many points between readings was renewed (same rule as the notification). */
+export const RENEW_JUMP = 30;
+
+type QuotaSlot = { id: string; connected?: boolean; stale?: boolean; windows: { id: string; remainingPercent: number; amount?: string | null }[] };
+
+/** Some live quota is nearly used up, but not all gone: the cat sweats. */
+export function quotaTight(slots: QuotaSlot[]): boolean {
+  return slots.some(
+    (slot) =>
+      slot.connected !== false &&
+      !slot.stale &&
+      slot.windows.some((window) => !window.amount && window.remainingPercent > 0 && window.remainingPercent <= TIGHT_REMAINING)
+  );
+}
+
+/**
+ * Remembers each window's room and tells whether one was renewed since the
+ * last reading. The first reading only sets the baseline.
+ */
+export function quotaRenewed(previous: ReadonlyMap<string, number> | null, slots: QuotaSlot[]) {
+  const next = new Map<string, number>();
+  let renewed = false;
+  for (const slot of slots) {
+    if (slot.connected === false || slot.stale) continue;
+    for (const window of slot.windows) {
+      if (window.amount) continue;
+      const key = slot.id + ":" + window.id;
+      next.set(key, window.remainingPercent);
+      const before = previous?.get(key);
+      if (before != null && window.remainingPercent - before >= RENEW_JUMP) renewed = true;
+    }
+  }
+  return { next, renewed };
+}
+
+/** How many questions wait for you, for the count on the "?" balloon. */
+export function questionCount(notices: MascotNotice[]): number {
+  return notices.filter((notice) => notice.kind === "question").length;
+}

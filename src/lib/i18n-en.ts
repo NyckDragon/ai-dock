@@ -626,5 +626,6 @@ export const EN: Record<string, string> = {
   "também no Antigravity": "also in Antigravity",
   "leitura antiga": "old reading",
   "Outras IAs no OpenBot": "Other AIs in OpenBot",
-  "Os números das outras IAs são os que o dock lê da sua conta de cada uma.": "The other AIs' numbers are what the dock reads from your account in each one."
+  "Os números das outras IAs são os que o dock lê da sua conta de cada uma.": "The other AIs' numbers are what the dock reads from your account in each one.",
+  "{count} perguntas": "{count} questions"
 };

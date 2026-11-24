@@ -13,6 +13,9 @@ import {
   mascotNotices,
   mascotOverlayHeight,
   mascotPose,
+  questionCount,
+  quotaRenewed,
+  quotaTight,
   robotPoseSrc,
   type MascotKind
 } from "../lib/mascot";
@@ -89,6 +92,20 @@ function MascotFigure({
   const shownFrame = robotWalk.length ? robotWalk[frame % robotWalk.length] : robot.src;
   const figure = useRobot ? "robot" : pose === "sit" ? "breathe" : pose;
   const drawWidth = !useRobot && pose === "sleep" ? 76 : 0;
+  // The cat reacts to the quotas too: a sweat drop when one is nearly used up,
+  // a few hops with sparkles when one renews.
+  const tight = quotaTight(slots);
+  const asked = questionCount(notices);
+  const lastRoomRef = useRef<ReadonlyMap<string, number> | null>(null);
+  const [cheering, setCheering] = useState(false);
+  useEffect(() => {
+    const { next, renewed } = quotaRenewed(lastRoomRef.current, slots);
+    lastRoomRef.current = next;
+    if (!renewed || !interactive) return;
+    setCheering(true);
+    const timer = window.setTimeout(() => setCheering(false), 3600);
+    return () => window.clearTimeout(timer);
+  }, [slots, interactive]);
 
   useEffect(() => {
     if (robotWalk.length < 2) return;
@@ -143,7 +160,8 @@ function MascotFigure({
           <button
             type="button"
             className={"dock-signal dock-signal--question" + (open === "question" ? " is-open" : "") + (question ? "" : " is-idle")}
-            aria-label={t("Pergunta")}
+            data-count={asked > 1 ? asked : undefined}
+            aria-label={asked > 1 ? t("{count} perguntas", { count: String(asked) }) : t("Pergunta")}
             aria-expanded={question ? open === "question" : undefined}
             aria-hidden={question ? undefined : true}
             tabIndex={question ? undefined : -1}
@@ -171,7 +189,18 @@ function MascotFigure({
           </button>
         </span>
       </span>
-      <span className={"dock-mascot dock-mascot--" + figure} aria-hidden="true">
+      <span
+        className={"dock-mascot dock-mascot--" + figure + (tight && pose !== "alert" ? " is-tight" : "") + (cheering ? " is-cheering" : "")}
+        aria-hidden="true"
+      >
+        {cheering ? (
+          <span className="dock-mascot__sparks">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : null}
         <span className="dock-mascot__motion">
           {!useRobot && pose === "sit" ? (
             <span className={"dock-mascot__clip" + (side === "right" ? " dock-mascot__img--flip" : "")}>

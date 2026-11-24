@@ -1230,3 +1230,96 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
 }
 /* In the hover card the summary takes the place of the windows, with the same gap. */
 .provider-peek > .openbot-summary { margin-top: 14px; }
+
+/* ---------- The cat reacts to the quotas (our own idea) ----------
+   A pixel sweat drop by the temple when a quota is nearly used up, a few hops
+   with sparkles when one renews, and the "?" as a floating speech balloon that
+   counts the questions. Everything stays inside the cat's 64px box, which the
+   window already reserves. */
+.dock-mascot--breathe.is-tight::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 47px;
+  width: 4px;
+  height: 6px;
+  border-radius: 50% 50% 50% 50% / 35% 35% 65% 65%;
+  background: #8fd3ff;
+  box-shadow: inset -1px -1px 0 #4aa8e8, 0 0 0 1px rgba(10, 20, 40, .35);
+  animation: cat-sweat 2.6s ease-in infinite;
+  z-index: 2;
+}
+.dock-pill--right .dock-mascot--breathe.is-tight::after { left: 13px; }
+@keyframes cat-sweat {
+  0%, 20% { opacity: 0; transform: translateY(-2px) scale(.6); }
+  35% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; transform: translateY(7px) scale(1); }
+  100% { opacity: 0; transform: translateY(10px) scale(.8); }
+}
+
+.dock-mascot.is-cheering .dock-mascot__motion { animation: cat-hop 600ms cubic-bezier(.3, .7, .4, 1) 5; }
+@keyframes cat-hop {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-7px); }
+}
+.dock-mascot__sparks { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+/* Pixel plus-shaped stars: a 2px core with four 2px arms. */
+.dock-mascot__sparks i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #ffe066;
+  box-shadow: 2px 0 #ffe066, -2px 0 #ffe066, 0 2px #ffe066, 0 -2px #ffe066;
+  opacity: 0;
+  animation: cat-spark 900ms ease-out infinite;
+}
+.dock-mascot__sparks i:nth-child(1) { top: 12px; left: 6px; }
+.dock-mascot__sparks i:nth-child(2) { top: 6px; left: 56px; animation-delay: 220ms; background: var(--done); box-shadow: 2px 0 var(--done), -2px 0 var(--done), 0 2px var(--done), 0 -2px var(--done); }
+.dock-mascot__sparks i:nth-child(3) { top: 30px; left: 2px; animation-delay: 440ms; background: var(--question); box-shadow: 2px 0 var(--question), -2px 0 var(--question), 0 2px var(--question), 0 -2px var(--question); }
+.dock-mascot__sparks i:nth-child(4) { top: 26px; left: 60px; animation-delay: 660ms; }
+@keyframes cat-spark {
+  0% { opacity: 0; transform: scale(.4); }
+  30% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(.6) translateY(-4px); }
+}
+
+/* "?" as a speech balloon: soft fill, a small tail toward the cat, a slow float. */
+.dock-signal--question {
+  width: 18px;
+  min-width: 18px;
+  border-radius: 9px 9px 9px 3px;
+  background: color-mix(in srgb, var(--question) 16%, var(--bg-pill));
+  animation: signal-float 2.4s ease-in-out infinite;
+}
+.dock-pill--right .dock-signal--question { border-radius: 9px 9px 3px 9px; }
+.dock-signal--question[data-count]::after {
+  content: attr(data-count);
+  position: absolute;
+  /* Stays inside the 26px line the window keeps above the cat, float included. */
+  top: -5px;
+  right: -12px;
+  min-width: 11px;
+  height: 11px;
+  padding: 0 2px;
+  box-shadow: 0 0 0 1.5px var(--bg-pill);
+  border-radius: 999px;
+  background: var(--question);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 11px;
+  text-align: center;
+}
+@keyframes signal-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot--breathe.is-tight::after,
+  .dock-mascot.is-cheering .dock-mascot__motion,
+  .dock-mascot__sparks i,
+  .dock-signal--question { animation: none; }
+  .dock-mascot--breathe.is-tight::after,
+  .dock-mascot__sparks i { opacity: 1; }
+}
