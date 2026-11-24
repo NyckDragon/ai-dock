@@ -172,13 +172,10 @@
   background: var(--card-surface);
   box-shadow: var(--top-light);
 }
-.settings-card > * + * { border-top: 1px solid var(--hairline); }
-.settings-card > .hint,
-.settings-card > .segmented,
-.settings-card > .segmented-title,
-.settings-card > .notice,
-.settings-card > .mode-preview-layout,
-.settings-card > .signal-legend { border-top: 0; }
+/* Dividers only between two option rows, never above buttons, sliders or lists. */
+.settings-card > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row) + :is(.setting-row, .select-setting-row, .mascot-row, .pause-row) {
+  border-top: 1px solid var(--hairline);
+}
 .settings-card > .segmented { margin: 10px 0; }
 .settings-card > .segmented-title { margin: 12px 0 0; font-size: var(--fs-sm); font-weight: 600; }
 .settings-card > .hint { margin: 0 0 12px; }
@@ -203,7 +200,16 @@
   background: color-mix(in srgb, var(--text) 6%, transparent);
   border-color: var(--card-border);
 }
-.switch { width: 40px; height: 24px; }
+/* Switch: 40 x 24, knob 16 px centered on both axes in either state. */
+.switch { width: 40px; height: 24px; box-sizing: border-box; }
+.switch i {
+  top: 50%;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+}
+.switch.is-on i { transform: translate(16px, -50%); }
 .mode-picker button {
   border-radius: 12px;
   background: color-mix(in srgb, var(--text) 4%, transparent);
@@ -486,7 +492,7 @@
    everything else (sliders, segmented controls, option lists, buttons) gets
    12px above and below, so nothing touches the card edge. */
 .settings-card { padding: 4px 16px; }
-.settings-card > :not(.setting-row):not(.select-setting-row):not(.mascot-row):not(.about-row):not(.hint):not(.account-names):not(.connect-card) {
+.settings-card > :where(:not(.setting-row, .select-setting-row, .mascot-row, .about-row, .hint, .account-names, .connect-card)) {
   margin-top: 12px;
   margin-bottom: 12px;
 }
@@ -522,7 +528,7 @@
 .settings-card .mode-preview { background: color-mix(in srgb, var(--text) 3%, transparent); }
 
 /* Pause choices are one segmented control. */
-.pause-row { padding: 12px 0 0; gap: 8px; }
+.pause-row { padding: 8px 0 0; gap: 8px; }
 .pause-row > span { font-size: var(--fs-sm); color: var(--text); }
 .pause-row__options {
   gap: 2px;
@@ -553,8 +559,9 @@
 .button-row { gap: 8px; margin: 12px 0; }
 .button-row .button { flex: 1 1 0; }
 
-/* About */
-.about-row { display: flex; align-items: center; padding: 12px 0; }
+/* About: version, then the two buttons right under it, no divider between. */
+.about-row { display: flex; align-items: center; padding: 14px 0 0; }
+.settings-card > .about-row + .button-row { border-top: 0; margin: 12px 0 14px; }
 
 /* ---------- Usage list: no gaps, user picks 1 or 2 per row, cards fold ---------- */
 .dock-panel--wide .usage-stack.usage-stack--cols-2 {
@@ -613,3 +620,10 @@
 .usage-card__headline strong { font-size: 34px; }
 .usage-card__headline small { margin: 0; font-size: var(--fs-xs); }
 .usage-card.is-collapsed .usage-card__headline { margin-bottom: 0; }
+
+/* Title → control → hint read as one unit; the next unit starts after a divider. */
+.settings-card > .segmented-title { margin: 14px 0 0; }
+.settings-card > .segmented-title + .segmented { margin-top: 8px; }
+.settings-card > .segmented + .hint { margin-top: -2px; }
+.settings-card > .hint + .segmented-title { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.settings-card > .hint + :is(.setting-row, .select-setting-row, .mascot-row) { border-top: 1px solid var(--hairline); }

@@ -95,6 +95,40 @@ function audit(): Finding[] {
     if (line.getBoundingClientRect().height > lineHeight * 1.5) findings.push({ rule: "4.1 linha de status quebrou", detail: line.textContent?.trim() ?? "", el: line });
   });
 
+  // 6.1 Switch knob centered in its track.
+  document.querySelectorAll(".switch").forEach((track) => {
+    const knob = track.querySelector("i");
+    if (!knob || !visible(track)) return;
+    const delta = Math.abs(center(knob.getBoundingClientRect()) - center(track.getBoundingClientRect()));
+    if (delta > 0.75) findings.push({ rule: "6.1 bolinha da chave fora do centro", detail: `${delta.toFixed(1)} px`, el: track });
+  });
+
+  // 1.3 / 1.4 Inside a card: no divider above buttons, no oversized gap between blocks.
+  document.querySelectorAll(".settings-card").forEach((card) => {
+    if (!visible(card)) return;
+    const kids = [...card.children].filter(visible);
+    kids.forEach((kid, index) => {
+      const style = getComputedStyle(kid);
+      const hasLine =
+        parseFloat(style.borderTopWidth) > 0 && style.borderTopStyle !== "none" && parseFloat(style.borderLeftWidth) === 0;
+      if (hasLine && (kid.matches(".button, .button-row, .range-row, .option-list, .segmented") || kid.querySelector(":scope > .button"))) {
+        findings.push({ rule: "1.3 divisória em cima de botão ou controle", detail: kid.className.toString(), el: kid });
+      }
+      const prev = kids[index - 1];
+      if (!prev) return;
+      // Measure what is drawn (text and controls), not the boxes and their padding.
+      const contentBox = (el: Element) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return range.getBoundingClientRect();
+      };
+      const prevText = contentBox(prev).bottom;
+      const nextTop = contentBox(kid).top;
+      const gap = nextTop - prevText;
+      if (gap > 36) findings.push({ rule: "1.4 vão grande entre blocos", detail: `${gap.toFixed(0)} px`, el: kid });
+    });
+  });
+
   // 3.3 Same component, same radius and height.
   const groups = new Map<string, Set<string>>();
   document.querySelectorAll(".button, .icon-button").forEach((el) => {
