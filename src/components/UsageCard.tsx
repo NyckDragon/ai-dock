@@ -33,9 +33,11 @@ export const UsageCard = forwardRef<
     /** Folded down to the name and the big number. */
     collapsed?: boolean;
     onToggleCollapse?: () => void;
+    /** Opens this provider's own page. */
+    onOpenDetail?: () => void;
   }
 >(function UsageCard(
-  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse },
+  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse, onOpenDetail },
   ref
 ) {
   const shown = featuredWindow(provider, featured);
@@ -62,7 +64,13 @@ export const UsageCard = forwardRef<
         <div className="usage-card__identity">
           <ProviderChip providerId={provider.id} />
           <div>
-            <div className="usage-card__name">{provider.name}</div>
+            {onOpenDetail ? (
+              <button type="button" className="usage-card__open" onClick={onOpenDetail} aria-label={t("Abrir a página de {name}", { name: provider.name })}>
+                <span className="usage-card__name">{provider.name}</span>
+              </button>
+            ) : (
+              <div className="usage-card__name">{provider.name}</div>
+            )}
             {provider.stale ? (
               <div className="usage-card__status is-stale">
                 <History size={12} />

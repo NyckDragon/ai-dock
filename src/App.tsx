@@ -12,6 +12,7 @@ import { SettingsPanel, SETTINGS_TABS } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
 import { AccountsOverview } from "./components/AccountsOverview";
 import { HealthChip } from "./components/HealthChip";
+import { ProviderDetail } from "./components/ProviderDetail";
 import { antigravityAccounts } from "./lib/accountsOverview";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
@@ -96,6 +97,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("appearance");
   const [focusProvider, setFocusProvider] = useState<string | null>(null);
+  /** The provider page open in Usage; null shows the list. */
+  const [detailProvider, setDetailProvider] = useState<string | null>(null);
   const [promptFocusKey, setPromptFocusKey] = useState(0);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [autostart, setAutostart] = useState<boolean | null>(null);
@@ -204,7 +207,7 @@ export default function App() {
       setSettingsOpen(false);
       if (slotId) {
         setView("usage");
-        setFocusProvider(baseProviderId(slotId));
+        setDetailProvider(baseProviderId(slotId));
       }
       setExpanded(true);
     },
@@ -711,6 +714,8 @@ export default function App() {
       : lastUpdatedAt
         ? t("Atualizado {age}", { age: formatAge(lastUpdatedAt, now) })
         : t("Aguardando leitura");
+  const detailOpen = detailProvider ? visibleProviders.find((provider) => provider.id === detailProvider) ?? null : null;
+
   const renderUsageCard = (provider: (typeof visibleProviders)[number]) => (
     <UsageCard
       key={provider.id}
@@ -728,6 +733,7 @@ export default function App() {
       now={now}
       highlighted={focusProvider === provider.id}
       onConnect={provider.id === "claude" ? reconnectClaude : undefined}
+      onOpenDetail={() => setDetailProvider(provider.id)}
       collapsed={settings.collapsedCards.includes(provider.id)}
       onToggleCollapse={() =>
         update({
@@ -768,6 +774,7 @@ export default function App() {
                 aria-current={!settingsOpen && view === item.id ? "page" : undefined}
                 onClick={() => {
                   setSettingsOpen(false);
+                  setDetailProvider(null);
                   setView(item.id);
                   if (item.id === "prompts") setPromptFocusKey((key) => key + 1);
                 }}
@@ -816,7 +823,9 @@ export default function App() {
             <h1 data-tauri-drag-region>
               {settingsOpen
                 ? t(SETTINGS_TABS.find((item) => item.id === settingsTab)?.label ?? "Configurações")
-                : t(PANEL_VIEWS.find((item) => item.id === view)?.label ?? "Uso")}
+                : detailOpen
+                  ? detailOpen.name
+                  : t(PANEL_VIEWS.find((item) => item.id === view)?.label ?? "Uso")}
             </h1>
             <small data-tauri-drag-region>{settingsOpen ? t("Configurações") : status}</small>
           </header>
@@ -849,9 +858,22 @@ export default function App() {
             />
           ) : (
             <div className="panel-scroll" role="tabpanel">
-              {view === "usage" ? (
+              {view === "usage" && detailOpen ? (
+                <ProviderDetail
+                  provider={detailOpen}
+                  providers={visibleProviders}
+                  activity={activityFor(detailOpen.id)}
+                  status={statusFor(statuses, detailOpen.id)}
+                  display={settings.display}
+                  headline={settings.headline}
+                  history={history}
+                  now={now}
+                  onSelect={setDetailProvider}
+                  onBack={() => setDetailProvider(null)}
+                />
+              ) : view === "usage" ? (
                 <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
-                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setFocusProvider} />
+                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setDetailProvider} />
                   {visibleProviders.length === 0 && loading ? (
                     [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
                   ) : settings.usageColumns === 2 ? (

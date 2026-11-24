@@ -53,7 +53,7 @@ function audit(): Finding[] {
     let last: Node = first;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
     const range = document.createRange();
-    range.setStartBefore(button.querySelector("svg") ?? first);
+    range.setStartBefore(button.querySelector("svg, .provider-chip, img") ?? first);
     range.setEndAfter(last);
     const textRect = range.getBoundingClientRect();
     const rect = button.getBoundingClientRect();
