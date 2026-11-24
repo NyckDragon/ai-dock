@@ -37,6 +37,30 @@ export const CAT_BREATHE_FRAMES = 5;
 /** The same five frames with the eyes closed, laid over the breath for a blink. */
 export const CAT_BLINK = file("cat-blink.png");
 
+/**
+ * Four-frame sheets drawn from the same cat: typing on a tiny laptop while
+ * agents work, and looking around or wagging its tail while it waits awake.
+ */
+export const CAT_TYPING = file("cat-typing.png");
+export const CAT_LOOK = file("cat-look.png");
+export const CAT_TAIL = file("cat-tail.png");
+
+/** After the last agent stops, the cat stays awake this long before it sleeps. */
+export const MASCOT_AWAKE_MS = 3 * 60 * 1000;
+/** A wait between idle moves, and how long each move plays (look once, wag twice). */
+export const IDLE_MOVE_GAP_MS: [number, number] = [5000, 10000];
+export const IDLE_MOVE_MS = { look: 3100, tail: 1960 } as const;
+export type IdleMove = keyof typeof IDLE_MOVE_MS;
+
+export type CatFigure = "typing" | "awake" | "sleep" | "alert";
+
+/** What the cat draws: typing while agents work, awake for a while after, then asleep. */
+export function catFigure(pose: MascotPose, awake: boolean): CatFigure {
+  if (pose === "alert") return "alert";
+  if (pose === "sit") return "typing";
+  return awake ? "awake" : "sleep";
+}
+
 const ROBOT_IDLE = "robot-idle.png";
 
 function fileName(path: string) {

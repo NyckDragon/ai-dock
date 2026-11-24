@@ -1546,3 +1546,55 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   .dock-mascot__zzz i { animation: none; opacity: .7; }
   .dock-mascot__zzz i:nth-child(2) { display: none; }
 }
+
+/* ---------- New cat moves (frames drawn from the same cat) ----------
+   Four frames each, 64px apiece in a 256px strip, in the same clipped box as the
+   breath: typing loops while agents work; looking around plays once and the tail
+   wags twice while it waits awake. */
+.dock-mascot--typing .dock-mascot__clip { transform: translateX(-6px); }
+.dock-pill--right .dock-mascot--typing .dock-mascot__clip { transform: scaleX(-1) translateX(-6px); }
+.dock-mascot__sheet--typing,
+.dock-mascot__sheet--look,
+.dock-mascot__sheet--tail { width: 256px; }
+.dock-mascot__sheet--typing { animation: cat-four-frames 720ms steps(4, end) infinite; }
+.dock-mascot__sheet--look { animation: cat-look 3.1s linear 1 both; }
+.dock-mascot__sheet--tail { animation: cat-tail 980ms linear 2 both; }
+@keyframes cat-four-frames {
+  from { transform: translateX(0); }
+  to { transform: translateX(-256px); }
+}
+/* Straight ahead 1.2s, left 0.7s, ahead 0.5s, right 0.7s. */
+@keyframes cat-look {
+  0%, 38.7% { transform: translateX(0); }
+  38.71%, 61.29% { transform: translateX(-64px); }
+  61.3%, 77.41% { transform: translateX(-128px); }
+  77.42%, 100% { transform: translateX(-192px); }
+}
+/* Down 260ms, half up 200ms, up 320ms, half down 200ms. */
+@keyframes cat-tail {
+  0%, 26.5% { transform: translateX(0); }
+  26.6%, 46.9% { transform: translateX(-64px); }
+  47%, 79.5% { transform: translateX(-128px); }
+  79.6%, 100% { transform: translateX(-192px); }
+}
+/* Typing, the head sits a little lower and further in: the sweat drop follows. */
+.dock-mascot--typing.is-tight::after {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: 38px;
+  width: 4px;
+  height: 6px;
+  border-radius: 50% 50% 50% 50% / 35% 35% 65% 65%;
+  background: #8fd3ff;
+  box-shadow: inset -1px -1px 0 #4aa8e8, 0 0 0 1px rgba(10, 20, 40, .35);
+  animation: cat-sweat 2.6s ease-in infinite;
+  z-index: 2;
+}
+.dock-pill--right .dock-mascot--typing.is-tight::after { left: 22px; }
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot__sheet--typing,
+  .dock-mascot__sheet--look,
+  .dock-mascot__sheet--tail { animation: none; }
+  .dock-mascot--typing.is-tight::after { animation: none; opacity: 1; }
+}

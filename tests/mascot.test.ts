@@ -205,3 +205,11 @@ test("every notice of a mark fits one line", async () => {
   );
   assert.equal(mascotNoticeLine([]), "");
 });
+
+test("the cat types while agents work, stays awake after, then sleeps", async () => {
+  const { catFigure } = await import("../src/lib/mascot.ts");
+  assert.equal(catFigure("sit", false), "typing");
+  assert.equal(catFigure("sleep", true), "awake");
+  assert.equal(catFigure("sleep", false), "sleep");
+  assert.equal(catFigure("alert", true), "alert");
+});

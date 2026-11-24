@@ -7,6 +7,14 @@ import { t } from "../lib/i18n";
 import {
   CAT_BLINK,
   CAT_BREATHE,
+  CAT_LOOK,
+  CAT_TAIL,
+  CAT_TYPING,
+  IDLE_MOVE_GAP_MS,
+  IDLE_MOVE_MS,
+  MASCOT_AWAKE_MS,
+  catFigure,
+  type IdleMove,
   MASCOT_SRC,
   mascotBang,
   mascotMarkNotices,
@@ -91,8 +99,52 @@ function MascotFigure({
   const useRobot = kind === "robot" && robot.src.length > 0;
   const robotWalk = useRobot && pose === "sit" ? robot.frames : [];
   const shownFrame = robotWalk.length ? robotWalk[frame % robotWalk.length] : robot.src;
-  const figure = useRobot ? "robot" : pose === "sit" ? "breathe" : pose;
-  const drawWidth = !useRobot && pose === "sleep" ? 76 : 0;
+  // Awake for a while after the last agent stops, then asleep.
+  const [awakeUntil, setAwakeUntil] = useState(0);
+  const lastPoseRef = useRef(pose);
+  useEffect(() => {
+    if (lastPoseRef.current !== "sleep" && pose === "sleep") setAwakeUntil(Date.now() + MASCOT_AWAKE_MS);
+    lastPoseRef.current = pose;
+  }, [pose]);
+  const [, wake] = useState(0);
+  useEffect(() => {
+    const left = awakeUntil - Date.now();
+    if (left <= 0) return;
+    const timer = window.setTimeout(() => wake((n) => n + 1), left + 50);
+    return () => window.clearTimeout(timer);
+  }, [awakeUntil]);
+  const cat = catFigure(pose, Date.now() < awakeUntil);
+  const figure = useRobot ? "robot" : cat === "awake" ? "breathe" : cat;
+  const drawWidth = !useRobot && cat === "sleep" ? 76 : 0;
+
+  // The move sheets load ahead, so the first look or wag does not blink empty.
+  useEffect(() => {
+    for (const src of [CAT_LOOK, CAT_TAIL, CAT_TYPING]) new Image().src = src;
+  }, []);
+
+  // While awake, now and then it looks around or wags its tail, then breathes again.
+  const [move, setMove] = useState<{ kind: IdleMove; n: number } | null>(null);
+  useEffect(() => {
+    setMove(null);
+    if (figure !== "breathe" || !interactive) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let timer = 0;
+    let n = 0;
+    const next = () => {
+      const [min, max] = IDLE_MOVE_GAP_MS;
+      timer = window.setTimeout(() => {
+        const kind: IdleMove = Math.random() < 0.5 ? "look" : "tail";
+        n += 1;
+        setMove({ kind, n });
+        timer = window.setTimeout(() => {
+          setMove(null);
+          next();
+        }, IDLE_MOVE_MS[kind]);
+      }, min + Math.random() * (max - min));
+    };
+    next();
+    return () => window.clearTimeout(timer);
+  }, [figure, interactive]);
   // The cat reacts to the quotas too: a sweat drop when one is nearly used up,
   // a few hops with sparkles when one renews.
   const tight = quotaTight(slots);
@@ -184,7 +236,7 @@ function MascotFigure({
         className={"dock-mascot dock-mascot--" + figure + (tight && pose !== "alert" ? " is-tight" : "") + (cheering ? " is-cheering" : "")}
         aria-hidden="true"
       >
-        {pose === "sleep" && !useRobot ? (
+        {figure === "sleep" ? (
           <span className="dock-mascot__zzz" aria-hidden="true">
             <i />
             <i />
@@ -199,10 +251,24 @@ function MascotFigure({
           </span>
         ) : null}
         <span className="dock-mascot__motion">
-          {!useRobot && pose === "sit" ? (
+          {figure === "breathe" || figure === "typing" ? (
             <span className={"dock-mascot__clip" + (side === "right" ? " dock-mascot__img--flip" : "")}>
-              <img className="dock-mascot__sheet" src={CAT_BREATHE} alt="" draggable={false} />
-              <img className="dock-mascot__sheet dock-mascot__blink" src={CAT_BLINK} alt="" draggable={false} />
+              {figure === "typing" ? (
+                <img className="dock-mascot__sheet dock-mascot__sheet--typing" src={CAT_TYPING} alt="" draggable={false} />
+              ) : move ? (
+                <img
+                  key={move.n}
+                  className={"dock-mascot__sheet dock-mascot__sheet--" + move.kind}
+                  src={move.kind === "look" ? CAT_LOOK : CAT_TAIL}
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <>
+                  <img className="dock-mascot__sheet" src={CAT_BREATHE} alt="" draggable={false} />
+                  <img className="dock-mascot__sheet dock-mascot__blink" src={CAT_BLINK} alt="" draggable={false} />
+                </>
+              )}
             </span>
           ) : (
             <img
