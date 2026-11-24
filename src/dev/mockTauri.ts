@@ -112,7 +112,13 @@ function demoCosts(days = 7) {
 
 const handlers: Record<string, Handler> = {
   get_provider_usage: () => usage,
-  get_openbot_overview: () => ({ slots: ["antigravity-2", "antigravity-openbot", "antigravity-openbot3"], runtimes: ["claude", "grok", "opencode"] }),
+  // Like the real PC: four account folders (one stopped), Grok working inside OpenBot.
+  get_openbot_overview: () => ({
+    slots: ["antigravity-2", "antigravity-openbot", "antigravity-openbot3"],
+    runtimes: ["claude", "grok", "opencode"],
+    accounts: ["antigravity-2", "antigravity-openbot", null, "antigravity-openbot3"],
+    tasks: [{ runtime: "grok", title: "Plano de posts da semana", since: Date.now() - 95_000 }]
+  }),
   get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
   get_provider_activity: () => [
     {
@@ -134,6 +140,13 @@ const handlers: Record<string, Handler> = {
         { id: "x3", title: "Agent Pasteur", detail: "Executando tarefa", state: "working", since: Date.now() - 120_000 },
         { id: "x4", title: "Agent Curie", detail: "Executando tarefa", state: "working", since: Date.now() - 180_000 }
       ]
+    },
+    // Juba works in Claude + GPT with 8% left: the dock suggests moving to Nyco.
+    {
+      providerId: "antigravity-4",
+      state: "working",
+      confidence: "direct",
+      sessions: [{ id: "g1", title: "Landing da clínica", detail: "Executando tarefa", state: "working", since: Date.now() - 240_000, pool: "claude-gpt" }]
     }
   ],
 

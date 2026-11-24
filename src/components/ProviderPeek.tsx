@@ -27,8 +27,10 @@ export const ProviderPeek = forwardRef<
     onOpen: () => void;
     /** Shown in place of the windows (OpenBot's summary of its accounts). */
     summary?: ReactNode;
+    /** "Go to the account with more room", when this one is nearly out. */
+    switchHint?: ReactNode;
   }
->(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen, summary }, ref) {
+>(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen, summary, switchHint }, ref) {
   const status = provider.stale
     ? (provider.updatedAt
         ? t("Última leitura {age}", { age: formatAge(provider.updatedAt, now) })
@@ -56,6 +58,7 @@ export const ProviderPeek = forwardRef<
       </div>
 
       {incident ? <StatusBadge status={incident} /> : null}
+      {switchHint}
 
       {wrongAccount(provider) ? (
         <div className="notice notice--error">

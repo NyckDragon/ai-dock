@@ -49,3 +49,34 @@ test("OpenBot slots are not accounts", () => {
   const ids = antigravityAccounts([account("antigravity", 1, 1), account("antigravity-openbot", 1, 1), { ...account("x", 1, 1), id: "codex" }]).map((a) => a.id);
   assert.deepEqual(ids, ["antigravity"]);
 });
+
+test("an agent nearly out in its model gets pointed to the account with the most of it", async () => {
+  const { switchSuggestion } = await import("../src/lib/accountsOverview.ts");
+  const acct = (id: string, gemini: number, claude: number) => ({
+    id,
+    name: id,
+    connected: true,
+    windows: [
+      { id: "gemini-session", label: "Gemini · 5h", remainingPercent: gemini, resetAt: null },
+      { id: "claude-gpt-session", label: "Claude + GPT · 5h", remainingPercent: claude, resetAt: null }
+    ]
+  });
+  const working = (id: string, pool?: "gemini" | "claude-gpt") => ({
+    providerId: id,
+    state: "working" as const,
+    confidence: "direct" as const,
+    sessions: [{ id: "s", title: "t", detail: "", state: "working" as const, since: 0, pool }]
+  });
+  const accounts = [acct("antigravity", 8, 90), acct("antigravity-2", 60, 20), acct("antigravity-3", 91, 70)];
+
+  const suggestion = switchSuggestion(accounts, [working("antigravity", "gemini")]);
+  assert.equal(suggestion?.to.id, "antigravity-3");
+  assert.equal(suggestion?.pool, "Gemini");
+  assert.equal(suggestion?.fromRemaining, 8);
+  // Working in Claude, where it still has room: nothing to change.
+  assert.equal(switchSuggestion(accounts, [working("antigravity", "claude-gpt")]), null);
+  // Nobody working: nothing to suggest.
+  assert.equal(switchSuggestion(accounts, []), null);
+  // Unknown model: the tightest pool counts.
+  assert.equal(switchSuggestion(accounts, [working("antigravity")])?.to.id, "antigravity-3");
+});

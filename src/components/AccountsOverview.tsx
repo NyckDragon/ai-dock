@@ -1,8 +1,9 @@
 import { wrongAccount } from "../lib/accounts";
-import { bestAccount, sessionPools } from "../lib/accountsOverview";
+import { bestAccount, sessionPools, type SwitchSuggestion } from "../lib/accountsOverview";
 import { t } from "../lib/i18n";
 import type { ProviderUsage } from "../types";
 import { ProviderChip } from "./ProviderIcon";
+import { SwitchHint } from "./SwitchHint";
 
 /**
  * Every Antigravity account side by side, with the one that has the most room
@@ -10,10 +11,13 @@ import { ProviderChip } from "./ProviderIcon";
  */
 export function AccountsOverview({
   accounts,
-  onPick
+  onPick,
+  suggestion
 }: {
   accounts: ProviderUsage[];
   onPick: (providerId: string) => void;
+  /** The account in use is nearly out: where to go next. */
+  suggestion?: SwitchSuggestion | null;
 }) {
   if (accounts.length < 2) return null;
   const best = bestAccount(accounts);
@@ -28,7 +32,9 @@ export function AccountsOverview({
         </div>
       </header>
 
-      {best ? (
+      {suggestion ? (
+        <SwitchHint suggestion={suggestion} />
+      ) : best ? (
         <button type="button" className="accounts__best" onClick={() => onPick(best.id)}>
           <span>{t("Use agora")}</span>
           <strong>{shortName(best.name)}</strong>

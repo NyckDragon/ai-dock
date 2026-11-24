@@ -192,3 +192,16 @@ test("the balloon counts only questions", async () => {
     2
   );
 });
+
+test("every notice of a mark fits one line", async () => {
+  const { mascotNoticeLine } = await import("../src/lib/mascot.ts");
+  const done = (name: string) => ({ slotId: name, name, kind: "done" as const });
+  assert.equal(mascotNoticeLine([done("Claude")]), "Claude finalizou");
+  assert.equal(mascotNoticeLine([done("Claude"), done("Nyck")]), "Claude e Nyck finalizaram");
+  assert.equal(mascotNoticeLine([done("A"), done("B"), done("C"), done("D")]), "A, B e mais 2 finalizaram");
+  assert.equal(
+    mascotNoticeLine([done("Claude"), { slotId: "n", name: "Nyck", kind: "permission" }]),
+    "Nyck precisa de permissão · Claude finalizou"
+  );
+  assert.equal(mascotNoticeLine([]), "");
+});

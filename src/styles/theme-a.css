@@ -1208,9 +1208,25 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
    from and that the content changed. Off for people who ask for less motion. */
 .app-shell--right .dock-panel--wide { --panel-from: 18px; }
 .app-shell--left .dock-panel--wide { --panel-from: -18px; }
-.dock-panel--wide { animation: panel-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes panel-in {
-  from { opacity: 0; transform: translateX(var(--panel-from, 18px)) scale(.985); }
+/* Starts hidden toward the edge; App adds .is-ready once the window has its size,
+   and .is-closing for the way back before the window shrinks. */
+.dock-panel--wide {
+  opacity: 0;
+  transform: translateX(var(--panel-from, 18px)) scale(.985);
+  transition: opacity 200ms ease-out, transform 280ms cubic-bezier(.2, .8, .2, 1);
+}
+.dock-panel--wide.is-ready { opacity: 1; transform: none; }
+.dock-panel--wide.is-closing {
+  opacity: 0;
+  transform: translateX(var(--panel-from, 18px)) scale(.985);
+  transition: opacity 150ms ease-in, transform 170ms ease-in;
+}
+/* The pill comes back out of the edge after the panel closes, and at start. */
+.compact-shell .dock-pill:not(.dock-pill--preview) { animation: pill-in 300ms cubic-bezier(.2, .8, .2, 1) both; }
+.compact-shell--right .dock-pill { --pill-from: 14px; }
+.compact-shell--left .dock-pill { --pill-from: -14px; }
+@keyframes pill-in {
+  from { opacity: 0; transform: translateX(var(--pill-from, 14px)); }
   to { opacity: 1; transform: none; }
 }
 .panel-screen {
@@ -1225,8 +1241,10 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .panel-screen,
+  .compact-shell .dock-pill:not(.dock-pill--preview) { animation: none; }
   .dock-panel--wide,
-  .panel-screen { animation: none; }
+  .dock-panel--wide.is-closing { opacity: 1; transform: none; transition: none; }
 }
 /* In the hover card the summary takes the place of the windows, with the same gap. */
 .provider-peek > .openbot-summary { margin-top: 14px; }
@@ -1283,15 +1301,39 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   100% { opacity: 0; transform: scale(.6) translateY(-4px); }
 }
 
-/* "?" as a speech balloon: soft fill, a small tail toward the cat, a slow float. */
-.dock-signal--question {
+/* "?" and "!" as speech balloons: soft fill, a small tail toward the cat, a slow
+   float, sitting close to the head. */
+.dock-signals { bottom: calc(100% - 2px); }
+.dock-signal--question,
+.dock-signal--bang {
   width: 18px;
   min-width: 18px;
   border-radius: 9px 9px 9px 3px;
-  background: color-mix(in srgb, var(--question) 16%, var(--bg-pill));
   animation: signal-float 2.4s ease-in-out infinite;
 }
-.dock-pill--right .dock-signal--question { border-radius: 9px 9px 3px 9px; }
+.dock-signal--question { background: color-mix(in srgb, var(--question) 16%, var(--bg-pill)); }
+.dock-signal--bang { background: color-mix(in srgb, var(--signal, var(--permission)) 16%, var(--bg-pill)); animation-delay: -1.2s; }
+.dock-pill--right .dock-signal--question,
+.dock-pill--right .dock-signal--bang { border-radius: 9px 9px 3px 9px; }
+/* The notice sits beside the balloons, on their line, toward the screen center:
+   the window keeps one 26px line above the cat, and a box above the balloons
+   used to run past it and get cut. One line, ellipsis when long. */
+.dock-signal-list {
+  top: 50%;
+  bottom: auto;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  max-width: 220px;
+  padding: 0 9px;
+  border-radius: 9px;
+  transform: translateY(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dock-pill--right .dock-signal-list { right: calc(100% + 6px); left: auto; }
+.dock-pill--left .dock-signal-list { left: calc(100% + 6px); right: auto; }
 .dock-signal--question[data-count]::after {
   content: attr(data-count);
   position: absolute;
@@ -1319,7 +1361,89 @@ button.dock-pill__today:hover { background: var(--card-surface-hover); }
   .dock-mascot--breathe.is-tight::after,
   .dock-mascot.is-cheering .dock-mascot__motion,
   .dock-mascot__sparks i,
-  .dock-signal--question { animation: none; }
+  .dock-signal--question,
+  .dock-signal--bang { animation: none; }
   .dock-mascot--breathe.is-tight::after,
   .dock-mascot__sparks i { opacity: 1; }
+}
+/* What runs inside OpenBot now: a green dot on the busy AI and one line per conversation. */
+.openbot-runtime { position: relative; }
+.openbot-runtime__busy {
+  width: 7px;
+  height: 7px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent);
+}
+.openbot-tasks { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.openbot-tasks li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.openbot-tasks .provider-chip { --chip-size: 20px; border-radius: 999px; }
+.openbot-tasks li > span { display: grid; min-width: 0; }
+.openbot-tasks strong { font-size: 11.5px; font-weight: 600; }
+.openbot-tasks small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--text-3); }
+
+/* ---------- Account switch hint (our own idea) ----------
+   The account an agent works in is nearly out; another has room. One line of
+   why, one button that brings that account's window to the front. */
+.switch-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.switch-hint__icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+.switch-hint__copy { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.switch-hint__copy strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.switch-hint__copy small { font-size: 11px; line-height: 1.4; color: var(--text-2); }
+.switch-hint__go {
+  flex: 0 0 auto;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--warning);
+  color: #1a1204;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.switch-hint__go:hover { filter: brightness(1.08); }
+/* In the hover card it sits under the head, full width, the button on its own line. */
+.provider-peek .switch-hint { flex-wrap: wrap; margin-top: 12px; }
+.provider-peek .switch-hint__copy { flex-basis: calc(100% - 38px); }
+.provider-peek .switch-hint__go { flex: 1 1 100%; }
+
+/* The cat blinks: the closed-eye sheet runs in step with the breath and shows
+   for about 150ms every five seconds, now and then twice. */
+.dock-mascot__blink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  animation: cat-breathe-frames 1.6s steps(5, end) infinite, cat-blink 5.2s steps(1, end) infinite;
+}
+@keyframes cat-blink {
+  0%, 93% { opacity: 0; }
+  93.2%, 96% { opacity: 1; }
+  96.1%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot__blink { display: none; }
 }

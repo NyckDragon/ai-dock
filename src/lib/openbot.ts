@@ -1,9 +1,17 @@
-import type { ProviderActivity, ProviderUsage, UsageWindow } from "../types";
+import type { ActivitySession, ProviderActivity, ProviderUsage, UsageWindow } from "../types";
 
 /** The one dock entry that stands for everything inside OpenBot. */
 export const OPENBOT_ID = "antigravity-openbot";
 
-export type OpenBotOverview = { slots: string[]; runtimes: string[] };
+export type OpenBotTask = { runtime: string; title: string; since: number };
+export type OpenBotOverview = {
+  slots: string[];
+  runtimes: string[];
+  /** Every account folder OpenBot has, with its dock slot when known. */
+  accounts?: (string | null)[];
+  /** Grok or Claude conversations running inside OpenBot now. */
+  tasks?: OpenBotTask[];
+};
 
 /** A slot the backend opened only for an OpenBot account (no Antigravity window shows it). */
 export function isOpenBotSlot(id: string) {
@@ -56,14 +64,24 @@ export function mergeOpenBot(providers: ProviderUsage[], overview: OpenBotOvervi
   return result;
 }
 
-/** Work from any OpenBot account lights the one OpenBot entry. */
-export function mergeOpenBotActivity(activities: ProviderActivity[]): ProviderActivity[] {
+/**
+ * Work from any OpenBot account lights the one OpenBot entry, and so does a
+ * Grok or Claude conversation running inside OpenBot.
+ */
+export function mergeOpenBotActivity(activities: ProviderActivity[], tasks: OpenBotTask[] = []): ProviderActivity[] {
   const own = activities.filter((activity) => isOpenBotSlot(activity.providerId));
-  if (own.length < 2 && own.every((activity) => activity.providerId === OPENBOT_ID)) return activities;
-  const sessions = own.flatMap((activity) => activity.sessions);
+  const extra: ActivitySession[] = tasks.map((task) => {
+    const { name } = runtimeInfo(task.runtime);
+    return { id: "openbot-" + task.runtime + "-" + task.since, title: task.title || name, detail: name, state: "working", since: task.since };
+  });
+  if (!extra.length && own.length < 2 && own.every((activity) => activity.providerId === OPENBOT_ID)) return activities;
+  if (!own.length) {
+    return [...activities, { providerId: OPENBOT_ID, state: "working", confidence: "direct", sessions: extra }];
+  }
+  const sessions = [...own.flatMap((activity) => activity.sessions), ...extra];
   const state = own.some((activity) => activity.state === "waiting")
     ? "waiting"
-    : own.some((activity) => activity.state === "working")
+    : extra.length || own.some((activity) => activity.state === "working")
       ? "working"
       : own[0].state;
   const merged: ProviderActivity = { ...own[0], providerId: OPENBOT_ID, state, sessions };

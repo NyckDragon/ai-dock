@@ -5,11 +5,12 @@ import { formatPillUsd } from "../lib/costs";
 import { waitKind, type WaitKind } from "../lib/finish";
 import { t } from "../lib/i18n";
 import {
+  CAT_BLINK,
   CAT_BREATHE,
   MASCOT_SRC,
   mascotBang,
   mascotMarkNotices,
-  mascotNoticeText,
+  mascotNoticeLine,
   mascotNotices,
   mascotOverlayHeight,
   mascotPose,
@@ -149,13 +150,7 @@ function MascotFigure({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        {lines.length ? (
-          <ul className="dock-signal-list">
-            {lines.map((notice) => (
-              <li key={notice.slotId + notice.kind + notice.name}>{mascotNoticeText(notice)}</li>
-            ))}
-          </ul>
-        ) : null}
+        {lines.length ? <p className="dock-signal-list">{mascotNoticeLine(lines)}</p> : null}
         <span className="dock-signals__marks">
           <button
             type="button"
@@ -205,6 +200,7 @@ function MascotFigure({
           {!useRobot && pose === "sit" ? (
             <span className={"dock-mascot__clip" + (side === "right" ? " dock-mascot__img--flip" : "")}>
               <img className="dock-mascot__sheet" src={CAT_BREATHE} alt="" draggable={false} />
+              <img className="dock-mascot__sheet dock-mascot__blink" src={CAT_BLINK} alt="" draggable={false} />
             </span>
           ) : (
             <img

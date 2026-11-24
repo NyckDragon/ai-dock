@@ -57,6 +57,14 @@ test("work in any OpenBot account lights the one entry", () => {
   assert.equal(merged[1].sessions.length, 2);
 });
 
+test("a Grok conversation inside OpenBot lights the entry even with no account working", () => {
+  const merged = mergeOpenBotActivity([], [{ runtime: "grok", title: "", since: 5 }]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].providerId, "antigravity-openbot");
+  assert.equal(merged[0].state, "working");
+  assert.equal(merged[0].sessions[0].title, "Grok");
+});
+
 test("runtimes read as names, linked to the dock reading when there is one", () => {
   assert.deepEqual(runtimeInfo("grok"), { name: "Grok", providerId: "grok" });
   assert.deepEqual(runtimeInfo("opencode"), { name: "OpenCode", providerId: null });

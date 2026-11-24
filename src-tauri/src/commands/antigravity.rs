@@ -29,6 +29,81 @@ pub struct AntigravityInstanceInfo {
 
 static DISCOVERED_INSTANCES: RwLock<Vec<AntigravityInstanceInfo>> = RwLock::new(Vec::new());
 
+/// Account folder → the Antigravity process that owns its window, from the last scan.
+static WINDOW_OWNERS: std::sync::Mutex<Option<HashMap<PathBuf, u32>>> = std::sync::Mutex::new(None);
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn remember_window_owner(root: &Path, pid: u32) {
+    if let Ok(mut guard) = WINDOW_OWNERS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(root.to_path_buf(), pid);
+    }
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn window_owner_for(slot_id: &str) -> Option<u32> {
+    let root = get_antigravity_instances().into_iter().find(|instance| instance.slot_id == slot_id)?.state_root;
+    WINDOW_OWNERS.lock().ok()?.as_ref()?.get(&root).copied()
+}
+
+/// Brings the Antigravity window of this account to the front, for "use this
+/// account now". False when its window is not open or Windows refuses.
+#[tauri::command]
+pub fn focus_antigravity_window(slot_id: String) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let Some(pid) = window_owner_for(&slot_id) else { return false };
+        focus_window_of(pid)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = slot_id;
+        false
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn focus_window_of(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow, GW_OWNER,
+        SW_RESTORE,
+    };
+
+    struct Search {
+        pid: u32,
+        found: HWND,
+    }
+
+    unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> i32 {
+        // SAFETY: data is the &mut Search passed to EnumWindows below, alive for the whole call.
+        let search = unsafe { &mut *(data as *mut Search) };
+        let mut owner = 0u32;
+        // SAFETY: hwnd comes from EnumWindows; the out pointer is a live u32.
+        unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
+        // SAFETY: plain queries on a window handle EnumWindows gave us.
+        let top_level = unsafe { IsWindowVisible(hwnd) != 0 && GetWindow(hwnd, GW_OWNER).is_null() };
+        if owner == search.pid && top_level {
+            search.found = hwnd;
+            return 0;
+        }
+        1
+    }
+
+    let mut search = Search { pid, found: std::ptr::null_mut() };
+    // SAFETY: visit only reads the handle and writes into `search`, which outlives the call.
+    unsafe { EnumWindows(Some(visit), &mut search as *mut Search as LPARAM) };
+    if search.found.is_null() {
+        return false;
+    }
+    // SAFETY: the handle was just found visible; a stale handle only makes the calls fail.
+    unsafe {
+        if IsIconic(search.found) != 0 {
+            ShowWindow(search.found, SW_RESTORE);
+        }
+        SetForegroundWindow(search.found) != 0
+    }
+}
+
 pub fn detect_profile_slot(root: Option<&PathBuf>) -> (String, String) {
     let Some(r) = root else {
         return ("antigravity".into(), "Principal".into());
@@ -322,14 +397,124 @@ fn openbot_slot_for_index(index: usize) -> String {
     }
 }
 
+/// `openbot-slots.json` in the dock's config folder: OpenBot folder → slot, so an
+/// account whose server is stopped is still known in the next run. Paths only.
+fn openbot_slots_path() -> Option<PathBuf> {
+    Some(dirs::config_dir()?.join("app.aidock.desktop").join("openbot-slots.json"))
+}
+
+fn load_openbot_slots(map: &mut Option<HashMap<PathBuf, String>>) {
+    if map.is_some() {
+        return;
+    }
+    let saved: HashMap<String, String> = openbot_slots_path()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
+    *map = Some(saved.into_iter().map(|(root, slot)| (PathBuf::from(root), slot)).collect());
+}
+
 fn remembered_openbot_slot(root: &Path) -> Option<String> {
-    OPENBOT_SLOTS.lock().ok()?.as_ref()?.get(root).cloned()
+    let mut guard = OPENBOT_SLOTS.lock().ok()?;
+    load_openbot_slots(&mut guard);
+    guard.as_ref()?.get(root).cloned()
 }
 
 fn remember_openbot_slot(root: &Path, slot_id: &str) {
-    if let Ok(mut guard) = OPENBOT_SLOTS.lock() {
-        guard.get_or_insert_with(HashMap::new).insert(root.to_path_buf(), slot_id.to_string());
+    let Ok(mut guard) = OPENBOT_SLOTS.lock() else { return };
+    load_openbot_slots(&mut guard);
+    let map = guard.get_or_insert_with(HashMap::new);
+    if map.get(root).map(String::as_str) == Some(slot_id) {
+        return;
     }
+    map.insert(root.to_path_buf(), slot_id.to_string());
+    let saved: HashMap<String, &String> = map.iter().map(|(root, slot)| (root.to_string_lossy().into_owned(), slot)).collect();
+    if let (Some(path), Ok(text)) = (openbot_slots_path(), serde_json::to_string_pretty(&saved)) {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// Something running inside OpenBot right now, for its summary and its slot.
+#[derive(serde::Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenBotTask {
+    runtime: String,
+    /// Empty when the AI has not named the conversation yet.
+    title: String,
+    /// When the conversation started, in epoch ms.
+    since: i64,
+}
+
+/// A conversation counts as running while its log was written in the last two minutes.
+const OPENBOT_TASK_FRESH: std::time::Duration = std::time::Duration::from_secs(120);
+
+fn epoch_ms(time: std::time::SystemTime) -> i64 {
+    time.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
+fn fresh(path: &Path, now: std::time::SystemTime) -> bool {
+    std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .map(|modified| now.duration_since(modified).map(|age| age <= OPENBOT_TASK_FRESH).unwrap_or(true))
+        .unwrap_or(false)
+}
+
+/// Session folders whose (percent-encoded or dashed) working folder is OpenBot's own.
+fn is_openbot_folder(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.ends_with("%5copenbot") || lower.ends_with("-openbot") || lower == "openbot"
+}
+
+/// Grok runs inside OpenBot with OpenBot's folder as its working folder, so its
+/// sessions land in `~/.grok/sessions/<that folder>/<id>/`.
+fn openbot_grok_tasks(home: &Path, now: std::time::SystemTime) -> Vec<OpenBotTask> {
+    let Ok(groups) = std::fs::read_dir(home.join(".grok").join("sessions")) else { return vec![] };
+    let mut tasks = Vec::new();
+    for group in groups.flatten().filter(|entry| is_openbot_folder(&entry.file_name().to_string_lossy())) {
+        let Ok(sessions) = std::fs::read_dir(group.path()) else { continue };
+        for session in sessions.flatten().filter(|entry| entry.path().is_dir()) {
+            let dir = session.path();
+            if !fresh(&dir.join("updates.jsonl"), now) && !fresh(&dir.join("summary.json"), now) {
+                continue;
+            }
+            let summary: Value = std::fs::read_to_string(dir.join("summary.json"))
+                .ok()
+                .and_then(|raw| serde_json::from_str(&raw).ok())
+                .unwrap_or(Value::Null);
+            let title = summary["session_summary"].as_str().unwrap_or("").trim().chars().take(80).collect();
+            let since = std::fs::metadata(&dir)
+                .and_then(|meta| meta.created())
+                .map(epoch_ms)
+                .unwrap_or_else(|_| epoch_ms(now));
+            tasks.push(OpenBotTask { runtime: "grok".into(), title, since });
+        }
+    }
+    tasks
+}
+
+/// Claude Code keeps one folder per working folder in `~/.claude/projects`; the
+/// ones named after OpenBot's folder are conversations OpenBot started.
+fn openbot_claude_tasks(home: &Path, now: std::time::SystemTime) -> Vec<OpenBotTask> {
+    let Ok(projects) = std::fs::read_dir(home.join(".claude").join("projects")) else { return vec![] };
+    let mut tasks = Vec::new();
+    for project in projects.flatten().filter(|entry| is_openbot_folder(&entry.file_name().to_string_lossy())) {
+        let Ok(files) = std::fs::read_dir(project.path()) else { continue };
+        for file in files.flatten() {
+            let path = file.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") || !fresh(&path, now) {
+                continue;
+            }
+            let since = std::fs::metadata(&path)
+                .and_then(|meta| meta.created())
+                .map(epoch_ms)
+                .unwrap_or_else(|_| epoch_ms(now));
+            tasks.push(OpenBotTask { runtime: "claude".into(), title: String::new(), since });
+        }
+    }
+    tasks
 }
 
 /// What OpenBot holds, for its one summary in the dock: the slots its Antigravity
@@ -339,6 +524,10 @@ fn remember_openbot_slot(root: &Path, slot_id: &str) {
 pub struct OpenBotOverview {
     slots: Vec<String>,
     runtimes: Vec<String>,
+    /// Every Antigravity account folder OpenBot has (the shared one first), with
+    /// its dock slot when known. A stopped account the dock never saw has none.
+    accounts: Vec<Option<String>>,
+    tasks: Vec<OpenBotTask>,
 }
 
 /// Runtime folder names worth showing: not hidden, not the JS engine OpenBot
@@ -355,11 +544,15 @@ fn openbot_runtime_names(names: impl IntoIterator<Item = String>) -> Vec<String>
 
 #[tauri::command]
 pub fn get_openbot_overview() -> OpenBotOverview {
-    let mut slots: Vec<String> = OPENBOT_SLOTS
+    let known: HashMap<PathBuf, String> = OPENBOT_SLOTS
         .lock()
         .ok()
-        .and_then(|guard| guard.as_ref().map(|map| map.values().cloned().collect()))
+        .map(|mut guard| {
+            load_openbot_slots(&mut guard);
+            guard.clone().unwrap_or_default()
+        })
         .unwrap_or_default();
+    let mut slots: Vec<String> = known.values().cloned().collect();
     slots.sort_by_key(|slot| slot_numeric_order(slot));
     slots.dedup();
     let runtimes = dirs::config_dir()
@@ -374,7 +567,17 @@ pub fn get_openbot_overview() -> OpenBotOverview {
             )
         })
         .unwrap_or_default();
-    OpenBotOverview { slots, runtimes }
+    let accounts = openbot_log_roots().into_iter().map(|root| known.get(&root).cloned()).collect();
+    let now = std::time::SystemTime::now();
+    let mut tasks = dirs::home_dir()
+        .map(|home| {
+            let mut tasks = openbot_grok_tasks(&home, now);
+            tasks.extend(openbot_claude_tasks(&home, now));
+            tasks
+        })
+        .unwrap_or_default();
+    tasks.sort_by_key(|task| task.since);
+    OpenBotOverview { slots, runtimes, accounts, tasks }
 }
 
 /// OpenBot folders whose work belongs to this slot.
@@ -836,7 +1039,26 @@ $all | Where-Object {
             }
         }
 
+        // The topmost Antigravity.exe above the server owns the account's window.
+        let mut window_owner = 0u32;
+        let mut walk = ppid;
+        for _ in 0..12 {
+            let Some(p) = processes.iter().find(|pr| pr.get("ProcessId").and_then(Value::as_u64) == Some(walk as u64)) else {
+                break;
+            };
+            if p.get("Name").and_then(Value::as_str).is_some_and(|name| name.eq_ignore_ascii_case("Antigravity.exe")) {
+                window_owner = walk;
+            }
+            walk = p.get("ParentProcessId").and_then(Value::as_u64).unwrap_or(0) as u32;
+            if walk == 0 {
+                break;
+            }
+        }
+
         let state_root = state_root_from(user_data_dir);
+        if let (Some(root), true) = (state_root.as_ref(), window_owner != 0) {
+            remember_window_owner(root, window_owner);
+        }
         let (csrf_token, extension_csrf_token) =
             with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
@@ -2210,6 +2432,30 @@ mod tests {
         assert_eq!(format_antigravity_name("antigravity-2", true), "Antigravity · Conta 2");
         assert_eq!(format_antigravity_name("antigravity-3", true), "Antigravity · Conta 3");
         assert_eq!(format_antigravity_name("antigravity-4", true), "Antigravity · Conta 4");
+    }
+
+    #[test]
+    fn openbot_tasks_come_from_fresh_sessions_in_its_folder() {
+        let home = std::env::temp_dir().join(format!("aidock-openbot-{}", std::process::id()));
+        let running = home.join(".grok/sessions/D%3A%5CApps%5COpenBot/one");
+        let elsewhere = home.join(".grok/sessions/C%3A%5CUsers%5Cme/two");
+        std::fs::create_dir_all(&running).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::fs::write(running.join("summary.json"), r#"{"session_summary":"  Plano do site  "}"#).unwrap();
+        std::fs::write(elsewhere.join("summary.json"), r#"{"session_summary":"outro"}"#).unwrap();
+        let claude = home.join(".claude/projects/D--Apps-OpenBot");
+        std::fs::create_dir_all(&claude).unwrap();
+        std::fs::write(claude.join("a.jsonl"), "{}").unwrap();
+
+        let now = std::time::SystemTime::now();
+        let grok = openbot_grok_tasks(&home, now);
+        assert_eq!(grok.len(), 1);
+        assert_eq!(grok[0].title, "Plano do site");
+        assert_eq!(openbot_claude_tasks(&home, now).len(), 1);
+        // Two hours later nothing is running.
+        let later = now + std::time::Duration::from_secs(7200);
+        assert!(openbot_grok_tasks(&home, later).is_empty());
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

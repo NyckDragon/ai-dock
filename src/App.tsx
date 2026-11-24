@@ -19,7 +19,8 @@ import { mergeOpenBot, mergeOpenBotActivity, type OpenBotOverview } from "./lib/
 import { summarizeCosts } from "./lib/costs";
 import { ProviderDetail } from "./components/ProviderDetail";
 import { ProviderTabs } from "./components/ProviderTabs";
-import { antigravityAccounts } from "./lib/accountsOverview";
+import { antigravityAccounts, switchSuggestion } from "./lib/accountsOverview";
+import { SwitchHint } from "./components/SwitchHint";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
 import { loadDailyCosts } from "./lib/heatmap";
@@ -69,6 +70,8 @@ import type { DockGlassBox } from "./lib/tauri";
 import type { MonitorInfo, PanelView, ProviderUsage, Settings, SettingsTab } from "./types";
 
 const QUESTION_HEX = /^#[0-9A-Fa-f]{6}$/;
+/** Matches the exit transition of .dock-panel--wide in theme-a.css. */
+const PANEL_EXIT_MS = 170;
 
 function questionSoft(hex: string) {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -130,8 +133,16 @@ export default function App() {
 
   const { providers, loading, lastUpdatedAt, failed, history, refresh } = useProviders(settings.refreshMinutes);
   const rawActivities = useActivity(expanded);
-  // OpenBot's accounts show as one entry, so their work lights that one entry.
-  const activities = useMemo(() => mergeOpenBotActivity(rawActivities), [rawActivities]);
+  // Which slots are OpenBot accounts, what else it runs and what runs in it now:
+  // read after each quota refresh and each activity reading.
+  const [openBot, setOpenBot] = useState<OpenBotOverview | null>(null);
+  useEffect(() => {
+    fetchOpenBotOverview()
+      // Same answer, same object: no re-render of everything that depends on it.
+      .then((next) => setOpenBot((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next)))
+      .catch(() => setOpenBot(null));
+  }, [providers, rawActivities]);
+  const activities = useMemo(() => mergeOpenBotActivity(rawActivities, openBot?.tasks), [rawActivities, openBot]);
   const promptState = usePrompts(settings.obsidianPath, expanded);
   const statuses = useProviderStatus();
 
@@ -152,24 +163,56 @@ export default function App() {
   const daily = useMemo(() => loadDailyCosts(), [costs.report, monthCosts.report, todayCosts.report]);
   const todayCost = settings.pillTodayCost && todayCosts.report?.entries.length ? summarizeCosts(todayCosts.report.entries, 1).total.cost : null;
   const dock = useDockWindow(settings, expanded);
-
-  // Which slots are OpenBot accounts and what else it runs, read after each refresh.
-  const [openBot, setOpenBot] = useState<OpenBotOverview | null>(null);
+  // The panel slides in once the native window has its full size; before that the
+  // entrance played inside a still-small window and nobody saw it.
+  const [panelReady, setPanelReady] = useState(false);
   useEffect(() => {
-    fetchOpenBotOverview()
-      .then(setOpenBot)
-      .catch(() => setOpenBot(null));
-  }, [providers]);
+    if (!expanded) {
+      setPanelReady(false);
+      return;
+    }
+    let frame = 0;
+    const show = () => {
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => setPanelReady(true));
+      });
+    };
+    if (dock.placedMode === "expanded") show();
+    // Never stay invisible if the window does not report back.
+    const fallback = window.setTimeout(() => setPanelReady(true), 400);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(fallback);
+    };
+  }, [expanded, dock.placedMode]);
+
   const visibleProviders = useMemo(
     () => mergeOpenBot(arrangeProviders(displayProviders, settings), openBot),
     [displayProviders, settings.providerOrder, settings.hiddenProviders, openBot]
   );
+  // The Antigravity account an agent works in is nearly out: point to the one with room.
+  const suggestion = useMemo(() => switchSuggestion(antigravityAccounts(visibleProviders), activities), [visibleProviders, activities]);
+  const suggestionKey = suggestion ? suggestion.from.id + ">" + suggestion.to.id + ":" + suggestion.pool : "";
+  const lastSuggestionRef = useRef("");
+  useEffect(() => {
+    if (suggestionKey && suggestionKey !== lastSuggestionRef.current && suggestion && settings.notifyLowQuota) {
+      const short = (name: string) => name.replace(/^Antigravity\s*·\s*/i, "");
+      void notify(
+        t("{from} está acabando o {pool}", { from: short(suggestion.from.name), pool: suggestion.pool }),
+        t("{to} tem {value}% livre. Abra o dock e clique em Ir para {to}.", { to: short(suggestion.to.name), value: String(suggestion.toRemaining) })
+      );
+    }
+    lastSuggestionRef.current = suggestionKey;
+  }, [suggestionKey]);
+
   const openBotSummary = (provider: ProviderUsage) =>
     provider.members ? (
       <OpenBotSummary
         provider={provider}
         providers={displayProviders}
         runtimes={openBot?.runtimes ?? []}
+        accounts={openBot?.accounts}
+        tasks={openBot?.tasks}
         display={settings.display}
         headline={settings.headline}
       />
@@ -247,9 +290,26 @@ export default function App() {
     [dock.resetPeek]
   );
 
+  // The panel leaves with a short slide toward the screen edge, then the window shrinks.
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+  const expandedNowRef = useRef(expanded);
+  expandedNowRef.current = expanded;
   const collapse = useCallback(() => {
-    setExpanded(false);
-    setSettingsOpen(false);
+    const finish = () => {
+      closingRef.current = false;
+      setClosing(false);
+      setExpanded(false);
+      setSettingsOpen(false);
+    };
+    if (!expandedNowRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finish();
+      return;
+    }
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    window.setTimeout(finish, PANEL_EXIT_MS);
   }, []);
 
   const openSettings = useCallback(
@@ -532,7 +592,14 @@ export default function App() {
           shape(document.querySelector(".dock-panel"));
         } else {
           const root = stageRef.current?.closest(".compact-shell");
-          root?.querySelectorAll(".dock-pill, .dock-signal-list").forEach(shape);
+          root?.querySelectorAll(".dock-pill").forEach(shape);
+          // The notice box is placed with a transform, so its layout box is not where it shows.
+          const notice = root?.querySelector(".dock-signal-list");
+          if (notice instanceof HTMLElement && notice.offsetWidth > 0) {
+            const rect = notice.getBoundingClientRect();
+            const radius = Number.parseFloat(window.getComputedStyle(notice).borderTopLeftRadius) || 0;
+            shapes.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height, radius });
+          }
           shape(root?.querySelector(".peek-wrap--open .provider-peek") ?? null);
         }
       }
@@ -738,6 +805,7 @@ export default function App() {
                 now={now}
                 onOpen={() => openPanel(peekProvider.id)}
                 summary={openBotSummary(peekProvider)}
+                switchHint={suggestion && baseProviderId(peekProvider.id) === suggestion.from.id ? <SwitchHint suggestion={suggestion} /> : null}
               />
             </div>
           ) : null}
@@ -793,7 +861,7 @@ export default function App() {
   return (
     <main className={"app-shell app-shell--" + settings.side}>
       <TooltipLayer />
-      <div className="dock-panel dock-panel--wide">
+      <div className={"dock-panel dock-panel--wide" + (panelReady && !closing ? " is-ready" : "") + (closing ? " is-closing" : "")}>
         <aside className="panel-nav" data-tauri-drag-region>
           <div className="brand" data-tauri-drag-region>
             <span className="brand-mark" aria-hidden="true">
@@ -943,7 +1011,7 @@ export default function App() {
                       onSelect={setDetailProvider}
                     />
                   ) : null}
-                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setDetailProvider} />
+                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setDetailProvider} suggestion={suggestion} />
                   {visibleProviders.length === 0 && loading ? (
                     [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
                   ) : settings.usageColumns === 2 ? (

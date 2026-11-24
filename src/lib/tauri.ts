@@ -141,6 +141,12 @@ export async function fetchAntigravityAccountPins(): Promise<Record<string, stri
   return invoke<Record<string, string>>("get_antigravity_account_pins");
 }
 
+/** Brings an Antigravity account's window to the front. False when it is not open. */
+export async function focusAntigravityWindow(slotId: string): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>("focus_antigravity_window", { slotId });
+}
+
 /** OpenBot's accounts (as dock slots) and the other AIs it has installed. */
 export async function fetchOpenBotOverview(): Promise<OpenBotOverview | null> {
   if (!isTauri()) return null;

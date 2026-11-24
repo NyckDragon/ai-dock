@@ -78,7 +78,7 @@ function audit(): Finding[] {
   // 3.1 No card inside a card.
   document.querySelectorAll(SURFACE_SELECTOR).forEach((card) => {
     card.querySelectorAll("*").forEach((inner) => {
-      if (!visible(inner) || inner.matches("input, textarea, select, .select-input, .switch, .switch *, .segmented, .segmented *, .quota-track, .quota-track *, .accounts__track, .accounts__track *, .notice, .provider-chip, .tile-icon, .slot-chip, i, b, code, .health-chip *, .status-dot, .button, .icon-button, .accounts__best, .accounts__item, .dock-pill, .dock-pill *, .signal-legend *, .is-selected, .mode-preview, .mode-preview *")) return;
+      if (!visible(inner) || inner.matches("input, textarea, select, .select-input, .switch, .switch *, .segmented, .segmented *, .quota-track, .quota-track *, .accounts__track, .accounts__track *, .notice, .provider-chip, .tile-icon, .slot-chip, i, b, code, .health-chip *, .status-dot, .button, .icon-button, .accounts__best, .accounts__item, .switch-hint, .switch-hint *, .openbot-runtime, .dock-pill, .dock-pill *, .signal-legend *, .is-selected, .mode-preview, .mode-preview *")) return;
       const style = getComputedStyle(inner);
       const radius = parseFloat(style.borderTopLeftRadius);
       const rect = inner.getBoundingClientRect();

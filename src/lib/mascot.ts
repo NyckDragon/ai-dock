@@ -34,6 +34,8 @@ export const MASCOT_SRC: Record<MascotPose, string> = {
 /** Five sitting frames, left to right. Breathing only. */
 export const CAT_BREATHE = file("cat-breathe.png");
 export const CAT_BREATHE_FRAMES = 5;
+/** The same five frames with the eyes closed, laid over the breath for a blink. */
+export const CAT_BLINK = file("cat-blink.png");
 
 const ROBOT_IDLE = "robot-idle.png";
 
@@ -209,4 +211,32 @@ export function quotaRenewed(previous: ReadonlyMap<string, number> | null, slots
 /** How many questions wait for you, for the count on the "?" balloon. */
 export function questionCount(notices: MascotNotice[]): number {
   return notices.filter((notice) => notice.kind === "question").length;
+}
+
+/** "Claude", "Claude e Nyck", "Claude, Nyck e mais 2". */
+function joinNames(names: string[]) {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return t("{a} e {b}", { a: names[0], b: names[1] });
+  return t("{a}, {b} e mais {count}", { a: names[0], b: names[1], count: String(names.length - 2) });
+}
+
+/**
+ * Every notice of a mark in one line, so the box above the cat never needs a
+ * second line: "Claude finalizou", "Claude e Nyck finalizaram",
+ * "Nyck precisa de permissão · Claude finalizou".
+ */
+export function mascotNoticeLine(notices: readonly MascotNotice[]): string {
+  if (!notices.length) return "";
+  if (notices.length === 1) return mascotNoticeText(notices[0]);
+  const parts: string[] = [];
+  for (const kind of ["permission", "question", "done"] as const) {
+    const names = [...new Set(notices.filter((notice) => notice.kind === kind).map((notice) => notice.name))];
+    if (!names.length) continue;
+    const who = joinNames(names);
+    const many = names.length > 1;
+    if (kind === "permission") parts.push(many ? t("{names} precisam de permissão", { names: who }) : t("{name} precisa de permissão", { name: who }));
+    else if (kind === "question") parts.push(many ? t("{names} têm perguntas", { names: who }) : t("{name} tem uma pergunta", { name: who }));
+    else parts.push(many ? t("{names} finalizaram", { names: who }) : t("{name} finalizou", { name: who }));
+  }
+  return parts.join(" · ");
 }
