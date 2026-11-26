@@ -52,9 +52,11 @@ Testadores são bem-vindos. Abra uma [issue](https://github.com/NyckDragon/ai-do
 - **Ritmo.** "Esgota em 2h 10min" ou "19% abaixo do ritmo" em cada janela, e um gráfico das últimas 24 horas, 7 ou 30 dias.
 - **Nome real do plano**, como Claude Max 5x ou Max 20x, quando o provider informa.
 - **Status dos serviços.** Incidentes das páginas de status oficiais do Claude, da OpenAI (Codex) e do Cursor aparecem no dock e nos cards, com link para a página.
-- **Custos locais.** Tokens e custo estimado na API das suas sessões do Claude Code, do Codex CLI e do Antigravity, por dia, ferramenta, modelo e projeto, lidos dos logs locais.
-- **Atividade dos agentes.** Veja quando Codex, Cursor ou Antigravity estão trabalhando e receba uma notificação quando um agente espera você.
-- **Notificações** de quota baixa (80% e 95% de uso), limite renovado, instabilidade no serviço e provider que parou de atualizar (e quando volta). Pause de 30 min até "amanhã" em Configurações ou na bandeja.
+- **Custos locais.** Tokens e custo estimado na API das suas sessões do Claude Code, do Codex CLI e do Antigravity, por dia, ferramenta, modelo e projeto, lidos dos logs locais. Um mapa de atividade guarda o total de cada dia, então vai além das poucas semanas que os logs guardam.
+- **Troca de conta (Windows).** Quando a conta do Antigravity em uso chega a 15% ou menos no modelo e outra conta tem 50% ou mais, o dock sugere a troca e traz a janela dessa conta para a frente.
+- **OpenBot (Windows).** Um item só para todas as contas que o OpenBot usa, com o resumo dos bots: quem está trabalhando, em qual motor, modelo e conta.
+- **Atividade dos agentes.** Veja quando Codex, Cursor ou Antigravity estão trabalhando e receba uma notificação quando um agente espera você. O gatinho em pixel art tecla enquanto os agentes trabalham, olha em volta e balança o rabo por alguns minutos depois, e então dorme.
+- **Notificações** de quota em 75%, 90% e 95% de uso (cada uma liga e desliga, mais um nível seu entre 50% e 99%, com escolha de som), limite renovado, instabilidade no serviço e provider que parou de atualizar (e quando volta). Pause de 30 min até "amanhã" em Configurações ou na bandeja.
 - **Prompts do Obsidian.** Busca, favoritos, recentes, `{{variáveis}}` preenchidas antes de copiar, atalho global **Ctrl + Alt + Espaço** (**Control + Option + Command + Espaço** no Mac) e opção de colar direto no app em que você estava.
 - Interface em português e inglês; tema claro, escuro ou do sistema; iniciar com o Windows, com o Mac ou com o Linux.
 

@@ -52,9 +52,11 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 - **Pace.** "Runs out in 2h 10min" or "19% under pace" for each window, plus a trend line for the last 24 hours, 7 days or 30 days.
 - **Real plan names**, such as Claude Max 5x or Max 20x, when the provider reports them.
 - **Service status.** Incidents from the official status pages of Claude, OpenAI (Codex) and Cursor show on the dock and in the cards, with a link to the status page.
-- **Local costs.** Tokens and the estimated API cost of your Claude Code, Codex CLI and Antigravity sessions, per day, tool, model and project, read from their local logs.
-- **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
-- **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
+- **Local costs.** Tokens and the estimated API cost of your Claude Code, Codex CLI and Antigravity sessions, per day, tool, model and project, read from their local logs. An activity map keeps the total of every day, so it reaches past the few weeks the logs keep.
+- **Account switch (Windows).** When the Antigravity account you are using drops to 15% or less on its model and another account has 50% or more, the dock suggests the switch and brings that account's window to the front.
+- **OpenBot (Windows).** One entry for every account OpenBot runs, with a summary of its bots: who is working, on which engine, model and account.
+- **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you. The pixel-art cat types while agents work, looks around and wags its tail for a few minutes after, then falls asleep.
+- **Notifications** for quota at 75%, 90% and 95% used (each one on or off, plus a level of your own between 50% and 99%, with a choice of sound), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
 - **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette (**Control + Option + Command + Space** on the Mac), and optional paste straight into the app you were in.
 - English and Portuguese UI; light, dark or system theme; start with Windows, with the Mac, or with Linux.
 
