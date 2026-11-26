@@ -7,7 +7,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Visual novo no app inteiro ("vidro na borda"), resumo do OpenBot por bots, troca de conta sugerida e um gato com mais vida.
+## [0.8.0-beta.4] - 2026-11-26
+
+Quarta versão de teste da 0.8.0, com Windows, macOS (Apple Silicon) e Linux (AppImage) no mesmo pré-release. Visual novo no app inteiro ("vidro na borda"), resumo do OpenBot por bots, troca de conta sugerida e um gato com mais vida.
 
 ### Added
 
