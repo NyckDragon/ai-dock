@@ -90,3 +90,12 @@ export function formatUsd(value: number, locale: string) {
 export function formatTokens(value: number, locale: string) {
   return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
+
+/** Dollars in the 58px pill: $0.42, $4.2, $26, $190, $1.2k. */
+export function formatPillUsd(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "$0";
+  if (value < 1) return "$" + value.toFixed(2);
+  if (value < 10) return "$" + (Math.floor(value * 10) / 10).toString();
+  if (value < 1000) return "$" + Math.round(value);
+  return "$" + (Math.floor(value / 100) / 10).toString() + "k";
+}

@@ -29,6 +29,81 @@ pub struct AntigravityInstanceInfo {
 
 static DISCOVERED_INSTANCES: RwLock<Vec<AntigravityInstanceInfo>> = RwLock::new(Vec::new());
 
+/// Account folder → the Antigravity process that owns its window, from the last scan.
+static WINDOW_OWNERS: std::sync::Mutex<Option<HashMap<PathBuf, u32>>> = std::sync::Mutex::new(None);
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn remember_window_owner(root: &Path, pid: u32) {
+    if let Ok(mut guard) = WINDOW_OWNERS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(root.to_path_buf(), pid);
+    }
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn window_owner_for(slot_id: &str) -> Option<u32> {
+    let root = get_antigravity_instances().into_iter().find(|instance| instance.slot_id == slot_id)?.state_root;
+    WINDOW_OWNERS.lock().ok()?.as_ref()?.get(&root).copied()
+}
+
+/// Brings the Antigravity window of this account to the front, for "use this
+/// account now". False when its window is not open or Windows refuses.
+#[tauri::command]
+pub fn focus_antigravity_window(slot_id: String) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let Some(pid) = window_owner_for(&slot_id) else { return false };
+        focus_window_of(pid)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = slot_id;
+        false
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn focus_window_of(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow, GW_OWNER,
+        SW_RESTORE,
+    };
+
+    struct Search {
+        pid: u32,
+        found: HWND,
+    }
+
+    unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> i32 {
+        // SAFETY: data is the &mut Search passed to EnumWindows below, alive for the whole call.
+        let search = unsafe { &mut *(data as *mut Search) };
+        let mut owner = 0u32;
+        // SAFETY: hwnd comes from EnumWindows; the out pointer is a live u32.
+        unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
+        // SAFETY: plain queries on a window handle EnumWindows gave us.
+        let top_level = unsafe { IsWindowVisible(hwnd) != 0 && GetWindow(hwnd, GW_OWNER).is_null() };
+        if owner == search.pid && top_level {
+            search.found = hwnd;
+            return 0;
+        }
+        1
+    }
+
+    let mut search = Search { pid, found: std::ptr::null_mut() };
+    // SAFETY: visit only reads the handle and writes into `search`, which outlives the call.
+    unsafe { EnumWindows(Some(visit), &mut search as *mut Search as LPARAM) };
+    if search.found.is_null() {
+        return false;
+    }
+    // SAFETY: the handle was just found visible; a stale handle only makes the calls fail.
+    unsafe {
+        if IsIconic(search.found) != 0 {
+            ShowWindow(search.found, SW_RESTORE);
+        }
+        SetForegroundWindow(search.found) != 0
+    }
+}
+
 pub fn detect_profile_slot(root: Option<&PathBuf>) -> (String, String) {
     let Some(r) = root else {
         return ("antigravity".into(), "Principal".into());
@@ -174,6 +249,50 @@ pub fn get_antigravity_instances() -> Vec<AntigravityInstanceInfo> {
     all_instances
 }
 
+/// The slot an Antigravity window belongs to. The account folder it runs from
+/// decides it: an email can move between folders (a window signed in with the
+/// wrong account), so it only places windows whose folder names no account.
+fn slot_for_snapshot(root: Option<&PathBuf>, email: Option<&str>, known: &[AntigravityInstanceInfo]) -> String {
+    let (detected, _) = detect_profile_slot(root);
+    if detected != "antigravity" {
+        return detected;
+    }
+    let is_home_root = root.is_none_or(|r| dirs::home_dir().is_some_and(|home| r.starts_with(home.join(".gemini"))));
+    if is_home_root {
+        return detected;
+    }
+    email
+        .and_then(|em| known.iter().find(|ki| ki.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(em))))
+        .map(|ki| ki.slot_id.clone())
+        .unwrap_or(detected)
+}
+
+/// File the account launcher writes in each account folder, holding only the
+/// email that account is bound to. It is not a credential.
+const ACCOUNT_PIN_FILE: &str = ".conta_vinculada";
+
+/// The account folder holds the pin; `state_root` is that folder, or its
+/// `.gemini` or `.gemini/antigravity` subfolder.
+fn read_account_pin(state_root: &Path) -> Option<String> {
+    state_root
+        .ancestors()
+        .take(3)
+        .find_map(|dir| std::fs::read_to_string(dir.join(ACCOUNT_PIN_FILE)).ok())
+        .map(|text| text.trim().to_lowercase())
+        .filter(|email| email.contains('@') && !email.contains(char::is_whitespace))
+}
+
+/// Slot id to the email its launcher bound it to. The dock compares it with the
+/// email Antigravity reports, to warn when a window opened with another account.
+#[tauri::command]
+pub fn get_antigravity_account_pins() -> HashMap<String, String> {
+    get_antigravity_instances()
+        .into_iter()
+        .filter(|instance| !instance.slot_id.starts_with("antigravity-openbot"))
+        .filter_map(|instance| read_account_pin(&instance.state_root).map(|pin| (instance.slot_id, pin)))
+        .collect()
+}
+
 /// OpenBot account folder to the dock slot it was matched to, kept for the run so
 /// activity can light the right slot between quota refreshes.
 static OPENBOT_SLOTS: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
@@ -278,14 +397,189 @@ fn openbot_slot_for_index(index: usize) -> String {
     }
 }
 
+/// `openbot-slots.json` in the dock's config folder: OpenBot folder → slot, so an
+/// account whose server is stopped is still known in the next run. Paths only.
+fn openbot_slots_path() -> Option<PathBuf> {
+    Some(dirs::config_dir()?.join("app.aidock.desktop").join("openbot-slots.json"))
+}
+
+fn load_openbot_slots(map: &mut Option<HashMap<PathBuf, String>>) {
+    if map.is_some() {
+        return;
+    }
+    let saved: HashMap<String, String> = openbot_slots_path()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
+    *map = Some(saved.into_iter().map(|(root, slot)| (PathBuf::from(root), slot)).collect());
+}
+
 fn remembered_openbot_slot(root: &Path) -> Option<String> {
-    OPENBOT_SLOTS.lock().ok()?.as_ref()?.get(root).cloned()
+    let mut guard = OPENBOT_SLOTS.lock().ok()?;
+    load_openbot_slots(&mut guard);
+    guard.as_ref()?.get(root).cloned()
 }
 
 fn remember_openbot_slot(root: &Path, slot_id: &str) {
-    if let Ok(mut guard) = OPENBOT_SLOTS.lock() {
-        guard.get_or_insert_with(HashMap::new).insert(root.to_path_buf(), slot_id.to_string());
+    let Ok(mut guard) = OPENBOT_SLOTS.lock() else { return };
+    load_openbot_slots(&mut guard);
+    let map = guard.get_or_insert_with(HashMap::new);
+    if map.get(root).map(String::as_str) == Some(slot_id) {
+        return;
     }
+    map.insert(root.to_path_buf(), slot_id.to_string());
+    let saved: HashMap<String, &String> = map.iter().map(|(root, slot)| (root.to_string_lossy().into_owned(), slot)).collect();
+    if let (Some(path), Ok(text)) = (openbot_slots_path(), serde_json::to_string_pretty(&saved)) {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// One OpenBot bot, as the dock shows it. OpenBot is a set of bots, each with its
+/// own job, model and account; they come from OpenBot's own database, read-only.
+#[derive(serde::Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenBotBot {
+    name: String,
+    /// The engine it runs on: "antigravity", "grok", ...
+    provider: String,
+    model: String,
+    /// The dock slot of the Antigravity account it runs on, when known.
+    account: Option<String>,
+    /// OpenBot's folder id of that account, to group bots under their account.
+    account_id: Option<String>,
+    /// Its avatar color in OpenBot (0–360).
+    hue: i64,
+    running: bool,
+    /// When the turn it is running started (ISO time), while it runs.
+    since: Option<String>,
+}
+
+fn openbot_db_path() -> Option<PathBuf> {
+    let path = dirs::config_dir()?.join("OpenBot").join("openbot.db");
+    path.is_file().then_some(path)
+}
+
+/// Every bot in OpenBot's order, with the turn it is running right now if any.
+fn read_openbot_bots(db: &Path, account_slot: impl Fn(&str) -> Option<String>) -> Vec<OpenBotBot> {
+    use rusqlite::{Connection, OpenFlags};
+    let Ok(conn) = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) else {
+        return vec![];
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(250));
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT a.agent_json, \
+           (SELECT u.started_at FROM projection_threads t \
+              JOIN projection_turns u ON u.turn_id = t.active_turn_id \
+             WHERE t.agent_id = a.agent_id AND u.status = 'running' \
+             ORDER BY u.started_at DESC LIMIT 1) \
+         FROM projection_agents a ORDER BY a.sort_order",
+    ) else {
+        return vec![];
+    };
+    let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))) else {
+        return vec![];
+    };
+    rows.flatten()
+        .filter_map(|(json, started)| {
+            let agent: Value = serde_json::from_str(&json).ok()?;
+            let name = agent["name"].as_str()?.trim().to_string();
+            Some(OpenBotBot {
+                name,
+                provider: agent["provider"].as_str().unwrap_or_default().to_string(),
+                model: agent["model"].as_str().unwrap_or_default().to_string(),
+                account: agent["providerAccountId"].as_str().and_then(&account_slot),
+                account_id: agent["providerAccountId"].as_str().map(str::to_string),
+                hue: agent["avatarHue"].as_i64().unwrap_or(250),
+                running: started.is_some(),
+                since: started,
+            })
+        })
+        .collect()
+}
+
+/// What OpenBot holds, for its one summary in the dock: the slots its Antigravity
+/// accounts were matched to (OpenBot-only slots and app windows of the same
+/// account) and the other AIs it has installed, by runtime folder name only.
+#[derive(serde::Serialize, Debug, Default, PartialEq)]
+pub struct OpenBotOverview {
+    slots: Vec<String>,
+    runtimes: Vec<String>,
+    /// Every Antigravity account folder OpenBot has (the shared one first), with
+    /// its dock slot when known. A stopped account the dock never saw has none.
+    accounts: Vec<OpenBotAccount>,
+    bots: Vec<OpenBotBot>,
+}
+
+/// One account folder of OpenBot: its folder id (none for the shared folder)
+/// and the dock slot it was matched to.
+#[derive(serde::Serialize, Debug, Default, PartialEq)]
+pub struct OpenBotAccount {
+    id: Option<String>,
+    slot: Option<String>,
+}
+
+/// Runtime folder names worth showing: not hidden, not the JS engine OpenBot
+/// ships, not Antigravity (its accounts are listed apart).
+fn openbot_runtime_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut names: Vec<String> = names
+        .into_iter()
+        .filter(|name| !name.starts_with('.') && name != "bun" && name != "antigravity")
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+#[tauri::command]
+pub fn get_openbot_overview() -> OpenBotOverview {
+    let known: HashMap<PathBuf, String> = OPENBOT_SLOTS
+        .lock()
+        .ok()
+        .map(|mut guard| {
+            load_openbot_slots(&mut guard);
+            guard.clone().unwrap_or_default()
+        })
+        .unwrap_or_default();
+    let mut slots: Vec<String> = known.values().cloned().collect();
+    slots.sort_by_key(|slot| slot_numeric_order(slot));
+    slots.dedup();
+    let runtimes = dirs::config_dir()
+        .map(|dir| dir.join("OpenBot").join("provider-runtimes"))
+        .and_then(|dir| std::fs::read_dir(dir).ok())
+        .map(|entries| {
+            openbot_runtime_names(
+                entries
+                    .flatten()
+                    .filter(|entry| entry.path().is_dir())
+                    .filter_map(|entry| entry.file_name().to_str().map(str::to_string)),
+            )
+        })
+        .unwrap_or_default();
+    let shared = shared_acp_root();
+    let accounts = openbot_log_roots()
+        .into_iter()
+        .map(|root| OpenBotAccount {
+            id: if Some(&root) == shared.as_ref() {
+                None
+            } else {
+                root.parent().and_then(|dir| dir.file_name()).map(|name| name.to_string_lossy().into_owned())
+            },
+            slot: known.get(&root).cloned(),
+        })
+        .collect();
+    let accounts_dir = openbot_accounts_dir();
+    let bots = openbot_db_path()
+        .map(|db| {
+            read_openbot_bots(&db, |account_id| {
+                let root = accounts_dir.as_ref()?.join(account_id).join("antigravity-acp");
+                known.get(&root).cloned()
+            })
+        })
+        .unwrap_or_default();
+    OpenBotOverview { slots, runtimes, accounts, bots }
 }
 
 /// OpenBot folders whose work belongs to this slot.
@@ -383,18 +677,7 @@ pub(crate) async fn usage() -> Vec<ProviderUsage> {
     let mut endpoints = HashMap::new();
 
     for Snapshot { mut usage, email, root, endpoint, .. } in snapshots {
-        // Priority 1: Match against known instances by email
-        let matched_slot = email.as_ref().and_then(|em| {
-            let em_lower = em.to_lowercase();
-            known_instances.iter().find(|ki| {
-                ki.email.as_deref().map(|e| e.to_lowercase()) == Some(em_lower.clone())
-            }).map(|ki| ki.slot_id.clone())
-        });
-
-        let slot_id = matched_slot.unwrap_or_else(|| {
-            let (detected_id, _) = detect_profile_slot(root.as_ref());
-            detected_id
-        });
+        let slot_id = slot_for_snapshot(root.as_ref(), email.as_deref(), &known_instances);
 
         let effective_email = email.or_else(|| {
             known_instances
@@ -758,12 +1041,34 @@ $all | Where-Object {
             }
         }
 
+        // The topmost Antigravity.exe above the server owns the account's window.
+        let mut window_owner = 0u32;
+        let mut walk = ppid;
+        for _ in 0..12 {
+            let Some(p) = processes.iter().find(|pr| pr.get("ProcessId").and_then(Value::as_u64) == Some(walk as u64)) else {
+                break;
+            };
+            if p.get("Name").and_then(Value::as_str).is_some_and(|name| name.eq_ignore_ascii_case("Antigravity.exe")) {
+                window_owner = walk;
+            }
+            walk = p.get("ParentProcessId").and_then(Value::as_u64).unwrap_or(0) as u32;
+            if walk == 0 {
+                break;
+            }
+        }
+
+        let state_root = state_root_from(user_data_dir);
+        if let (Some(root), true) = (state_root.as_ref(), window_owner != 0) {
+            remember_window_owner(root, window_owner);
+        }
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -797,6 +1102,32 @@ fn local_ports(netstat: &str, pid: u32) -> Vec<u16> {
     ports.sort_unstable();
     ports.dedup();
     ports
+}
+
+/// Antigravity 2.34 stopped passing the server token on the command line: the
+/// server writes it, with its pid and ports, to `daemon/hub_<port>.json` in the
+/// account's state folder. The token only opens that local server.
+fn with_daemon_token(csrf: String, extension_csrf: String, state_root: Option<&Path>, pid: u32) -> (String, String) {
+    if !csrf.is_empty() {
+        return (csrf, extension_csrf);
+    }
+    let Some(token) = state_root.and_then(|root| daemon_token(&root.join("daemon"), pid)) else {
+        return (csrf, extension_csrf);
+    };
+    let extension = if extension_csrf.is_empty() { token.clone() } else { extension_csrf };
+    (token, extension)
+}
+
+fn daemon_token(daemon_dir: &Path, pid: u32) -> Option<String> {
+    std::fs::read_dir(daemon_dir)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("hub_"))
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .filter_map(|text| serde_json::from_str::<Value>(&text).ok())
+        .find(|doc| doc.get("pid").and_then(Value::as_u64) == Some(pid as u64))
+        .and_then(|doc| doc.get("csrfToken").and_then(Value::as_str).map(str::to_string))
+        .filter(|token| !token.is_empty())
 }
 
 /// The `.gemini/antigravity` folder of the account an app instance runs with. An
@@ -936,12 +1267,15 @@ fn discover() -> Discovery {
             }
             parent = *next;
         }
+        let state_root = state_root_from(user_data_dir);
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -1055,12 +1389,15 @@ fn discover() -> Discovery {
             }
             parent = *next;
         }
+        let state_root = state_root_from(user_data_dir);
+        let (csrf_token, extension_csrf_token) =
+            with_daemon_token(csrf_token, extension_csrf_token, state_root.as_deref(), pid);
         servers.push(LanguageServer {
             ports,
             extension_port,
             csrf_token,
             extension_csrf_token,
-            state_root: state_root_from(user_data_dir),
+            state_root,
             openbot: None,
         });
     }
@@ -1658,6 +1995,65 @@ mod tests {
     }
 
     #[test]
+    fn the_server_token_comes_from_the_daemon_file_of_the_same_pid() {
+        let root = std::env::temp_dir().join(format!("ai-dock-daemon-{}", std::process::id()));
+        let daemon = root.join("daemon");
+        std::fs::create_dir_all(&daemon).unwrap();
+        std::fs::write(daemon.join("hub_1.json"), r#"{"pid":11,"httpsPort":1,"httpPort":2,"csrfToken":"old"}"#).unwrap();
+        std::fs::write(daemon.join("hub_3.json"), r#"{"pid":22,"httpsPort":3,"httpPort":4,"csrfToken":"live"}"#).unwrap();
+        std::fs::write(daemon.join("notes.json"), r#"{"pid":22,"csrfToken":"wrong"}"#).unwrap();
+
+        let (csrf, ext) = with_daemon_token(String::new(), String::new(), Some(&root), 22);
+        assert_eq!((csrf.as_str(), ext.as_str()), ("live", "live"));
+        // A token on the command line still wins.
+        let (csrf, _) = with_daemon_token("flag".into(), "flag".into(), Some(&root), 22);
+        assert_eq!(csrf, "flag");
+        // No file for the pid: nothing is guessed.
+        let (csrf, _) = with_daemon_token(String::new(), String::new(), Some(&root), 33);
+        assert!(csrf.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_account_folder_decides_the_slot_even_with_a_remembered_email() {
+        let known = vec![
+            AntigravityInstanceInfo {
+                slot_id: "antigravity-2".into(),
+                email: Some("bia@example.com".into()),
+                state_root: PathBuf::from(r"D:\Antigravity-Conta2\.gemini\antigravity"),
+            },
+            AntigravityInstanceInfo {
+                slot_id: "antigravity-4".into(),
+                email: Some("bia@example.com".into()),
+                state_root: PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity"),
+            },
+        ];
+        // Account 4's window stays in slot 4 although slot 2 once reported the same email.
+        let conta4 = PathBuf::from(r"D:\Antigravity-Conta4\.gemini\antigravity");
+        assert_eq!(slot_for_snapshot(Some(&conta4), Some("bia@example.com"), &known), "antigravity-4");
+        // A folder that names no account still finds its slot by email.
+        let other = PathBuf::from(r"E:\Perfis\Trabalho\.gemini\antigravity");
+        assert_eq!(slot_for_snapshot(Some(&other), Some("BIA@example.com"), &known), "antigravity-2");
+        assert_eq!(slot_for_snapshot(Some(&other), Some("ana@example.com"), &known), "antigravity");
+    }
+
+    #[test]
+    fn the_account_pin_is_found_from_any_state_folder_of_the_account() {
+        let account = std::env::temp_dir().join(format!("ai-dock-pin-{}", std::process::id()));
+        let state = account.join(".gemini").join("antigravity");
+        std::fs::create_dir_all(&state).unwrap();
+        assert_eq!(read_account_pin(&state), None);
+
+        std::fs::write(account.join(ACCOUNT_PIN_FILE), " Ana@Example.com \r\n").unwrap();
+        assert_eq!(read_account_pin(&state).as_deref(), Some("ana@example.com"));
+        assert_eq!(read_account_pin(&account).as_deref(), Some("ana@example.com"));
+
+        std::fs::write(account.join(ACCOUNT_PIN_FILE), "not an email").unwrap();
+        assert_eq!(read_account_pin(&state), None);
+        let _ = std::fs::remove_dir_all(&account);
+    }
+
+    #[test]
     fn a_saved_fingerprint_finds_the_slot_without_keeping_the_email() {
         let fingerprint = email_fingerprint(" Ana@Example.com ");
         assert_eq!(fingerprint, email_fingerprint("ana@example.com"));
@@ -2041,9 +2437,46 @@ mod tests {
     }
 
     #[test]
+    fn openbot_bots_come_from_its_database_with_what_runs_now() {
+        let db = std::env::temp_dir().join(format!("aidock-openbot-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&db);
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE projection_agents (agent_id TEXT, sort_order INTEGER, agent_json TEXT);
+             CREATE TABLE projection_threads (thread_id TEXT, agent_id TEXT, active_turn_id TEXT);
+             CREATE TABLE projection_turns (turn_id TEXT, status TEXT, started_at TEXT);
+             INSERT INTO projection_agents VALUES
+               ('a', 1, '{\"name\":\"KRZ · Flow\",\"provider\":\"antigravity\",\"model\":\"gemini-4\",\"providerAccountId\":\"acc1\",\"avatarHue\":120}'),
+               ('b', 2, '{\"name\":\" Nicholas \",\"provider\":\"grok\",\"model\":\"grok-4.7\"}');
+             INSERT INTO projection_threads VALUES ('ta', 'a', 'turn1'), ('tb', 'b', 'turn2');
+             INSERT INTO projection_turns VALUES ('turn1', 'running', '2026-11-24T14:54:21Z'), ('turn2', 'completed', '2026-11-24T10:00:00Z');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let bots = read_openbot_bots(&db, |id| (id == "acc1").then(|| "antigravity-openbot".to_string()));
+        assert_eq!(bots.len(), 2);
+        assert_eq!(bots[0].name, "KRZ · Flow");
+        assert_eq!(bots[0].account.as_deref(), Some("antigravity-openbot"));
+        assert!(bots[0].running);
+        assert_eq!(bots[0].since.as_deref(), Some("2026-11-24T14:54:21Z"));
+        assert_eq!(bots[1].name, "Nicholas");
+        assert_eq!(bots[1].provider, "grok");
+        assert!(!bots[1].running);
+        let _ = std::fs::remove_file(&db);
+    }
+
+    #[test]
+    fn openbot_runtimes_skip_hidden_engine_and_antigravity() {
+        let names = ["grok", ".downloads", "bun", "antigravity", "claude", "opencode", "claude"].map(String::from);
+        assert_eq!(openbot_runtime_names(names), vec!["claude", "grok", "opencode"]);
+    }
+
+    #[test]
     fn slot_numeric_order_sorts_correctly() {
         let mut slots = vec!["antigravity-4", "antigravity", "antigravity-3", "antigravity-2"];
         slots.sort_by_key(|s| slot_numeric_order(s));
         assert_eq!(slots, vec!["antigravity", "antigravity-2", "antigravity-3", "antigravity-4"]);
     }
 }
+

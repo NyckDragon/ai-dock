@@ -34,6 +34,32 @@ export const MASCOT_SRC: Record<MascotPose, string> = {
 /** Five sitting frames, left to right. Breathing only. */
 export const CAT_BREATHE = file("cat-breathe.png");
 export const CAT_BREATHE_FRAMES = 5;
+/** The same five frames with the eyes closed, laid over the breath for a blink. */
+export const CAT_BLINK = file("cat-blink.png");
+
+/**
+ * Four-frame sheets drawn from the same cat: typing on a tiny laptop while
+ * agents work, and looking around or wagging its tail while it waits awake.
+ */
+export const CAT_TYPING = file("cat-typing.png");
+export const CAT_LOOK = file("cat-look.png");
+export const CAT_TAIL = file("cat-tail.png");
+
+/** After the last agent stops, the cat stays awake this long before it sleeps. */
+export const MASCOT_AWAKE_MS = 3 * 60 * 1000;
+/** A wait between idle moves, and how long each move plays (look once, wag twice). */
+export const IDLE_MOVE_GAP_MS: [number, number] = [5000, 10000];
+export const IDLE_MOVE_MS = { look: 3100, tail: 1960 } as const;
+export type IdleMove = keyof typeof IDLE_MOVE_MS;
+
+export type CatFigure = "typing" | "awake" | "sleep" | "alert";
+
+/** What the cat draws: typing while agents work, awake for a while after, then asleep. */
+export function catFigure(pose: MascotPose, awake: boolean): CatFigure {
+  if (pose === "alert") return "alert";
+  if (pose === "sit") return "typing";
+  return awake ? "awake" : "sleep";
+}
 
 const ROBOT_IDLE = "robot-idle.png";
 
@@ -167,4 +193,74 @@ export function mascotNoticeText(notice: MascotNotice) {
   if (notice.kind === "permission") return t("{name} precisa de permissão", { name: notice.name });
   if (notice.kind === "done") return t("{name} finalizou", { name: notice.name });
   return t("{name} tem uma pergunta", { name: notice.name });
+}
+
+/** Used share at which the cat starts to sweat: 90% used, 10% left. */
+export const TIGHT_REMAINING = 10;
+/** A window that gains this many points between readings was renewed (same rule as the notification). */
+export const RENEW_JUMP = 30;
+
+type QuotaSlot = { id: string; connected?: boolean; stale?: boolean; windows: { id: string; remainingPercent: number; amount?: string | null }[] };
+
+/** Some live quota is nearly used up, but not all gone: the cat sweats. */
+export function quotaTight(slots: QuotaSlot[]): boolean {
+  return slots.some(
+    (slot) =>
+      slot.connected !== false &&
+      !slot.stale &&
+      slot.windows.some((window) => !window.amount && window.remainingPercent > 0 && window.remainingPercent <= TIGHT_REMAINING)
+  );
+}
+
+/**
+ * Remembers each window's room and tells whether one was renewed since the
+ * last reading. The first reading only sets the baseline.
+ */
+export function quotaRenewed(previous: ReadonlyMap<string, number> | null, slots: QuotaSlot[]) {
+  const next = new Map<string, number>();
+  let renewed = false;
+  for (const slot of slots) {
+    if (slot.connected === false || slot.stale) continue;
+    for (const window of slot.windows) {
+      if (window.amount) continue;
+      const key = slot.id + ":" + window.id;
+      next.set(key, window.remainingPercent);
+      const before = previous?.get(key);
+      if (before != null && window.remainingPercent - before >= RENEW_JUMP) renewed = true;
+    }
+  }
+  return { next, renewed };
+}
+
+/** How many questions wait for you, for the count on the "?" balloon. */
+export function questionCount(notices: MascotNotice[]): number {
+  return notices.filter((notice) => notice.kind === "question").length;
+}
+
+/** "Claude", "Claude e Nyck", "Claude, Nyck e mais 2". */
+function joinNames(names: string[]) {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return t("{a} e {b}", { a: names[0], b: names[1] });
+  return t("{a}, {b} e mais {count}", { a: names[0], b: names[1], count: String(names.length - 2) });
+}
+
+/**
+ * Every notice of a mark in one line, so the box above the cat never needs a
+ * second line: "Claude finalizou", "Claude e Nyck finalizaram",
+ * "Nyck precisa de permissão · Claude finalizou".
+ */
+export function mascotNoticeLine(notices: readonly MascotNotice[]): string {
+  if (!notices.length) return "";
+  if (notices.length === 1) return mascotNoticeText(notices[0]);
+  const parts: string[] = [];
+  for (const kind of ["permission", "question", "done"] as const) {
+    const names = [...new Set(notices.filter((notice) => notice.kind === kind).map((notice) => notice.name))];
+    if (!names.length) continue;
+    const who = joinNames(names);
+    const many = names.length > 1;
+    if (kind === "permission") parts.push(many ? t("{names} precisam de permissão", { names: who }) : t("{name} precisa de permissão", { name: who }));
+    else if (kind === "question") parts.push(many ? t("{names} têm perguntas", { names: who }) : t("{name} tem uma pergunta", { name: who }));
+    else parts.push(many ? t("{names} finalizaram", { names: who }) : t("{name} finalizou", { name: who }));
+  }
+  return parts.join(" · ");
 }

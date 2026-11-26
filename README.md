@@ -2,10 +2,10 @@
 
 A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how much AI quota you have left** in Claude, Codex, Cursor and Antigravity, what your coding agents are doing, what that usage would cost on the API, and your **Obsidian prompt library**, one hover away.
 
-[![Version](https://img.shields.io/badge/version-0.8.0--beta.3-0a0a0c?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0--beta.4-0a0a0c?style=flat-square)](CHANGELOG.md)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078d4?style=flat-square)](#download)
-[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.3)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.3)
+[![macOS beta](https://img.shields.io/badge/macOS-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.4)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-999999?style=flat-square)](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.4)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-24c8db?style=flat-square)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 
@@ -19,7 +19,7 @@ A side dock for Windows 11, with a macOS beta and a Linux beta, that shows **how
 
 ## Download
 
-**0.8.0 beta:** the [v0.8.0-beta.3 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.3) has Windows, macOS and Linux in one place, with the pixel-art cat, real glass blur on Windows, Grok, Grok Bot and DeepSeek, and clicks that pass through the empty space beside the dock. New in beta.3: Grok on The X Subscription shows one shared weekly pool (also on Cursor), and on Windows the dock reads the Antigravity accounts that OpenBot runs. The latest stable release for Windows is still 0.7.1.
+**0.8.0 beta:** the [v0.8.0-beta.4 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.4) has Windows, macOS and Linux in one place, with the pixel-art cat, real glass blur on Windows, Grok, Grok Bot and DeepSeek, and clicks that pass through the empty space beside the dock. New in beta.4: a new look across the whole app, a summary of your OpenBot bots, a suggested Antigravity account switch, quota alerts at 75, 90 and 95%, an activity map in Costs and a cat that types while your agents work. The latest stable release for Windows is still 0.7.1.
 
 ### Windows 11
 
@@ -29,7 +29,7 @@ The binary is **not code-signed yet**, so Windows SmartScreen may warn the first
 
 ### macOS beta
 
-Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.3/AI.Dock_0.8.0-beta.3_aarch64.dmg) from the [v0.8.0-beta.3 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.3). Nobody has reported back from a real Mac yet, so tell us how it went, even if everything worked.
+Apple Silicon only. [Download the .dmg](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.4/AI.Dock_0.8.0-beta.4_aarch64.dmg) from the [v0.8.0-beta.4 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.4). Nobody has reported back from a real Mac yet, so tell us how it went, even if everything worked.
 
 The app is unsigned and not notarized. Gatekeeper warns the first time: right-click AI Dock → Open.
 
@@ -39,7 +39,7 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 
 ### Linux beta
 
-Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.3/AI.Dock_0.8.0-beta.3_amd64.AppImage) from the [v0.8.0-beta.3 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.3). It is built on Ubuntu 22.04, so it needs glibc 2.35 or newer.
+Omarchy (Hyprland). [Download the AppImage](https://github.com/NyckDragon/ai-dock/releases/download/v0.8.0-beta.4/AI.Dock_0.8.0-beta.4_amd64.AppImage) from the [v0.8.0-beta.4 pre-release](https://github.com/NyckDragon/ai-dock/releases/tag/v0.8.0-beta.4). It is built on Ubuntu 22.04, so it needs glibc 2.35 or newer.
 
 The AppImage is unsigned. Make it executable and run it. If it complains about FUSE, install `fuse2`, or extract it with `--appimage-extract` and run `./squashfs-root/AppRun`.
 
@@ -52,9 +52,11 @@ Testers are welcome. Open an [issue](https://github.com/NyckDragon/ai-dock/issue
 - **Pace.** "Runs out in 2h 10min" or "19% under pace" for each window, plus a trend line for the last 24 hours, 7 days or 30 days.
 - **Real plan names**, such as Claude Max 5x or Max 20x, when the provider reports them.
 - **Service status.** Incidents from the official status pages of Claude, OpenAI (Codex) and Cursor show on the dock and in the cards, with a link to the status page.
-- **Local costs.** Tokens and the estimated API cost of your Claude Code, Codex CLI and Antigravity sessions, per day, tool, model and project, read from their local logs.
-- **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you.
-- **Notifications** for low quota (80% and 95% used), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
+- **Local costs.** Tokens and the estimated API cost of your Claude Code, Codex CLI and Antigravity sessions, per day, tool, model and project, read from their local logs. An activity map keeps the total of every day, so it reaches past the few weeks the logs keep.
+- **Account switch (Windows).** When the Antigravity account you are using drops to 15% or less on its model and another account has 50% or more, the dock suggests the switch and brings that account's window to the front.
+- **OpenBot (Windows).** One entry for every account OpenBot runs, with a summary of its bots: who is working, on which engine, model and account.
+- **Agent activity.** See when Codex, Cursor or Antigravity is working, and get a notification when an agent is waiting for you. The pixel-art cat types while agents work, looks around and wags its tail for a few minutes after, then falls asleep.
+- **Notifications** for quota at 75%, 90% and 95% used (each one on or off, plus a level of your own between 50% and 99%, with a choice of sound), limit resets, service incidents, and a provider that stops refreshing (and when it recovers). Pause them for 30 min to "until tomorrow" from Settings or the tray.
 - **Obsidian prompts.** Search, favorites, recents, `{{variables}}` filled in before copying, a global **Ctrl + Alt + Space** palette (**Control + Option + Command + Space** on the Mac), and optional paste straight into the app you were in.
 - English and Portuguese UI; light, dark or system theme; start with Windows, with the Mac, or with Linux.
 

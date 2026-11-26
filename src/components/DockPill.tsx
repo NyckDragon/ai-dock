@@ -1,16 +1,30 @@
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from "react";
+import { wrongAccount } from "../lib/accounts";
+import { formatPillUsd } from "../lib/costs";
 import { waitKind, type WaitKind } from "../lib/finish";
 import { t } from "../lib/i18n";
 import {
+  CAT_BLINK,
   CAT_BREATHE,
+  CAT_LOOK,
+  CAT_TAIL,
+  CAT_TYPING,
+  IDLE_MOVE_GAP_MS,
+  IDLE_MOVE_MS,
+  MASCOT_AWAKE_MS,
+  catFigure,
+  type IdleMove,
   MASCOT_SRC,
   mascotBang,
   mascotMarkNotices,
-  mascotNoticeText,
+  mascotNoticeLine,
   mascotNotices,
   mascotOverlayHeight,
   mascotPose,
+  questionCount,
+  quotaRenewed,
+  quotaTight,
   robotPoseSrc,
   type MascotKind
 } from "../lib/mascot";
@@ -23,10 +37,12 @@ import {
   clampPercent,
   displayWord,
   balanceReading,
+  featuredWindow,
   percentLabel,
   providerHeadroom,
   quotaTone,
-  shownPercent
+  shownPercent,
+  timeMarkPercent
 } from "../lib/quota";
 import type {
   ActivityIndicator,
@@ -83,8 +99,66 @@ function MascotFigure({
   const useRobot = kind === "robot" && robot.src.length > 0;
   const robotWalk = useRobot && pose === "sit" ? robot.frames : [];
   const shownFrame = robotWalk.length ? robotWalk[frame % robotWalk.length] : robot.src;
-  const figure = useRobot ? "robot" : pose === "sit" ? "breathe" : pose;
-  const drawWidth = !useRobot && pose === "sleep" ? 76 : 0;
+  // Awake for a while after the last agent stops, then asleep.
+  const [awakeUntil, setAwakeUntil] = useState(0);
+  const lastPoseRef = useRef(pose);
+  useEffect(() => {
+    if (lastPoseRef.current !== "sleep" && pose === "sleep") setAwakeUntil(Date.now() + MASCOT_AWAKE_MS);
+    lastPoseRef.current = pose;
+  }, [pose]);
+  const [, wake] = useState(0);
+  useEffect(() => {
+    const left = awakeUntil - Date.now();
+    if (left <= 0) return;
+    const timer = window.setTimeout(() => wake((n) => n + 1), left + 50);
+    return () => window.clearTimeout(timer);
+  }, [awakeUntil]);
+  const cat = catFigure(pose, Date.now() < awakeUntil);
+  const figure = useRobot ? "robot" : cat === "awake" ? "breathe" : cat;
+  const drawWidth = !useRobot && cat === "sleep" ? 76 : 0;
+
+  // The move sheets load ahead, so the first look or wag does not blink empty.
+  useEffect(() => {
+    for (const src of [CAT_LOOK, CAT_TAIL, CAT_TYPING]) new Image().src = src;
+  }, []);
+
+  // While awake, now and then it looks around or wags its tail, then breathes again.
+  const [move, setMove] = useState<{ kind: IdleMove; n: number } | null>(null);
+  useEffect(() => {
+    setMove(null);
+    if (figure !== "breathe" || !interactive) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let timer = 0;
+    let n = 0;
+    const next = () => {
+      const [min, max] = IDLE_MOVE_GAP_MS;
+      timer = window.setTimeout(() => {
+        const kind: IdleMove = Math.random() < 0.5 ? "look" : "tail";
+        n += 1;
+        setMove({ kind, n });
+        timer = window.setTimeout(() => {
+          setMove(null);
+          next();
+        }, IDLE_MOVE_MS[kind]);
+      }, min + Math.random() * (max - min));
+    };
+    next();
+    return () => window.clearTimeout(timer);
+  }, [figure, interactive]);
+  // The cat reacts to the quotas too: a sweat drop when one is nearly used up,
+  // a few hops with sparkles when one renews.
+  const tight = quotaTight(slots);
+  const asked = questionCount(notices);
+  const lastRoomRef = useRef<ReadonlyMap<string, number> | null>(null);
+  const [cheering, setCheering] = useState(false);
+  useEffect(() => {
+    const { next, renewed } = quotaRenewed(lastRoomRef.current, slots);
+    lastRoomRef.current = next;
+    if (!renewed || !interactive) return;
+    setCheering(true);
+    const timer = window.setTimeout(() => setCheering(false), 3600);
+    return () => window.clearTimeout(timer);
+  }, [slots, interactive]);
 
   useEffect(() => {
     if (robotWalk.length < 2) return;
@@ -128,27 +202,20 @@ function MascotFigure({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        {lines.length ? (
-          <ul className="dock-signal-list">
-            {lines.map((notice) => (
-              <li key={notice.slotId + notice.kind + notice.name}>{mascotNoticeText(notice)}</li>
-            ))}
-          </ul>
-        ) : null}
+        {lines.length ? <p className="dock-signal-list">{mascotNoticeLine(lines)}</p> : null}
         <span className="dock-signals__marks">
           <button
             type="button"
             className={"dock-signal dock-signal--question" + (open === "question" ? " is-open" : "") + (question ? "" : " is-idle")}
-            aria-label={t("Pergunta")}
+            data-count={asked > 1 ? asked : undefined}
+            aria-label={asked > 1 ? t("{count} perguntas", { count: String(asked) }) : t("Pergunta")}
             aria-expanded={question ? open === "question" : undefined}
             aria-hidden={question ? undefined : true}
             tabIndex={question ? undefined : -1}
             onMouseEnter={() => setHover("question")}
             onClick={() => toggle("question")}
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <text x="8" y="11.92" textAnchor="middle" fontSize="11">{"?"}</text>
-            </svg>
+            <PixelBalloon glyph="?" />
           </button>
           <button
             type="button"
@@ -161,17 +228,47 @@ function MascotFigure({
             onMouseEnter={() => setHover("bang")}
             onClick={() => toggle("bang")}
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <text x="8" y="11.85" textAnchor="middle" fontSize="11">{"!"}</text>
-            </svg>
+            <PixelBalloon glyph="!" />
           </button>
         </span>
       </span>
-      <span className={"dock-mascot dock-mascot--" + figure} aria-hidden="true">
+      <span
+        className={"dock-mascot dock-mascot--" + figure + (tight && pose !== "alert" ? " is-tight" : "") + (cheering ? " is-cheering" : "")}
+        aria-hidden="true"
+      >
+        {figure === "sleep" ? (
+          <span className="dock-mascot__zzz" aria-hidden="true">
+            <i />
+            <i />
+          </span>
+        ) : null}
+        {cheering ? (
+          <span className="dock-mascot__sparks">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : null}
         <span className="dock-mascot__motion">
-          {!useRobot && pose === "sit" ? (
+          {figure === "breathe" || figure === "typing" ? (
             <span className={"dock-mascot__clip" + (side === "right" ? " dock-mascot__img--flip" : "")}>
-              <img className="dock-mascot__sheet" src={CAT_BREATHE} alt="" draggable={false} />
+              {figure === "typing" ? (
+                <img className="dock-mascot__sheet dock-mascot__sheet--typing" src={CAT_TYPING} alt="" draggable={false} />
+              ) : move ? (
+                <img
+                  key={move.n}
+                  className={"dock-mascot__sheet dock-mascot__sheet--" + move.kind}
+                  src={move.kind === "look" ? CAT_LOOK : CAT_TAIL}
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <>
+                  <img className="dock-mascot__sheet" src={CAT_BREATHE} alt="" draggable={false} />
+                  <img className="dock-mascot__sheet dock-mascot__blink" src={CAT_BLINK} alt="" draggable={false} />
+                </>
+              )}
             </span>
           ) : (
             <img
@@ -184,6 +281,38 @@ function MascotFigure({
         </span>
       </span>
     </span>
+  );
+}
+
+/**
+ * A speech balloon in pixel art, like the cat: an 11×9 grid of 2px squares
+ * (outline, soft fill, a tail toward the cat, the mark itself), so it stays
+ * crisp at any position instead of a small font glyph blurring on half pixels.
+ */
+const BALLOON_OUTLINE: [number, number][] = [
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((x): [number, number] => [x, 0]),
+  ...[1, 2, 3, 4, 5].flatMap((y): [number, number][] => [[0, y], [10, y]]),
+  ...[1, 4, 5, 6, 7, 8, 9].map((x): [number, number] => [x, 6]),
+  [2, 7],
+  [3, 7],
+  [2, 8]
+];
+const BALLOON_GLYPHS: Record<"?" | "!", [number, number][]> = {
+  "!": [[5, 1], [5, 2], [5, 3], [5, 5]],
+  "?": [[4, 1], [5, 1], [6, 1], [3, 2], [7, 2], [6, 3], [5, 3], [5, 5]]
+};
+
+function PixelBalloon({ glyph }: { glyph: "?" | "!" }) {
+  const cell = (key: string, [x, y]: [number, number], className: string) => (
+    <rect key={key + x + "-" + y} className={className} x={x} y={y} width={1} height={1} />
+  );
+  return (
+    <svg className="pixel-balloon" viewBox="0 0 11 9" width="22" height="18" shapeRendering="crispEdges" aria-hidden="true">
+      <rect className="pixel-balloon__fill" x={1} y={1} width={9} height={5} />
+      <rect className="pixel-balloon__fill" x={2} y={6} width={2} height={1} />
+      {BALLOON_OUTLINE.map((point) => cell("o", point, "pixel-balloon__line"))}
+      {BALLOON_GLYPHS[glyph].map((point) => cell("g", point, "pixel-balloon__mark"))}
+    </svg>
   );
 }
 
@@ -260,7 +389,8 @@ function slotLabel(
     activity?.state === "waiting" ? ", " + t("esperando você") : activity?.state === "working" ? ", " + t("trabalhando") : "";
   const stale = provider.stale && remaining != null ? " (" + t("última leitura, não atualizou") + ")" : "";
   const incident = status ? " · " + statusText(status) : "";
-  return provider.name + ": " + quota + stale + state + incident;
+  const account = wrongAccount(provider) ? " · " + t("logada em outra conta") : "";
+  return provider.name + ": " + quota + stale + state + incident + account;
 }
 
 /** One quota mark lights with the warning. Several families light only the named pool. */
@@ -432,7 +562,6 @@ function HorizontalBarsGauge({
               <div
                 key={bar.id}
                 className={"gauge-bars__track" + (isBarActive ? " gauge-bars__track--active" : "")}
-                title={`${bar.name}: ${bar.pct}%`}
               >
                 <div
                   className={
@@ -511,10 +640,16 @@ function PillSlot({
   })();
 
   const effectiveRemaining = activeModelHeadroom ?? remaining;
+  const featured = featuredWindow(provider, headline);
+  const timeMark = featured && !provider.stale ? timeMarkPercent(featured, display, provider.id) : null;
   const tone = quotaTone(effectiveRemaining);
   const label = percentLabel(effectiveRemaining, display, provider.id, showSign);
   const aria = slotLabel(provider, effectiveRemaining, display, activity, status);
-  const incident = status ? <i className={"slot-incident slot-incident--" + status.level} aria-hidden="true" /> : null;
+  const incident = wrongAccount(provider) ? (
+    <i className="slot-incident slot-incident--account" aria-hidden="true" />
+  ) : status ? (
+    <i className={"slot-incident slot-incident--" + status.level} aria-hidden="true" />
+  ) : null;
   const degrees = effectiveRemaining == null ? 0 : shownPercent(effectiveRemaining, display, provider.id) * 3.6;
 
   let body;
@@ -586,6 +721,9 @@ function PillSlot({
           <span className="gauge__face">
             <SlotIcon providerId={provider.id} size={mode === "ring" ? 16 : 14} signal={signal} />
           </span>
+          {mode === "ring" && timeMark != null ? (
+            <i className="gauge__tick" style={{ "--tick-angle": timeMark * 3.6 + "deg" } as CSSProperties} aria-hidden="true" />
+          ) : null}
         </span>
         <span className="slot-value">{label}</span>
       </>
@@ -620,7 +758,6 @@ function PillSlot({
       data-signal={!signal.wait && signal.done ? "done" : undefined}
       data-pulse-bar={pulseActiveBar === false ? "false" : undefined}
       aria-label={aria}
-      title={aria}
       onMouseEnter={() => onHover?.(provider.id)}
       onFocus={() => onHover?.(provider.id)}
       onClick={(event) => {
@@ -663,8 +800,11 @@ export function DockPill({
   pillRef,
   onOpen,
   onHoverSlot,
+  onLeaveSlots,
   onMascotOverlay,
-  onSeen
+  onSeen,
+  todayCost = null,
+  onOpenCosts
 }: {
   slots: ProviderUsage[];
   mode: CompactMode;
@@ -685,6 +825,9 @@ export function DockPill({
   mascotKind?: MascotKind;
   glass?: boolean;
   glassOpacity?: number;
+  /** Today's estimated spend, shown under the brand. Null hides it. */
+  todayCost?: number | null;
+  onOpenCosts?: () => void;
   interactive?: boolean;
   lockPosition?: boolean;
   verticalOffset?: number;
@@ -695,6 +838,8 @@ export function DockPill({
   pillRef?: Ref<HTMLDivElement>;
   onOpen?: (slotId?: string) => void;
   onHoverSlot?: (slotId: string) => void;
+  /** The pointer left the provider slots for another part of the pill (brand, today, mascot, arrow). */
+  onLeaveSlots?: () => void;
   onMascotOverlay?: (size: MascotOverlay) => Promise<void> | void;
   onSeen?: () => void;
 }) {
@@ -708,6 +853,8 @@ export function DockPill({
   );
   const isDraggingRef = useRef(false);
   const draggedGestureRef = useRef(false);
+  /** The pointer pressed on the pill; captured only once it moves far enough to be a drag. */
+  const pressedPointerRef = useRef<number | null>(null);
   const dragOriginRef = useRef({ x: 0, y: 0 });
   const dragStartOffsetRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -722,17 +869,26 @@ export function DockPill({
     isDraggingRef.current = false;
     draggedGestureRef.current = false;
     pendingOffsetRef.current = null;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // No capture yet: a capture now would send the click to the pill itself, so
+    // "Hoje" and the provider rings would open the panel instead of their page.
+    pressedPointerRef.current = event.pointerId;
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    if (pressedPointerRef.current !== event.pointerId) return;
+    // Released outside the pill before the drag began: this move is not a drag.
+    if ((event.buttons & 1) === 0 && !isDraggingRef.current) {
+      pressedPointerRef.current = null;
+      return;
+    }
     const dx = event.screenX - dragOriginRef.current.x;
     const dy = event.screenY - dragOriginRef.current.y;
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 6) {
       isDraggingRef.current = true;
       draggedGestureRef.current = true;
       setDragging(true);
+      // From here the drag follows the pointer even past the pill's edge.
+      event.currentTarget.setPointerCapture(event.pointerId);
     }
     if (isDraggingRef.current) {
       const screenH = window.screen.height || 1080;
@@ -760,6 +916,7 @@ export function DockPill({
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    pressedPointerRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -812,6 +969,14 @@ export function DockPill({
         if (target instanceof Element && target.closest(".dock-signals")) return;
         onSeen?.();
       }}
+      onMouseOver={(event) => {
+        // Reaching the brand, today's spend, the arrow or the mascot closes the provider
+        // card. The pill's edge does not: the pointer crosses it on the way to the card.
+        const target = event.target;
+        if (target instanceof Element && target.closest(".dock-pill__brand, .dock-pill__today, .dock-pill__chevron, .dock-mascot-stack")) {
+          onLeaveSlots?.();
+        }
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -838,7 +1003,6 @@ export function DockPill({
           type="button"
           className="dock-pill__brand"
           aria-label={t("Abrir painel do AI Dock")}
-          title={t("Abrir painel")}
           onClick={(event) => {
             event.stopPropagation();
             if (draggedGestureRef.current) return;
@@ -854,6 +1018,29 @@ export function DockPill({
           <span className="dock-word">AI</span>
         </span>
       )}
+
+      {todayCost != null ? (
+        interactive ? (
+          <button
+            type="button"
+            className="dock-pill__today"
+            aria-label={t("Gasto estimado de hoje: {value}. Abrir custos", { value: formatPillUsd(todayCost) })}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (draggedGestureRef.current) return;
+              onOpenCosts?.();
+            }}
+          >
+            <small>{t("Hoje")}</small>
+            <strong>{formatPillUsd(todayCost)}</strong>
+          </button>
+        ) : (
+          <span className="dock-pill__today">
+            <small>{t("Hoje")}</small>
+            <strong>{formatPillUsd(todayCost)}</strong>
+          </span>
+        )
+      ) : null}
 
       <div className="dock-pill__slots">
         {slots.length === 0 && loading

@@ -247,6 +247,131 @@ fn codex_rollout_activity() -> ProviderActivity {
     }
 }
 
+/// A Claude Code conversation counts as running while its transcript was written
+/// in the last 90 seconds and its last turn has not ended.
+const CLAUDE_ACTIVE_MS: u64 = 90_000;
+/// A tool call with no result for this long is waiting on the user (permission).
+const CLAUDE_WAIT_MS: u64 = 20_000;
+
+#[derive(Debug, PartialEq)]
+enum ClaudeTurn {
+    Working(Option<String>),
+    ToolPending(Option<String>),
+    Ended,
+}
+
+/// Reads the end of a Claude Code transcript: the last assistant or user line says
+/// whether the turn is still going, waiting on a tool, or over.
+fn claude_turn(tail: &str) -> ClaudeTurn {
+    for line in tail.lines().rev() {
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+        let kind = doc.get("type").and_then(|value| value.as_str()).unwrap_or_default();
+        if kind != "assistant" && kind != "user" {
+            continue;
+        }
+        let message = doc.get("message");
+        let content = message.and_then(|m| m.get("content")).and_then(|c| c.as_array());
+        let tool = content.and_then(|items| {
+            items
+                .iter()
+                .rev()
+                .find(|item| item.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
+                .and_then(|item| item.get("name").and_then(|n| n.as_str()))
+                .map(str::to_string)
+        });
+        if kind == "user" {
+            return ClaudeTurn::Working(None);
+        }
+        let stop = message.and_then(|m| m.get("stop_reason")).and_then(|s| s.as_str());
+        return match stop {
+            Some("end_turn") | Some("stop_sequence") => ClaudeTurn::Ended,
+            Some("tool_use") => ClaudeTurn::ToolPending(tool),
+            _ => ClaudeTurn::Working(tool),
+        };
+    }
+    ClaudeTurn::Working(None)
+}
+
+/// The name the session shows in Claude: its own title, else its project folder.
+fn claude_title(path: &Path, tail: &str) -> String {
+    let custom = path
+        .with_extension("")
+        .join("custom-title.json");
+    if let Some(title) = fs::read_to_string(custom)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|doc| doc.get("customTitle").and_then(|t| t.as_str()).map(str::to_string))
+        .filter(|title| !title.trim().is_empty())
+    {
+        return title;
+    }
+    tail.lines()
+        .rev()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find_map(|doc| doc.get("cwd").and_then(|c| c.as_str()).map(str::to_string))
+        .and_then(|cwd| Path::new(&cwd).file_name().map(|name| name.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "Claude Code".into())
+}
+
+fn claude_activity() -> ProviderActivity {
+    let Some(root) = dirs::home_dir().map(|home| home.join(".claude").join("projects")) else {
+        return idle("claude", "inferred");
+    };
+    if !root.is_dir() {
+        return idle("claude", "inferred");
+    }
+    let now = now_ms();
+    let mut sessions: Vec<ActivitySession> = WalkDir::new(&root)
+        .max_depth(2)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("jsonl"))
+        .filter_map(|entry| {
+            let path = entry.path().to_path_buf();
+            let modified = mtime_ms(&path)?;
+            let quiet = now.saturating_sub(modified);
+            if quiet > CLAUDE_ACTIVE_MS {
+                return None;
+            }
+            let content = fs::read(&path).ok()?;
+            let start = content.len().saturating_sub(64_000);
+            let tail = String::from_utf8_lossy(&content[start..]).to_string();
+            let (state, detail, reason) = match claude_turn(&tail) {
+                ClaudeTurn::Ended => return None,
+                ClaudeTurn::ToolPending(_) if quiet > CLAUDE_WAIT_MS => {
+                    ("waiting", "Precisa da sua ação".to_string(), Some("permission".to_string()))
+                }
+                ClaudeTurn::ToolPending(tool) | ClaudeTurn::Working(tool) => (
+                    "working",
+                    tool.map(|name| format!("Usando {name}")).unwrap_or_else(|| "Executando tarefa".into()),
+                    None,
+                ),
+            };
+            Some(ActivitySession {
+                id: path.file_stem()?.to_string_lossy().to_string(),
+                title: claude_title(&path, &tail),
+                detail,
+                state: state.into(),
+                since: modified,
+                pool: None,
+                reason,
+            })
+        })
+        .collect();
+    if sessions.is_empty() {
+        return idle("claude", "inferred");
+    }
+    sessions.sort_by(|a, b| b.since.cmp(&a.since));
+    let waiting = sessions.iter().any(|session| session.state == "waiting");
+    ProviderActivity {
+        provider_id: "claude".into(),
+        state: if waiting { "waiting".into() } else { "working".into() },
+        confidence: "inferred".into(),
+        sessions,
+    }
+}
+
 fn codex_activity() -> ProviderActivity {
     codex_desktop_activity().unwrap_or_else(codex_rollout_activity)
 }
@@ -725,7 +850,7 @@ fn antigravity_activities() -> Vec<ProviderActivity> {
 #[tauri::command]
 pub async fn get_provider_activity() -> Vec<ProviderActivity> {
     let mut activities = tauri::async_runtime::spawn_blocking(|| {
-        let mut list = vec![codex_activity(), cursor_activity()];
+        let mut list = vec![claude_activity(), codex_activity(), cursor_activity()];
         list.extend(antigravity_activities());
         list
     })
@@ -764,6 +889,21 @@ pub async fn get_provider_activity() -> Vec<ProviderActivity> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_claude_turn_is_read_from_the_end_of_its_transcript() {
+        let tool = r#"{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"Bash"}]}}"#;
+        let result = r#"{"type":"user","message":{"content":[{"type":"tool_result"}]}}"#;
+        let ended = r#"{"type":"assistant","message":{"stop_reason":"end_turn","content":[{"type":"text"}]}}"#;
+        let noise = r#"{"type":"api-request"}"#;
+        assert_eq!(claude_turn(&format!("{tool}
+{noise}")), ClaudeTurn::ToolPending(Some("Bash".into())));
+        assert_eq!(claude_turn(&format!("{tool}
+{result}")), ClaudeTurn::Working(None));
+        assert_eq!(claude_turn(&format!("{tool}
+{result}
+{ended}")), ClaudeTurn::Ended);
+    }
 
     #[test]
     fn a_root_without_transcripts_is_read_from_its_conversation_files() {

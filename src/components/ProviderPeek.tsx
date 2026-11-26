@@ -1,9 +1,10 @@
-import { forwardRef, Fragment } from "react";
+import { forwardRef, Fragment, type ReactNode } from "react";
+import { wrongAccount } from "../lib/accounts";
 import { formatAge } from "../lib/format";
 import { t, tr, trLabel } from "../lib/i18n";
 import type { PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
 import { StatusBadge } from "./StatusBadge";
 
@@ -24,8 +25,12 @@ export const ProviderPeek = forwardRef<
     display: PercentDisplay;
     now: number;
     onOpen: () => void;
+    /** Shown in place of the windows (OpenBot's summary of its accounts). */
+    summary?: ReactNode;
+    /** "Go to the account with more room", when this one is nearly out. */
+    switchHint?: ReactNode;
   }
->(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen }, ref) {
+>(function ProviderPeek({ provider, activity, status: incident, updatedAt, display, now, onOpen, summary, switchHint }, ref) {
   const status = provider.stale
     ? (provider.updatedAt
         ? t("Última leitura {age}", { age: formatAge(provider.updatedAt, now) })
@@ -40,7 +45,7 @@ export const ProviderPeek = forwardRef<
     <aside ref={ref} className="provider-peek" onClick={onOpen} aria-label={provider.name}>
       <div className="provider-peek__head">
         <span className="provider-peek__brand">
-          <ProviderIcon providerId={provider.id} size={18} brand />
+          <ProviderChip providerId={provider.id} />
           <span>
             <strong>{provider.name}</strong>
             <small>
@@ -53,12 +58,24 @@ export const ProviderPeek = forwardRef<
       </div>
 
       {incident ? <StatusBadge status={incident} /> : null}
+      {switchHint}
+
+      {wrongAccount(provider) ? (
+        <div className="notice notice--error">
+          {t("Esta janela está logada em {live}, mas a conta vinculada é {expected}. Saia e entre com a conta vinculada.", {
+            live: provider.email ?? "",
+            expected: provider.expectedEmail ?? ""
+          })}
+        </div>
+      ) : null}
 
       {provider.error ? (
         <div className={"notice " + (provider.stale || SOFT_NOTICES.has(provider.error) ? "notice--warning" : "notice--error")}>{tr(provider.error)}</div>
       ) : null}
 
-      {provider.windows.length ? (
+      {summary ? (
+        summary
+      ) : provider.windows.length ? (
         <div className={"provider-peek__windows" + (provider.stale ? " is-stale" : "")}>
           {provider.windows.map((window, idx) => {
             const prev = idx > 0 ? provider.windows[idx - 1] : null;
@@ -87,7 +104,8 @@ export const ProviderPeek = forwardRef<
         </p>
       ) : null}
 
-      <ActivityBlock activity={activity} now={now} />
+      {/* OpenBot's summary already lists the bots at work. */}
+      {summary ? null : <ActivityBlock activity={activity} now={now} />}
 
       <button
         type="button"

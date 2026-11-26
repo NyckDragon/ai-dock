@@ -62,6 +62,7 @@
   /* Glass tint (RGB) and the line along its top edge. */
   --glass-rgb: 8, 10, 14;
   --glass-edge: rgba(255, 255, 255, .55);
+  --glass-border: rgba(255, 255, 255, .14);
   --focus-ring: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
 
   --brand-claude: #e08a64;
@@ -113,6 +114,7 @@
     --shadow-pop: none;
     --glass-rgb: 246, 247, 251;
     --glass-edge: rgba(255, 255, 255, .9);
+    --glass-border: rgba(15, 20, 30, .10);
     --brand-claude: #c96442;
     --brand-codex: #0e8a64;
     --brand-cursor: #1b1c20;
@@ -161,6 +163,7 @@
   --shadow-pop: none;
   --glass-rgb: 246, 247, 251;
   --glass-edge: rgba(255, 255, 255, .9);
+  --glass-border: rgba(15, 20, 30, .10);
   --brand-claude: #c96442;
   --brand-codex: #0e8a64;
   --brand-cursor: #1b1c20;

@@ -1,3 +1,4 @@
+import type { AlertSound } from "./lib/alerts";
 export type DockSide = "left" | "right";
 export type CompactMode = "classic" | "percent" | "ring" | "square" | "bars";
 export type ThemePreference = "system" | "dark" | "light";
@@ -35,12 +36,16 @@ export type ProviderUsage = {
   connected: boolean;
   plan?: string | null;
   email?: string | null;
+  /** Antigravity: the email this account's launcher bound it to. */
+  expectedEmail?: string | null;
   windows: UsageWindow[];
   error?: string | null;
   /** True when the windows are the last good reading, kept after a failed refresh. */
   stale?: boolean;
   updatedAt?: number | null;
   lastErrorAt?: number | null;
+  /** OpenBot only: every account inside it, for its one summary. */
+  members?: ProviderUsage[];
 };
 
 export type StatusLevel = "none" | "maintenance" | "minor" | "major" | "critical";
@@ -141,6 +146,12 @@ export type Settings = {
   globalShortcut: boolean;
   autoPaste: boolean;
   notifyLowQuota: boolean;
+  /** Usage levels (75, 90, 95) that send a notification. */
+  alertLevels: number[];
+  /** An extra level of your own (50–99), or null when off. */
+  alertCustom: number | null;
+  /** Windows toast sound for every notification; "silent" sends none. */
+  notifySound: AlertSound;
   notifyReset: boolean;
   notifyWaiting: boolean;
   notifyIncidents: boolean;
@@ -149,6 +160,12 @@ export type Settings = {
   notificationsPausedUntil: number | null;
   language: Language;
   historyRange: HistoryRange;
+  /** Today's estimated spend under the brand of the collapsed dock. */
+  pillTodayCost: boolean;
+  /** Columns of the usage list in the open panel. */
+  usageColumns: 1 | 2;
+  /** Usage cards the user folded down to their headline. */
+  collapsedCards: string[];
   antigravityGroupMode: AntigravityGroupMode;
   activityIndicator: ActivityIndicator;
   pulseActiveBar: boolean;

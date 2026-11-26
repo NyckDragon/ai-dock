@@ -46,18 +46,35 @@ export function formatAge(since: number, now: number) {
   return t("há {days}d", { days: Math.floor(hours / 24) });
 }
 
-export function formatPace(pace: Pace | null) {
+/** When a window runs out: "em 26min" within a day, else the weekday and time. */
+function runOutWhen(runsOutIn: number, now: number) {
+  if (runsOutIn < 24 * 60 * 60 * 1000) return t("acaba em {time}", { time: formatDuration(runsOutIn) });
+  const at = new Date(now + runsOutIn);
+  const day = new Intl.DateTimeFormat(intlLocale(), { weekday: "short" }).format(at).replace(".", "");
+  const time = new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" }).format(at);
+  return t("acaba {day} às {time}", { day, time });
+}
+
+/**
+ * Pace and forecast in one phrase, like CodexBar's "Pace: 6% in reserve ·
+ * Lasts until reset": how far from a steady pace, then whether the window
+ * lasts until its reset or when it runs out.
+ */
+export function formatPace(pace: Pace | null, now = Date.now()) {
   if (!pace) return null;
   if (pace.runsOutIn === 0) return { text: t("Esgotado"), tone: "danger" as const };
+  const delta = Math.round(pace.delta);
+  const where =
+    delta > 5
+      ? t("Ritmo: {value}% acima", { value: delta })
+      : delta < -5
+        ? t("Ritmo: {value}% abaixo", { value: Math.abs(delta) })
+        : pace.runsOutIn != null
+          ? t("Ritmo: no limite")
+          : t("No ritmo");
   if (pace.runsOutIn != null) {
     const soon = pace.runsOutIn < 12 * 60 * 60 * 1000;
-    return {
-      text: t("Esgota em {time}", { time: formatDuration(pace.runsOutIn) }),
-      tone: soon ? ("danger" as const) : ("warning" as const)
-    };
+    return { text: where + " · " + runOutWhen(pace.runsOutIn, now), tone: soon ? ("danger" as const) : ("warning" as const) };
   }
-  const delta = Math.round(pace.delta);
-  if (delta > 5) return { text: t("{value}% acima do ritmo", { value: delta }), tone: "warning" as const };
-  if (delta < -5) return { text: t("{value}% abaixo do ritmo", { value: Math.abs(delta) }), tone: "good" as const };
-  return { text: t("No ritmo"), tone: "good" as const };
+  return { text: where + " · " + t("dura até o reset"), tone: delta > 5 ? ("warning" as const) : ("good" as const) };
 }

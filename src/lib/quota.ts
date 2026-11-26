@@ -250,6 +250,33 @@ function windowStart(window: UsageWindow, reset: Date): number | null {
   return null;
 }
 
+/** How much of the window's time has gone by, 0 to 100. Null when the window has no known length. */
+export function windowElapsedPercent(window: UsageWindow, now = Date.now()): number | null {
+  if (!window.resetAt) return null;
+  const reset = new Date(window.resetAt);
+  if (Number.isNaN(reset.getTime())) return null;
+  const start = windowStart(window, reset);
+  if (start == null) return null;
+  const duration = reset.getTime() - start;
+  if (duration <= 0) return null;
+  return clampPercent(((now - start) / duration) * 100);
+}
+
+/**
+ * Where the time mark sits on a gauge drawn as `display` shows it. On a "used"
+ * gauge the fill should stay behind the mark; on a "remaining" gauge, ahead of it.
+ */
+export function timeMarkPercent(
+  window: UsageWindow,
+  display: PercentDisplay,
+  providerId: string,
+  now = Date.now()
+): number | null {
+  const elapsed = windowElapsedPercent(window, now);
+  if (elapsed == null) return null;
+  return displayKind(display, providerId) === "used" ? elapsed : 100 - elapsed;
+}
+
 export type Pace = {
   /** Used percentage points above (+) or below (-) a steady pace. */
   delta: number;

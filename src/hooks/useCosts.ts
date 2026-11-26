@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { recordDailyCosts } from "../lib/heatmap";
 import { fetchLocalCosts } from "../lib/tauri";
 import type { CostReport } from "../types";
 
@@ -12,7 +13,10 @@ export function useCosts(active: boolean, days: number) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setReport(await fetchLocalCosts(days));
+      const report = await fetchLocalCosts(days);
+      // Every read also feeds the day totals behind the activity map.
+      if (report.entries.length) recordDailyCosts(report.entries);
+      setReport(report);
     } catch {
       setReport({ entries: [], prices: "none", files: 0 });
     } finally {

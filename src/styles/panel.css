@@ -8,6 +8,9 @@
 }
 .app-shell--right { justify-content: flex-end; }
 .app-shell--left { justify-content: flex-start; }
+/* The open panel also grows out of the screen edge. */
+.app-shell--right .dock-panel { border-radius: var(--radius-xl) 0 0 var(--radius-xl); border-right-width: 0; }
+.app-shell--left .dock-panel { border-radius: 0 var(--radius-xl) var(--radius-xl) 0; border-left-width: 0; }
 
 .dock-panel {
   position: relative;
@@ -246,10 +249,23 @@
   color: var(--text-3);
 }
 .quota-track {
+  position: relative;
   height: 6px;
-  overflow: hidden;
   border-radius: 99px;
   background: var(--track);
+}
+/* How much of the window's time has gone by. On a "used" bar the fill should
+   stay behind it; on a "remaining" bar, ahead of it. */
+.quota-track__tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
 .quota-row--compact .quota-track { height: 5px; }
 .quota-track i {

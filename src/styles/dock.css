@@ -32,6 +32,9 @@
 }
 .compact-shell--right .dock-pill { right: 0; left: auto; }
 .compact-shell--left .dock-pill { left: 0; right: auto; }
+/* The pill is part of the screen edge: round and bordered only on the inner side. */
+.compact-shell--right .dock-pill { border-radius: 20px 0 0 20px; border-right-width: 0; }
+.compact-shell--left .dock-pill { border-radius: 0 20px 20px 0; border-left-width: 0; }
 
 .dock-pill {
   position: relative;
@@ -61,11 +64,13 @@
 :root[data-glass="on"] .dock-panel {
   /* 0 is fully solid. 100 keeps a 40% fill so the numbers still read. */
   --glass-alpha: calc(1 - (1 - 0.4) * var(--glass-t, 0.4));
-  background: rgba(var(--glass-rgb), var(--glass-alpha));
-  border-top-color: var(--glass-edge);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    inset 0 12px 18px rgba(255, 255, 255, 0.05);
+  /* The light sits in the fill, fading down from the top, so it follows the rounded
+     corners. A brighter top border used to stop mid-curve and read as a cut edge. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 56px),
+    rgba(var(--glass-rgb), var(--glass-alpha));
+  border-color: var(--glass-border);
+  box-shadow: inset 0 12px 18px rgba(255, 255, 255, 0.04);
 }
 .dock-pill--glass .slot-value,
 .dock-pill--glass .dock-word,
@@ -74,10 +79,7 @@
 :root[data-glass="on"] .dock-panel {
   text-shadow: 0 0 3px rgba(var(--glass-rgb), 0.95), 0 1px 1px rgba(var(--glass-rgb), 0.85);
 }
-.dock-pill--glass:hover {
-  border-color: var(--accent-border);
-  border-top-color: var(--glass-edge);
-}
+.dock-pill--glass:hover { border-color: var(--accent-border); }
 .dock-pill--preview { cursor: default; }
 .dock-pill--preview:hover { border-color: var(--border); }
 .dock-pill--draggable { cursor: grab; }
@@ -389,6 +391,22 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   color: var(--text);
 }
 .gauge--circle .gauge__face { border-radius: 50%; }
+/* Time mark on the ring: how much of the featured window has gone by. */
+.gauge__tick {
+  position: absolute;
+  z-index: 2;
+  top: -2px;
+  left: 50%;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  transform-origin: 1px 20px;
+  transform: rotate(var(--tick-angle, 0deg));
+  pointer-events: none;
+}
 .gauge--good { --ring-color: var(--good); }
 .gauge--warning { --ring-color: var(--warning); }
 .gauge--danger { --ring-color: var(--danger); }
@@ -482,8 +500,12 @@ button.dock-pill__chevron:hover { background: var(--surface-2); }
   animation: sweep 1.2s linear infinite;
   pointer-events: none;
 }
-.gauge--circle[data-activity="working"]::after { border-radius: 50%; }
-.gauge--concentric[data-activity="working"]::after { inset: -3px; border-radius: 50%; }
+/* The glow follows the shape of the gauge: round gauges get a round ring.
+   Same specificity as the rules above, so the shape always wins. */
+.dock-pill[data-activity-indicator="sweep"] .gauge--circle[data-activity="working"]::after,
+.gauge--circle[data-activity-indicator="sweep"][data-activity="working"]::after { border-radius: 50%; }
+.dock-pill[data-activity-indicator="sweep"] .gauge--concentric[data-activity="working"]::after,
+.gauge--concentric[data-activity-indicator="sweep"][data-activity="working"]::after { inset: -3px; border-radius: 50%; }
 
 /* Pulse activity indicator: calm, soothing sinusoidal breath (2.6s) */
 @keyframes icon-breathe {

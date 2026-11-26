@@ -1,6 +1,7 @@
-import { ArrowDown, ArrowUp, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Pencil, Power, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Check, Eye, EyeOff, FolderOpen, Monitor as MonitorIcon, Move, Palette, Pencil, Plug, Power, RotateCcw, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { ALERT_LEVELS, alertTone, CUSTOM_ALERT_DEFAULT, CUSTOM_ALERT_MAX, CUSTOM_ALERT_MIN, type AlertSound } from "../lib/alerts";
 import { intlLocale, t, tr } from "../lib/i18n";
 import { currentPlatform } from "../lib/platform";
 import { compactSlots } from "../lib/quota";
@@ -17,7 +18,7 @@ import type {
 import { ClaudeConnectCard } from "./ClaudeConnectCard";
 import { Segmented, Select, Switch } from "./controls";
 import { DockPill } from "./DockPill";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip, ProviderIcon } from "./ProviderIcon";
 
 export const COMPACT_MODES: { id: CompactMode; title: string; description: string }[] = [
   { id: "ring", title: "Círculo", description: "Anel de quota + %" },
@@ -27,11 +28,21 @@ export const COMPACT_MODES: { id: CompactMode; title: string; description: strin
   { id: "classic", title: "Clássico", description: "Ícone + status" }
 ];
 
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "appearance", label: "Aparência" },
-  { id: "position", label: "Posição" },
-  { id: "general", label: "Geral" },
-  { id: "connections", label: "Conexões" }
+export const SETTINGS_TABS = TABS_LIST();
+function TABS_LIST() {
+  return [
+    { id: "appearance" as SettingsTab, label: "Aparência", icon: Palette },
+    { id: "position" as SettingsTab, label: "Posição", icon: Move },
+    { id: "general" as SettingsTab, label: "Geral", icon: SlidersHorizontal },
+    { id: "connections" as SettingsTab, label: "Conexões", icon: Plug }
+  ];
+}
+
+const TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
+  { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "position", label: "Posição", icon: Move },
+  { id: "general", label: "Geral", icon: SlidersHorizontal },
+  { id: "connections", label: "Conexões", icon: Plug }
 ];
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -64,13 +75,17 @@ export type SettingsPanelProps = {
   onReplayOnboarding: () => void;
   onQuit: () => void;
   withDialog: <T>(run: () => Promise<T> | T) => Promise<T>;
+  /** The wide panel lists the sections in its sidebar, so the tab row is not drawn. */
+  hideTabs?: boolean;
+  /** Today's spend, for the preview pill. */
+  todayCost?: number | null;
 };
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="settings-group">
       <h3 className="settings-label">{title}</h3>
-      {children}
+      <div className="settings-card">{children}</div>
     </section>
   );
 }
@@ -79,7 +94,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const { tab, onTab } = props;
   return (
     <div className="settings">
-      <div className="tabs" role="tablist" aria-label={t("Seções das configurações")}>
+      {props.hideTabs ? null : <div className="tabs" role="tablist" aria-label={t("Seções das configurações")}>
         {TABS.map((item) => (
           <button
             type="button"
@@ -88,14 +103,15 @@ export function SettingsPanel(props: SettingsPanelProps) {
             id={"settings-tab-" + item.id}
             aria-selected={tab === item.id}
             aria-controls="settings-tabpanel"
-            className={tab === item.id ? "is-selected" : ""}
+            className={"settings-tab" + (tab === item.id ? " is-selected" : "")}
             onClick={() => onTab(item.id)}
           >
-            {t(item.label)}
+            <item.icon size={16} aria-hidden="true" />
+            <span>{t(item.label)}</span>
           </button>
         ))}
-      </div>
-      <div className="panel-scroll" role="tabpanel" id="settings-tabpanel" aria-labelledby={"settings-tab-" + tab}>
+      </div>}
+      <div className="panel-scroll" role="tabpanel" id="settings-tabpanel" aria-labelledby={props.hideTabs ? undefined : "settings-tab-" + tab}>
         {tab === "appearance" ? <AppearanceTab {...props} /> : null}
         {tab === "position" ? <PositionTab {...props} /> : null}
         {tab === "general" ? <GeneralTab {...props} /> : null}
@@ -591,7 +607,7 @@ function SignalSample({
   );
 }
 
-function AppearanceTab({ settings, update, providers, activities, finished }: SettingsPanelProps) {
+function AppearanceTab({ settings, update, providers, activities, finished, todayCost }: SettingsPanelProps) {
   const systemDark = useSystemDark();
   const previewSlots = useMemo(() => {
     const slots = compactSlots(providers, settings.antigravityGroupMode).slice(0, 3);
@@ -691,6 +707,7 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
                 mascotKind={settings.mascot === "robot" && ROBOT_READY ? "robot" : "cat"}
                 glass={settings.glassEnabled}
                 glassOpacity={settings.glassOpacity}
+                todayCost={settings.pillTodayCost ? todayCost ?? null : null}
                 interactive={false}
               />
             </div>
@@ -728,6 +745,12 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             </div>
           ) : null}
         </div>
+        <Switch
+          label={t("Gasto de hoje na pílula")}
+          description={t("Quanto o Claude Code, o Codex e o Antigravity custaram hoje pelo preço da API. Clique nele para abrir Custos.")}
+          checked={settings.pillTodayCost}
+          onChange={(pillTodayCost) => update({ pillTodayCost })}
+        />
         <Switch
           label={t("Vidro · beta")}
           description={t("Fundo translúcido na pill, no cartão do hover e no painel aberto.")}
@@ -802,6 +825,19 @@ function AppearanceTab({ settings, update, providers, activities, finished }: Se
             onChange={(hideBarsNumber) => update({ hideBarsNumber })}
           />
         ) : null}
+      </Group>
+
+      <Group title={t("Painel aberto")}>
+        <Segmented
+          label={t("Cartões por linha no Uso")}
+          value={String(settings.usageColumns)}
+          onChange={(value) => update({ usageColumns: value === "1" ? 1 : 2 })}
+          options={[
+            { value: "1", label: t("1 por linha") },
+            { value: "2", label: t("2 por linha") }
+          ]}
+        />
+        <p className="hint">{t("Com 2 por linha, os cartões se encaixam sem deixar buraco. Clique na seta de um cartão para recolher.")}</p>
       </Group>
 
       <Group title={t("Histórico no card")}>
@@ -889,7 +925,7 @@ function PositionTab({ settings, update, monitors }: SettingsPanelProps) {
                 <span className="option__copy">
                   <strong>{t("Tela {number}", { number: monitor.index + 1 })}</strong>
                   <small>
-                    {tr(monitor.name)} · {monitor.width} × {monitor.height}
+                    {monitor.width} × {monitor.height} · {t("escala {value}%", { value: String(Math.round(monitor.scaleFactor * 100)) })}
                   </small>
                 </span>
                 {monitor.index === settings.monitorIndex ? <Check size={15} /> : null}
@@ -967,6 +1003,98 @@ function PauseNotifications({ settings, update }: Pick<SettingsPanelProps, "sett
   );
 }
 
+const ALERT_TEXT: Record<number, string> = {
+  75: "Atenção: ainda dá, mas vá com calma.",
+  90: "Uso alto: vale trocar de conta ou modelo.",
+  95: "Quase no fim da janela."
+};
+
+const SOUND_OPTIONS: { value: AlertSound; label: string }[] = [
+  { value: "Default", label: "Padrão" },
+  { value: "Reminder", label: "Lembrete" },
+  { value: "IM", label: "Mensagem" },
+  { value: "Alarm", label: "Alarme" },
+  { value: "silent", label: "Sem som" }
+];
+
+/** One usage level: colored dot, what it means and its own switch. */
+function AlertLevelRow({
+  level,
+  label,
+  description,
+  checked,
+  onChange
+}: {
+  level: number;
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} className="setting-row alert-level" onClick={() => onChange(!checked)}>
+      <i className={"alert-dot alert-dot--" + alertTone(level)} aria-hidden="true" />
+      <span className="setting-row__copy">
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <span className={"switch" + (checked ? " is-on" : "")} aria-hidden="true">
+        <i />
+      </span>
+    </button>
+  );
+}
+
+/** The levels under "Low quota", like Claude Usage Tracker: 75, 90, 95% and one of your own. */
+function QuotaAlertLevels({ settings, update }: Pick<SettingsPanelProps, "settings" | "update">) {
+  if (!settings.notifyLowQuota) return null;
+  const custom = settings.alertCustom;
+  return (
+    <>
+      {ALERT_LEVELS.map((level) => (
+        <AlertLevelRow
+          key={level}
+          level={level}
+          label={t("{value}% usado", { value: level })}
+          description={t(ALERT_TEXT[level])}
+          checked={settings.alertLevels.includes(level)}
+          onChange={(on) =>
+            update({
+              alertLevels: on
+                ? ALERT_LEVELS.filter((item) => item === level || settings.alertLevels.includes(item))
+                : settings.alertLevels.filter((item) => item !== level)
+            })
+          }
+        />
+      ))}
+      <AlertLevelRow
+        level={custom ?? CUSTOM_ALERT_DEFAULT}
+        label={t("Limite próprio")}
+        description={custom != null ? t("Avisa também em {value}% de uso.", { value: custom }) : t("Um ponto a mais, entre 50% e 99%.")}
+        checked={custom != null}
+        onChange={(on) => update({ alertCustom: on ? CUSTOM_ALERT_DEFAULT : null })}
+      />
+      {custom != null ? (
+        <div className="alert-custom">
+          <div className="range-row">
+            <span className="glass-opacity__label">{t("Avisar em")}</span>
+            <input
+              type="range"
+              min={CUSTOM_ALERT_MIN}
+              max={CUSTOM_ALERT_MAX}
+              step={1}
+              value={custom}
+              aria-label={t("Limite próprio")}
+              onChange={(event) => update({ alertCustom: Number(event.target.value) })}
+            />
+            <span className="range-value">{custom}%</span>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function GeneralTab({
   settings,
   update,
@@ -1015,6 +1143,7 @@ function GeneralTab({
           checked={settings.closeOnBlur}
           onChange={(closeOnBlur) => update({ closeOnBlur })}
         />
+        <strong className="segmented-title">{t("Indicador de atividade")}</strong>
         <Segmented
           label={t("Indicador de atividade")}
           value={settings.activityIndicator}
@@ -1026,6 +1155,9 @@ function GeneralTab({
             { value: "none", label: t("Desativado") }
           ]}
         />
+        <p className="hint">
+          {t("Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.")}
+        </p>
         {settings.activityIndicator !== "none" ? (
           <Switch
             label={t("Pulsar barra em uso")}
@@ -1034,9 +1166,6 @@ function GeneralTab({
             onChange={(pulseActiveBar) => update({ pulseActiveBar })}
           />
         ) : null}
-        <p className="hint">
-          {t("Efeito visual quando o agente está trabalhando: luz giratória na borda, pulso suave, branco fixo ou desativado.")}
-        </p>
       </Group>
 
       <Group title={t("Atualizar uso a cada")}>
@@ -1052,10 +1181,11 @@ function GeneralTab({
       <Group title={t("Notificações")}>
         <Switch
           label={t("Quota baixa")}
-          description={t("Avisa quando uma janela passa de 80% e de 95% de uso.")}
+          description={t("Avisa quando uma janela passa dos limites ligados abaixo.")}
           checked={settings.notifyLowQuota}
           onChange={(notifyLowQuota) => update({ notifyLowQuota })}
         />
+        <QuotaAlertLevels settings={settings} update={update} />
         <Switch
           label={t("Limite renovado")}
           description={t("Avisa quando uma janela de uso reseta.")}
@@ -1080,6 +1210,14 @@ function GeneralTab({
           checked={settings.notifyFailures}
           onChange={(notifyFailures) => update({ notifyFailures })}
         />
+        <strong className="segmented-title">{t("Som dos avisos")}</strong>
+        <Segmented
+          label={t("Som dos avisos")}
+          value={settings.notifySound}
+          onChange={(notifySound) => update({ notifySound })}
+          options={SOUND_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))}
+        />
+        <p className="hint">{t("Vale para todos os avisos. Ouça com o botão de teste abaixo.")}</p>
         <PauseNotifications settings={settings} update={update} />
         <button type="button" className="button button--ghost button--block" onClick={onTestNotification}>
           {t("Enviar notificação de teste")}
@@ -1087,9 +1225,12 @@ function GeneralTab({
       </Group>
 
       <Group title={t("Sobre")}>
-        <p className="hint">
-          AI Dock {version ? "v" + version : ""} · {t("quota das IAs e prompts do Obsidian.")}
-        </p>
+        <div className="about-row">
+          <span className="setting-row__copy">
+            <strong>AI Dock {version ? "v" + version : ""}</strong>
+            <small>{t("Quota das IAs e prompts do Obsidian.")}</small>
+          </span>
+        </div>
         <div className="button-row">
           <button type="button" className="button button--ghost" onClick={onReplayOnboarding}>
             {t("Rever introdução")}
@@ -1168,7 +1309,7 @@ function ConnectionsTab({
 
             return (
               <li key={id} className={"provider-list__item" + (hidden ? " is-hidden" : "")}>
-                <ProviderIcon providerId={id} size={16} brand />
+                <ProviderChip providerId={id} size={16} />
                 <span className="provider-list__copy">
                   {isEditing ? (
                     <div className="provider-alias-edit">
@@ -1205,17 +1346,13 @@ function ConnectionsTab({
                     </div>
                   ) : (
                     <>
-                      <strong>
-                        {name}
-                        {customAlias ? (
-                          <span className="provider-list__alias-tag" title={t("Nome personalizado")}>
-                            ★
-                          </span>
-                        ) : null}
-                      </strong>
-                      <small className={provider?.connected ? "is-on" : ""}>
+                      <strong>{name}</strong>
+                      <small>
+                        {customAlias ? originalName.replace(/^Antigravity\s*·\s*/i, "").replace(/\s*\(Principal\)$/i, "") + " · " : ""}
                         {provider?.email && !name.includes(provider.email) ? `${provider.email} · ` : ""}
-                        {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
+                        <span className={provider?.connected ? "is-on" : ""}>
+                          {provider ? (provider.connected ? t("Conectado") : tr(provider.error) || t("Não conectado")) : t("Lendo…")}
+                        </span>
                       </small>
                     </>
                   )}
@@ -1291,68 +1428,62 @@ function ConnectionsTab({
               : t("Junta Gemini, Claude+GPT e Argon em 1 slot com anéis concêntricos por conta.")}
         </p>
 
-        <div className="antigravity-accounts">
-          <label className="field-label">{t("Contas e instâncias conectadas")}</label>
-          <p className="hint">
-            {t("Personalize o nome de exibição de cada conta (ex: Pessoal, Trabalho).")}
-          </p>
-          <div className="antigravity-accounts__list">
-            {antigravityProviders.map((ag) => {
-              const alias = settings.providerAliases[ag.id] || "";
-              const original = rawById.get(ag.id);
-              const email = ag.email || original?.email;
-              return (
-                <div key={ag.id} className="antigravity-account-row">
-                  <div className="antigravity-account-row__info">
-                    <span className="antigravity-account-row__badge">
-                      {ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "")}
-                    </span>
-                    <div className="antigravity-account-row__copy">
-                      <strong>{alias || ag.name}</strong>
-                      <small className="antigravity-account-row__email">
-                        {email || (original ? tr(original.name) : t("Instância local"))}
-                      </small>
-                    </div>
-                  </div>
-                  <div className="antigravity-account-row__input-wrap">
-                    <input
-                      type="text"
-                      className="antigravity-account-input"
-                      placeholder={t("Nome (ex: Pessoal, Trabalho)")}
-                      value={alias}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const next = { ...settings.providerAliases };
-                        if (val.trim()) {
-                          next[ag.id] = val;
-                        } else {
-                          delete next[ag.id];
-                        }
-                        update({ providerAliases: next });
-                      }}
-                    />
-                    {alias ? (
-                      <button
-                        type="button"
-                        className="text-button text-button--small"
-                        onClick={() => {
-                          const next = { ...settings.providerAliases };
-                          delete next[ag.id];
-                          update({ providerAliases: next });
-                        }}
-                        title={t("Restaurar padrão")}
-                      >
-                        {t("Padrão")}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-            {antigravityProviders.length === 0 ? (
-              <small className="hint is-empty">{t("Nenhuma conta do Antigravity conectada no momento.")}</small>
-            ) : null}
-          </div>
+        <div className="account-names">
+          <strong className="account-names__title">{t("Nome de cada conta")}</strong>
+          <p className="hint">{t("Aparece no dock, no painel e na lista de contas. Deixe vazio para usar o nome padrão.")}</p>
+          {antigravityProviders.map((ag) => {
+            const alias = settings.providerAliases[ag.id] || "";
+            const original = rawById.get(ag.id);
+            const email = ag.email || original?.email;
+            const openbot = ag.id.startsWith("antigravity-openbot");
+            const number = ag.id === "antigravity" ? "1" : ag.id.replace("antigravity-", "");
+            const openbotSuffix = openbot ? ag.id.replace("antigravity-openbot", "") : "";
+            const defaultName = openbot ? "OpenBot" + (openbotSuffix ? " " + openbotSuffix : "") : t("Conta {number}", { number });
+            return (
+              <div key={ag.id} className="account-name-row">
+                <span className="account-name-row__badge" aria-hidden="true">
+                  {openbot ? <Bot size={15} /> : number}
+                </span>
+                <span className="account-name-row__field">
+                  <input
+                    type="text"
+                    className="account-name-row__input"
+                    aria-label={t("Nome da {name}", { name: defaultName })}
+                    placeholder={defaultName}
+                    value={alias}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const next = { ...settings.providerAliases };
+                      if (val.trim()) {
+                        next[ag.id] = val;
+                      } else {
+                        delete next[ag.id];
+                      }
+                      update({ providerAliases: next });
+                    }}
+                  />
+                  <small>{email || t("Instância local")}</small>
+                </span>
+                {alias ? (
+                  <button
+                    type="button"
+                    className="icon-button icon-button--small"
+                    aria-label={t("Voltar ao nome padrão de {name}", { name: alias })}
+                    onClick={() => {
+                      const next = { ...settings.providerAliases };
+                      delete next[ag.id];
+                      update({ providerAliases: next });
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          {antigravityProviders.length === 0 ? (
+            <small className="hint">{t("Nenhuma conta do Antigravity conectada no momento.")}</small>
+          ) : null}
         </div>
       </Group>
 

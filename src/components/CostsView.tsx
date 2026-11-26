@@ -2,9 +2,11 @@ import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { formatTokens, formatUsd, summarizeCosts, type CostDay, type CostGroup } from "../lib/costs";
 import { intlLocale, t, tr } from "../lib/i18n";
+import type { DailyStore } from "../lib/heatmap";
 import type { CostReport } from "../types";
+import { ActivityHeatmap } from "./ActivityHeatmap";
 import { Segmented } from "./controls";
-import { ProviderIcon } from "./ProviderIcon";
+import { brandColorClass, ProviderIcon } from "./ProviderIcon";
 
 const RANGES = [1, 3, 7, 30] as const;
 const TOOL_NAMES: Record<string, string> = { claude: "Claude Code", codex: "Codex", antigravity: "Antigravity" };
@@ -20,7 +22,7 @@ function cleanProjectLabel(key: string): string {
   return parts[parts.length - 1] || key;
 }
 
-function DayColumns({ days, locale }: { days: CostDay[]; locale: string }) {
+function DayColumns({ days, locale, tool }: { days: CostDay[]; locale: string; tool: string }) {
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(...days.map((day) => day.cost), 0);
   if (max <= 0) return null;
@@ -34,7 +36,7 @@ function DayColumns({ days, locale }: { days: CostDay[]; locale: string }) {
         <span>{formatUsd(max, locale)}</span>
         <span>{formatUsd(0, locale)}</span>
       </div>
-      <div className="cost-chart__plot" onMouseLeave={() => setActive(null)}>
+      <div className={"cost-chart__plot" + (tool === "all" ? "" : " has-brand " + brandColorClass(tool))} onMouseLeave={() => setActive(null)}>
         {days.map((day, index) => (
           <button
             type="button"
@@ -105,7 +107,7 @@ function GroupTable({
                     {iconId ? <ProviderIcon providerId={iconId} size={14} brand /> : null}
                     <span title={group.key}>{label ? label(group.key) : group.key}</span>
                   </span>
-                  <span className="cost-table__bar" aria-hidden="true">
+                  <span className={"cost-table__bar" + (iconId ? " cost-table__bar--brand " + brandColorClass(iconId) : "")} aria-hidden="true">
                     <i style={{ width: ((group.cost || group.tokens) / max) * 100 + "%" }} />
                   </span>
                 </th>
@@ -125,13 +127,16 @@ export function CostsView({
   loading,
   days,
   onDays,
-  onReload
+  onReload,
+  daily
 }: {
   report: CostReport | null;
   loading: boolean;
   days: number;
   onDays: (days: number) => void;
   onReload: () => void;
+  /** Saved day totals for the activity map. */
+  daily: DailyStore;
 }) {
   const [selectedProvider, setSelectedProvider] = useState<string>("all");
   const locale = intlLocale();
@@ -211,7 +216,9 @@ export function CostsView({
             <small>{t("{tokens} tokens", { tokens: formatTokens(summary.total.tokens, locale) })}</small>
           </div>
 
-          {days > 1 ? <DayColumns days={summary.days} locale={locale} /> : null}
+          {days > 1 ? <DayColumns days={summary.days} locale={locale} tool={selectedProvider} /> : null}
+
+          <ActivityHeatmap store={daily} tool={selectedProvider} locale={locale} />
 
           <GroupTable
             title={t("Por ferramenta")}

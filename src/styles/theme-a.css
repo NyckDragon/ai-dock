@@ -1,0 +1,1600 @@
+/* Direction A ("vidro na borda"), applied to the whole app: the pill, the hover
+   card, the open panel, settings and the first-run tour share one surface
+   language. Loaded last, so it refines the base styles without rewriting them.
+
+   Rules:
+   - one panel surface; cards inside it are a lighter layer, never boxes in boxes;
+   - one even hairline ring around each surface (a top-only line looked cut at the corners);
+   - the number is the loudest thing on a card; labels and meta are quiet;
+   - every provider is recognised by its brand color chip;
+   - controls are 32px+ tall, segmented controls look like one piece. */
+
+:root {
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --chip-size: 34px;
+  --card-surface: color-mix(in srgb, var(--text) 4%, transparent);
+  --card-surface-hover: color-mix(in srgb, var(--text) 6.5%, transparent);
+  --card-border: color-mix(in srgb, var(--text) 8%, transparent);
+  --hairline: color-mix(in srgb, var(--text) 7%, transparent);
+  /* A thin ring, the same on all four sides: a top-only line thins out in the
+     rounded corners and makes the edge look cut. */
+  --top-light: inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* ---------- Surfaces ---------- */
+.dock-panel {
+  background: var(--bg-panel);
+  border-color: var(--card-border);
+  box-shadow: var(--top-light);
+}
+:root[data-glass="on"] .dock-panel { backdrop-filter: blur(28px) saturate(1.4); }
+.provider-peek {
+  border-radius: 18px;
+  border-color: var(--card-border);
+  box-shadow: var(--top-light);
+}
+:root[data-glass="on"] .provider-peek,
+:root[data-glass="on"] .dock-pill { backdrop-filter: blur(24px) saturate(1.4); }
+
+/* ---------- Header ---------- */
+.app-header {
+  height: 60px;
+  padding: 0 10px 0 16px;
+  border-bottom-color: var(--hairline);
+}
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.brand-name { font-size: 15px; }
+.header-actions { gap: 2px; }
+.app-header .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-3);
+}
+.app-header .icon-button:hover { background: var(--card-surface-hover); color: var(--text); }
+.app-header .icon-button.is-active { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+
+/* ---------- Tabs and segmented controls: one piece ---------- */
+.view-tabs,
+.tabs,
+.segmented {
+  padding: 3px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.view-tabs { margin: 12px 14px 0; }
+.view-tabs button,
+.tabs button,
+.segmented button {
+  height: 32px;
+  border-radius: 9px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.view-tabs button.is-selected,
+.tabs button.is-selected,
+.segmented button.is-selected {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+  box-shadow: var(--top-light);
+}
+
+/* ---------- Usage cards ---------- */
+.panel-scroll { padding: 14px 14px 18px; }
+.usage-stack { gap: 8px; }
+.usage-card {
+  padding: 14px 14px 12px;
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  transition: background var(--dur-fast) ease, border-color 400ms ease, box-shadow 400ms ease;
+}
+.usage-card:hover { background: var(--card-surface-hover); }
+.usage-card.is-highlighted { border-color: var(--accent-border); }
+.usage-card__identity { gap: 11px; }
+.provider-chip {
+  width: var(--chip-size);
+  height: var(--chip-size);
+  flex: 0 0 var(--chip-size);
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+}
+.provider-chip .provider-icon { color: inherit; }
+.usage-card__name { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
+.usage-card__status { margin-top: 2px; color: var(--text-3); }
+.usage-card__status svg { color: var(--good); }
+.usage-card__status.is-off svg { color: var(--text-3); }
+.usage-card__headline strong { font-size: 30px; letter-spacing: -.03em; }
+.usage-card__headline small { margin-top: 4px; }
+.usage-card__trend { margin-top: 10px; }
+.usage-card__windows {
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* One quota window */
+.quota-row { gap: 6px; }
+.quota-row__labels { font-size: var(--fs-sm); color: var(--text-2); }
+.quota-row__labels strong { font-size: var(--fs-sm); }
+.quota-track { height: 8px; }
+.quota-row--compact .quota-track { height: 6px; }
+.quota-track__tick { top: -4px; bottom: -4px; width: 2px; }
+.quota-row__meta { font-size: var(--fs-2xs); }
+
+/* ---------- Hover card ---------- */
+.provider-peek { padding: 16px; }
+.provider-peek__brand { gap: 11px; }
+.provider-peek__brand strong { font-size: 15px; }
+.provider-peek__windows { gap: 14px; }
+.provider-peek__divider { background: var(--hairline); }
+.provider-peek__open {
+  height: 36px;
+  border-radius: var(--radius-control);
+  background: var(--card-surface);
+}
+.provider-peek__open:hover { background: var(--card-surface-hover); }
+
+/* ---------- Notices and buttons ---------- */
+.notice { border-radius: 12px; padding: 10px 12px; }
+.button { height: 36px; border-radius: var(--radius-control); border-color: var(--card-border); }
+.button--small { height: 30px; }
+.empty-state { border-radius: var(--radius-card); border-color: var(--card-border); background: var(--card-surface); }
+
+/* ---------- Settings: each group is one card, like a native settings menu ---------- */
+.settings .tabs { margin: 8px 14px 0; gap: 2px; }
+.settings .tabs .settings-tab {
+  height: 52px;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+.settings .tabs .settings-tab svg { opacity: .75; }
+.settings .tabs .settings-tab.is-selected svg { opacity: 1; color: var(--accent-text); }
+.settings .panel-scroll { padding-top: 16px; }
+.settings-group { margin-bottom: 20px; padding: 0; border-top: 0; }
+.settings-group:first-child { padding-top: 0; }
+.settings-label { margin: 0 6px 8px; font-size: var(--fs-2xs); letter-spacing: .07em; color: var(--text-3); }
+.settings-card {
+  display: grid;
+  padding: 4px 14px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+/* Dividers only between two option rows, never above buttons, sliders or lists. */
+.settings-card > :is(.setting-row, .select-setting-row, .mascot-row, .pause-row) + :is(.setting-row, .select-setting-row, .mascot-row, .pause-row) {
+  border-top: 1px solid var(--hairline);
+}
+.settings-card > .segmented { margin: 10px 0; }
+.settings-card > .segmented-title { margin: 12px 0 0; font-size: var(--fs-sm); font-weight: 600; }
+.settings-card > .hint { margin: 0 0 12px; }
+.settings-card > .notice { margin: 0 0 10px; }
+.settings-card > .mode-preview-layout { margin: 10px 0; }
+.settings-card .setting-row,
+.settings-card .select-setting-row { min-height: 58px; padding: 10px 0; }
+.setting-row__copy strong,
+.select-setting-row__copy strong { font-size: var(--fs-sm); font-weight: 600; }
+.setting-row__copy small,
+.select-setting-row__copy small { font-size: var(--fs-2xs); }
+.settings-card > .provider-list { margin: 8px 0; gap: 2px; }
+.provider-list__item {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.provider-list__item:hover { background: var(--card-surface-hover); }
+.select-input {
+  height: 34px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: var(--card-border);
+}
+/* Switch: 40 x 24, knob 16 px centered on both axes in either state. */
+.switch { width: 40px; height: 24px; box-sizing: border-box; }
+.switch i {
+  top: 50%;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+}
+.switch.is-on i { transform: translate(16px, -50%); }
+.mode-picker button {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-color: transparent;
+}
+.mode-picker button:hover { background: var(--card-surface-hover); border-color: transparent; }
+.mode-picker button.is-selected { background: var(--accent-soft); border-color: var(--accent-border); }
+.mode-preview { border-radius: var(--radius-card); }
+
+/* Account names */
+.account-names { display: grid; padding: 12px 0 6px; }
+.account-names__title { font-size: var(--fs-sm); font-weight: 600; }
+.account-names .hint { margin: 2px 0 8px; }
+.account-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.account-name-row + .account-name-row { border-top: 1px solid var(--hairline); }
+.account-name-row__badge {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--brand-antigravity) 16%, transparent);
+  color: var(--brand-antigravity);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.account-name-row__field { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.account-name-row__input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.account-name-row__input:hover { background: var(--card-surface-hover); }
+.account-name-row__input:focus { outline: none; border-color: var(--accent-border); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.account-name-row__input::placeholder { color: var(--text); opacity: 1; }
+.account-name-row__field small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+
+/* In-app tooltip for the time mark (a native one opens behind the dock). */
+.quota-track-wrap { position: relative; margin: -6px 0; padding: 6px 0; outline: none; }
+.quota-tip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--card-border), 0 8px 24px rgba(0, 0, 0, .35);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.quota-track-wrap:hover .quota-tip,
+.quota-track-wrap:focus-within .quota-tip { opacity: 1; transform: none; transition-delay: 250ms; }
+
+/* ---------- First-run tour ---------- */
+.onboarding { padding: 26px 20px 20px; }
+.onboarding h2 { font-size: 22px; letter-spacing: -.01em; }
+.detect-list li {
+  border-color: transparent;
+  border-radius: 12px;
+  background: var(--card-surface);
+}
+
+/* ---------- Antigravity accounts side by side ---------- */
+.accounts {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.accounts__head { display: flex; align-items: center; gap: 11px; }
+.accounts__head > div { display: grid; gap: 2px; }
+.accounts__head strong { font-size: 15px; font-weight: 600; }
+.accounts__head small { font-size: var(--fs-2xs); color: var(--text-3); }
+.accounts__best {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--good) 35%, transparent);
+  border-radius: 12px;
+  background: var(--good-soft);
+  color: var(--text);
+  text-align: left;
+}
+.accounts__best span { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+.accounts__best strong { font-size: var(--fs-md); font-weight: 700; }
+.accounts__best small { margin-left: auto; font-size: var(--fs-2xs); color: var(--text-3); }
+.accounts__grid { display: grid; gap: 6px; }
+.accounts__item {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  text-align: left;
+}
+.accounts__item:hover { background: var(--card-surface-hover); }
+.accounts__item.is-best { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.accounts__item.is-wrong { border-color: color-mix(in srgb, var(--permission) 55%, transparent); }
+.accounts__item.is-off { opacity: .55; }
+.accounts__item > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.accounts__pool { display: grid; gap: 4px; }
+.accounts__pool small { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-3); }
+.accounts__pool b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.accounts__track { display: block; height: 5px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.accounts__track > i { display: block; height: 100%; border-radius: inherit; }
+.accounts__note { font-size: 11px; color: var(--text-3); }
+.accounts__note--wrong { color: var(--permission); font-weight: 600; }
+
+/* ---------- Costs ---------- */
+.costs { gap: 14px; }
+.cost-hero {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.cost-hero strong { font-size: 34px; letter-spacing: -.03em; }
+.cost-chart {
+  padding: 12px 12px 8px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.cost-chart__slot i { border-radius: 6px 6px 3px 3px; }
+.cost-table {
+  padding: 12px 14px 6px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+}
+.cost-table .settings-label { margin: 0 0 4px; }
+.cost-table tr + tr th,
+.cost-table tr + tr td { border-top-color: var(--hairline); }
+.cost-table__bar { height: 5px; }
+.cost-table__bar--brand i { background: currentColor; opacity: .9; }
+
+/* Inside a settings card, nested panels lose their own box. */
+.settings-card > .option,
+.settings-card > .claude-card,
+.settings-card > .connect-card {
+  margin: 10px 0;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: none;
+}
+.settings-card > .connect-card { margin: 0; padding: 12px 0; border: 0; border-radius: 0; background: none; }
+
+/* ---------- The open panel is a real window: sidebar + content ---------- */
+.dock-panel--wide { flex-direction: row; }
+.panel-nav {
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 12px 12px;
+  border-right: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+  user-select: none;
+}
+.panel-nav .brand { padding: 2px 4px 0; }
+.panel-nav__group { display: grid; gap: 2px; }
+.panel-nav__label {
+  padding: 0 10px 4px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.panel-nav__item {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-align: left;
+}
+.panel-nav__item svg { flex: 0 0 auto; color: var(--text-3); }
+.panel-nav__item:hover { background: var(--card-surface-hover); color: var(--text); }
+.panel-nav__item.is-selected {
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+.panel-nav__item.is-selected svg { color: var(--accent-text); }
+.panel-nav__item small {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--card-surface-hover);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.panel-nav__footer { display: flex; gap: 6px; margin-top: auto; }
+.panel-nav__footer .icon-button { border-color: transparent; background: var(--card-surface); }
+
+.health-chip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card-surface);
+}
+.health-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
+.health-chip span { font-size: var(--fs-xs); font-weight: 600; }
+.health-chip small { grid-column: 2; font-size: 11px; color: var(--text-3); }
+.health-chip--warning i { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.health-chip--danger i { background: var(--permission); box-shadow: 0 0 8px var(--permission); }
+
+.panel-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.panel-main__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 18px 20px 6px;
+}
+.panel-main__head h1 { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.panel-main__head small { font-size: var(--fs-xs); color: var(--text-3); }
+.panel-main .panel-scroll { padding: 12px 20px 20px; }
+.panel-main .settings .panel-scroll { padding-top: 12px; }
+
+/* Usage: two columns, the accounts overview spans both. */
+.dock-panel--wide .usage-stack {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.dock-panel--wide .usage-stack > .accounts,
+.dock-panel--wide .usage-stack > .empty-state { grid-column: 1 / -1; }
+
+/* Costs: the totals and chart on top, the three tables side by side. */
+.dock-panel--wide .costs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dock-panel--wide .costs > :not(.cost-table) { grid-column: 1 / -1; }
+
+/* ---------- Interface standard (08_Padrao_de_Interface_UI.md) ----------
+   One rhythm inside every settings card: rows carry their own 12px padding,
+   everything else (sliders, segmented controls, option lists, buttons) gets
+   12px above and below, so nothing touches the card edge. */
+.settings-card { padding: 4px 16px; }
+.settings-card > :where(:not(.setting-row, .select-setting-row, .mascot-row, .about-row, .hint, .account-names, .connect-card)) {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.settings-card > .hint { margin: -4px 0 12px; }
+.settings-card > .hint:first-child { margin-top: 12px; }
+.settings-card .setting-row,
+.settings-card .select-setting-row { align-items: center; padding: 12px 0; }
+.settings-card .setting-row__copy,
+.settings-card .select-setting-row__copy { align-self: center; }
+.mascot-row { align-items: center; }
+.settings-card .switch { flex: 0 0 40px; align-self: center; }
+
+/* Slider rows: label, slider and button on one centered line. */
+.range-row { align-items: center; gap: 12px; min-height: 36px; }
+.range-row .button { height: 32px; }
+
+/* Option lists inside a card are rows, not cards. */
+.settings-card .option-list { gap: 0; }
+.settings-card .option {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 10px 8px;
+  margin: 0 -8px;
+}
+.settings-card .option + .option { border-top: 0; }
+.settings-card .option:hover { background: var(--card-surface-hover); }
+.settings-card .option.is-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.settings-card .mode-picker { gap: 4px; }
+.settings-card .mode-picker button { background: transparent; box-shadow: none; }
+.settings-card .mode-picker button:hover { background: var(--card-surface-hover); }
+.settings-card .mode-picker button.is-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.settings-card .mode-preview { background: color-mix(in srgb, var(--text) 3%, transparent); }
+
+/* Pause choices are one segmented control. */
+.pause-row { padding: 8px 0 0; gap: 8px; }
+.pause-row > span { font-size: var(--fs-sm); color: var(--text); }
+.pause-row__options {
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.pause-row__options .chip {
+  flex: 1 1 0;
+  height: 32px;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  font-size: var(--fs-xs);
+}
+.pause-row__options .chip:last-child { flex: 1.4 1 0; }
+.pause-row__options .chip:hover { background: var(--card-surface-hover); }
+
+/* Every button: same height, radius and centered content. */
+.button,
+.button--small,
+.button--block,
+.button--ghost,
+.button--danger,
+.button--primary { border-radius: var(--radius-control); justify-content: center; align-items: center; }
+.button { height: 36px; }
+.button-row { gap: 8px; margin: 12px 0; }
+.button-row .button { flex: 1 1 0; }
+
+/* About: version, then the two buttons right under it, no divider between. */
+.about-row { display: flex; align-items: center; padding: 14px 0 0; }
+.settings-card > .about-row + .button-row { border-top: 0; margin: 12px 0 14px; }
+
+/* ---------- Usage list: no gaps, user picks 1 or 2 per row, cards fold ---------- */
+.dock-panel--wide .usage-stack.usage-stack--cols-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.usage-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.usage-columns__col { display: grid; gap: 12px; min-width: 0; }
+.dock-panel--wide .usage-stack.usage-stack--cols-1 { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+.usage-card__top { align-items: center; }
+.usage-card__identity { flex: 1 1 auto; min-width: 0; }
+.usage-card__identity > div { min-width: 0; }
+.usage-card__name,
+.usage-card__status {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.usage-card__headline { flex: 0 0 auto; }
+.usage-card__fold {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin: 0 -6px 0 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) ease;
+}
+.usage-card__fold:hover { background: var(--card-surface-hover); color: var(--text); }
+.usage-card.is-collapsed .usage-card__fold { transform: rotate(-90deg); }
+.usage-card.is-collapsed { padding-bottom: 14px; }
+
+/* Card head like ClaudeBar's tiles: name and status get the full width,
+   the big number sits on its own line with its word on the right. */
+.usage-card__top { flex-wrap: wrap; row-gap: 10px; }
+.usage-card__identity { order: 1; flex: 1 1 0; }
+.usage-card__fold { order: 2; }
+.usage-card__headline {
+  order: 3;
+  flex: 1 0 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  line-height: 1;
+}
+.usage-card__headline strong { font-size: 34px; }
+.usage-card__headline small { margin: 0; font-size: var(--fs-xs); }
+.usage-card.is-collapsed .usage-card__headline { margin-bottom: 0; }
+
+/* Title → control → hint read as one unit; the next unit starts after a divider. */
+.settings-card > .segmented-title { margin: 14px 0 0; }
+.settings-card > .segmented-title + .segmented { margin-top: 8px; }
+.settings-card > .segmented + .hint { margin-top: -2px; }
+.settings-card > .hint + .segmented-title { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.settings-card > .hint + :is(.setting-row, .select-setting-row, .mascot-row) { border-top: 1px solid var(--hairline); }
+
+/* Costs in the wide panel: same surface for every block, tables keep their own
+   height, and a table left alone on its row takes the full width. */
+.cost-hero { border: 0; }
+.dock-panel--wide .costs { align-items: start; }
+.dock-panel--wide .costs > .cost-table { grid-column: 1 / -1; }
+/* Every card surface carries the same top light. */
+.usage-card,
+.accounts,
+.cost-chart,
+.cost-table,
+.cost-hero,
+.settings-card { box-shadow: var(--top-light); }
+.usage-card.is-highlighted { box-shadow: var(--top-light), 0 0 0 1px var(--accent-border); }
+
+/* ---------- Prompts: one card, rows split by hairlines ---------- */
+.prompt-list {
+  gap: 0;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.prompt-row {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+}
+.prompt-row { position: relative; }
+.prompt-row + .prompt-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--hairline);
+}
+.prompt-row.is-active,
+.prompt-row:hover { background: var(--card-surface-hover); border: 0; }
+.prompt-row.is-active { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.prompt-row.is-active::before,
+.prompt-row:hover::before,
+.prompt-row.is-active + .prompt-row::before,
+.prompt-row:hover + .prompt-row::before { display: none; }
+.search-box { border-radius: var(--radius-control); }
+/* A dependent control (glass transparency) sits close to the switch it belongs to. */
+.settings-card > .setting-row + .glass-opacity { margin-top: -2px; padding-bottom: 4px; }
+.glass-opacity .range-row { min-height: 32px; }
+/* A titled control that follows an option row starts a new unit: divider first. */
+.settings-card > :is(.setting-row, .select-setting-row, .mascot-row) + .segmented-title {
+  margin-top: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Provider list in Connections: brand chip, muted meta, only the state colored. */
+.provider-list__item { gap: 12px; padding: 8px; }
+.provider-list__item .provider-chip { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; }
+.provider-list__copy strong { font-size: var(--fs-sm); font-weight: 600; }
+.provider-list__copy small { color: var(--text-3); }
+.provider-list__copy small .is-on { color: var(--good); }
+.settings-card > .hint + .account-names { border-top: 1px solid var(--hairline); padding-top: 14px; }
+.account-name-row { padding: 10px 0; }
+.account-name-row__field { gap: 0; }
+.account-name-row__input { height: 26px; }
+.settings-card > .text-button { justify-self: start; margin: -4px 0 12px; }
+/* Hover card head: name and status on one line each, never wrapping. */
+.provider-peek__head { gap: 10px; }
+.provider-peek__brand { flex: 1 1 auto; min-width: 0; }
+.provider-peek__brand > span:last-child { display: grid; min-width: 0; }
+.provider-peek__brand strong,
+.provider-peek__brand small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* First-run tour in the wide panel: one comfortable centered column. */
+.dock-panel--wide .onboarding { align-items: center; padding: 40px 32px 28px; }
+.dock-panel--wide .onboarding > * { width: min(560px, 100%); }
+.dock-panel--wide .onboarding__actions { margin-top: auto; }
+.detect-list li { gap: 12px; padding: 8px 12px; }
+.detect-list .provider-chip { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; }
+.dock-panel--wide .onboarding { justify-content: center; }
+.dock-panel--wide .onboarding .onboarding__actions { margin-top: 28px; padding-top: 0; }
+/* An odd last option in a two-column picker takes the whole row (no hole). */
+.mode-picker:not(.mode-preview-layout .mode-picker) > button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.onboarding .segmented-title { display: block; margin: 18px 0 0; font-size: var(--fs-sm); font-weight: 600; }
+.onboarding .segmented-title + .segmented { margin-top: 8px; }
+
+/* ---------- Provider page (ClaudeBar-style tiles) ---------- */
+.provider-detail { display: grid; gap: 14px; }
+
+.provider-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.provider-tabs__back,
+.provider-tabs__item {
+  flex: 0 0 auto;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.provider-tabs__back { width: 36px; padding: 0; justify-content: center; }
+.provider-tabs__item .provider-chip { width: 28px; height: 28px; flex-basis: 28px; border-radius: 999px; }
+.provider-tabs__item:hover,
+.provider-tabs__back:hover { background: var(--card-surface-hover); color: var(--text); }
+.provider-tabs__item.is-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); color: var(--text); }
+
+.provider-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.provider-detail__head > .provider-chip { width: 48px; height: 48px; flex-basis: 48px; border-radius: 14px; }
+.provider-detail__title { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.provider-detail__title h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.provider-detail__title small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); color: var(--text-3); }
+
+.state-badge {
+  flex: 0 0 auto;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.state-badge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.state-badge--small { height: 22px; padding: 0 9px; font-size: 10px; }
+.state-badge--healthy { color: var(--good); background: var(--good-soft); }
+.state-badge--warning { color: var(--warning); background: var(--warning-soft); }
+.state-badge--critical,
+.state-badge--depleted { color: var(--danger); background: var(--danger-soft); }
+.state-badge--unknown { color: var(--text-3); background: var(--card-surface-hover); }
+
+.metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.metric-grid > .metric-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.metric-tile {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px 16px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.metric-tile.is-stale { opacity: .6; }
+.metric-tile__head {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.metric-tile__head > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.metric-tile__note { font-weight: 600; letter-spacing: 0; text-transform: none; }
+.metric-tile__value { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.metric-tile__value strong {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.metric-tile__value strong em { margin-left: 2px; font-size: 18px; font-style: normal; font-weight: 600; opacity: .7; }
+.metric-tile__value small { font-size: var(--fs-xs); color: var(--text-3); }
+.metric-tile__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.metric-tile__foot > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+.detail-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.detail-card .activity { padding-top: 0; border-top: 0; }
+.detail-card__label {
+  display: block;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.daily-chart { display: grid; gap: 10px; }
+.daily-chart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.daily-chart__head strong { display: block; margin-top: 4px; font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.daily-chart__tabs { flex: 0 0 auto; }
+.daily-chart__tabs button { padding: 0 12px; }
+.daily-chart__focus { min-height: 16px; font-size: var(--fs-xs); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.daily-chart__bars {
+  height: 120px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 3px;
+  border-bottom: 1px solid var(--hairline);
+}
+.daily-chart__bar { height: 100%; display: flex; align-items: flex-end; }
+.daily-chart__bar i {
+  width: 100%;
+  border-radius: 4px 4px 1px 1px;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: background var(--dur-fast) ease;
+}
+.daily-chart__bar.is-active i { background: var(--accent); }
+.daily-chart__dates { display: flex; justify-content: space-between; font-size: var(--fs-2xs); color: var(--text-3); }
+.daily-chart__empty { padding: 24px 0; text-align: center; font-size: var(--fs-xs); color: var(--text-3); }
+.daily-chart .hint { margin: 0; }
+
+/* Usage cards open their provider page from the name. */
+.usage-card__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.usage-card__open:hover .usage-card__name { text-decoration: underline; text-underline-offset: 3px; }
+/* Provider row scrolls sideways without a visible scrollbar; the edges fade. */
+.provider-tabs {
+  scrollbar-width: none;
+  padding-bottom: 0;
+  -webkit-mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent);
+}
+.provider-tabs::-webkit-scrollbar { display: none; }
+.provider-tabs > :last-child { margin-right: 28px; }
+.provider-tabs__item { padding: 0 10px 0 6px; }
+.provider-tabs__item .provider-chip { width: 26px; height: 26px; flex-basis: 26px; }
+.provider-switch { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.provider-switch .provider-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 28px 0 12px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 28px), transparent);
+}
+.provider-switch .provider-tabs > :last-child { margin-right: 0; }
+
+/* ---------- Provider tabs (CodexBar): icon, name, usage bar ---------- */
+.provider-switch .provider-tabs { gap: 4px; padding-top: 2px; padding-bottom: 2px; }
+.provider-tab {
+  flex: 0 0 76px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 6px 9px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-2);
+}
+.provider-tab:hover { background: var(--card-surface-hover); color: var(--text); }
+.provider-tab.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+  color: var(--text);
+}
+.provider-tab.is-dim .provider-tab__icon,
+.provider-tab.is-dim .provider-tab__bar { opacity: .5; }
+.provider-tab__icon { position: relative; display: grid; }
+.provider-tab__icon .provider-chip { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
+.provider-tab__dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+.provider-tab__dot--working { background: var(--good); }
+.provider-tab__dot--waiting { background: var(--question); }
+.provider-tab__dot--wrong { background: var(--permission); }
+.provider-tab__name {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.provider-tab__bar {
+  width: 44px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--track);
+}
+.provider-tab__bar i { display: block; height: 100%; border-radius: inherit; background: var(--text-3); }
+.provider-tab__bar--good i { background: var(--good); }
+.provider-tab__bar--warning i { background: var(--warning); }
+.provider-tab__bar--danger i { background: var(--danger); }
+.provider-switch .provider-tabs__back { align-self: center; }
+/* The tab row sits on the same card surface as the rest of the panel. */
+.provider-switch {
+  padding: 6px;
+  border-radius: var(--radius-card);
+  background: var(--card-surface);
+  box-shadow: var(--top-light);
+}
+.provider-switch .provider-tabs { padding-left: 0; -webkit-mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 0 calc(100% - 28px), transparent); }
+.provider-switch .provider-tabs__back { margin-left: 2px; background: transparent; box-shadow: none; }
+.provider-switch .provider-tabs__back:hover { background: var(--card-surface-hover); }
+.provider-switch .provider-tabs {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+}
+
+/* ---------- Today's spend under the pill brand (Token Monitor) ---------- */
+.dock-pill__today {
+  width: 46px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  /* Close to the brand it belongs to; the pill's 8px gap alone left it floating. */
+  margin-top: -4px;
+  padding: 3px 0 5px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  box-shadow: 0 1px 0 var(--hairline);
+}
+button.dock-pill__today { cursor: pointer; }
+button.dock-pill__today:hover { background: var(--card-surface-hover); }
+.dock-pill__today small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.dock-pill__today strong {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/* ---------- Activity map (Costs), like Token Monitor ----------
+   One square per day, Sunday on top; color comes from the filtered tool. */
+.heatmap { display: grid; gap: 12px; }
+.heatmap__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.heatmap__head strong { display: block; margin-top: 4px; font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.heatmap__focus { margin: 0; font-size: var(--fs-xs); color: var(--text-2); font-variant-numeric: tabular-nums; text-align: right; }
+.heatmap--accent { color: var(--accent); }
+.heatmap__body { display: grid; gap: 4px; }
+.heatmap__months,
+.heatmap__grid {
+  display: grid;
+  grid-template-columns: 26px repeat(26, minmax(0, 1fr));
+  column-gap: 3px;
+}
+.heatmap__months { height: 14px; font-size: var(--fs-2xs); color: var(--text-3); }
+.heatmap__months span { grid-row: 1; white-space: nowrap; text-transform: capitalize; }
+.heatmap__grid { grid-template-rows: repeat(7, auto); row-gap: 3px; }
+.heatmap__weekday {
+  align-self: center;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-3);
+  text-transform: capitalize;
+}
+.heatmap__cell {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.heatmap__cell--1 { background: color-mix(in srgb, currentColor 28%, transparent); }
+.heatmap__cell--2 { background: color-mix(in srgb, currentColor 50%, transparent); }
+.heatmap__cell--3 { background: color-mix(in srgb, currentColor 74%, transparent); }
+.heatmap__cell--4 { background: currentColor; }
+.heatmap__grid .heatmap__cell.is-active { outline: 2px solid var(--text); outline-offset: 1px; }
+.heatmap__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.heatmap__foot .hint { margin: 0; }
+.heatmap__legend {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-2xs);
+  font-style: normal;
+}
+.heatmap__legend > * { flex: 0 0 auto; }
+.heatmap__legend .heatmap__cell { width: 10px; height: 10px; }
+/* The legend carries the tool color for its squares; its words stay gray. */
+.heatmap__legend > span { color: var(--text-3); }
+.heatmap__legend > span:first-child { margin-right: 3px; }
+.heatmap__legend > span:last-child { margin-left: 3px; }
+/* With a tool filtered, the day bars take its color like the map below. */
+.cost-chart__plot.has-brand .cost-chart__slot i { background: currentColor; }
+.cost-chart__tip { color: var(--text); }
+
+/* ---------- Quota alert levels (Notifications), like Claude Usage Tracker ----------
+   Each level is an option row with its colored dot; your own level gets a slider. */
+.alert-dot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+  background: currentColor;
+}
+/* Dots are signs, not text: the same vivid colors in both themes. */
+.alert-dot--yellow { color: #f2b705; }
+.alert-dot--orange { color: #f07f2e; }
+.alert-dot--red { color: #e5484d; }
+.settings-card > .setting-row + .alert-custom { margin: -2px 0 0; padding: 0 0 12px 22px; }
+.alert-custom .range-row { min-height: 32px; }
+.settings-card > .alert-custom + .setting-row { border-top: 1px solid var(--hairline); }
+.settings-card > .hint + .pause-row { margin-top: 0; padding-top: 14px; border-top: 1px solid var(--hairline); }
+/* A level that is off keeps its place but its dot goes quiet. */
+.alert-level[aria-checked="false"] .alert-dot { opacity: .35; box-shadow: none; }
+
+/* ---------- Accounts in the sidebar, like Claude Usage Tracker's profiles ----------
+   One compact row per account with its state dot; the list scrolls when long. */
+.nav-accounts { flex: 0 1 auto; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+.nav-accounts__list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.nav-accounts__list::-webkit-scrollbar { display: none; }
+.nav-accounts__list.has-more {
+  -webkit-mask-image: linear-gradient(180deg, #000 0 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(180deg, #000 0 calc(100% - 28px), transparent);
+}
+.nav-account { height: auto; min-height: 30px; gap: 8px; padding: 3px 10px; }
+.nav-account .provider-chip { --chip-size: 20px; border-radius: 6px; }
+.nav-account__copy { flex: 1 1 auto; min-width: 0; display: grid; }
+.nav-account__name,
+.nav-account__note { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nav-account__name { font-size: var(--fs-xs); }
+.panel-nav__item .nav-account__note {
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 10.5px;
+  line-height: 1.3;
+  text-align: left;
+  font-weight: 600;
+}
+.nav-account__dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); opacity: .5; }
+.nav-account--ok .nav-account__dot { background: var(--good); opacity: 1; box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent); }
+.nav-account--stale .nav-account__dot { background: var(--warning); opacity: 1; }
+.nav-account--wrong .nav-account__dot,
+.nav-account--error .nav-account__dot { background: var(--permission); opacity: 1; box-shadow: 0 0 6px color-mix(in srgb, var(--permission) 70%, transparent); }
+.nav-account--stale .nav-account__note { color: var(--warning); }
+.nav-account--wrong .nav-account__note,
+.nav-account--error .nav-account__note { color: var(--permission); }
+.nav-account--off { color: var(--text-3); }
+.nav-account--off .provider-chip { opacity: .55; }
+
+/* ---------- Pace phrase, like CodexBar: "Ritmo: 42% abaixo · dura até o reset" ----------
+   Wide rows keep reset and pace on one line; narrow ones (two-column cards, the
+   hover card, metric tiles) give the phrase its own line under the reset, so the
+   cards side by side always match. */
+.quota-row,
+.metric-tile { container-type: inline-size; }
+.metric-tile__foot { flex-wrap: wrap; row-gap: 3px; }
+.quota-row__meta .pace,
+.metric-tile__foot .pace { overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 359px) {
+  .quota-row__meta .pace,
+  .metric-tile__foot .pace { flex-basis: 100%; }
+}
+
+/* ---------- In-app tooltip (TooltipLayer) ----------
+   Windows draws native tooltips behind an always-on-top window, so every title
+   is drawn here instead. */
+.app-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.4;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: app-tooltip-in 120ms ease-out;
+}
+.app-tooltip--above { transform: translate(-50%, -100%); }
+@keyframes app-tooltip-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- OpenBot: one entry, a summary of everything inside it ---------- */
+.openbot-summary { display: grid; gap: 8px; }
+.openbot-summary__label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.openbot-summary__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.openbot-summary__head small { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.openbot-summary__head + .openbot-summary__accounts { margin-top: -4px; }
+.openbot-summary__accounts { display: grid; }
+.openbot-account {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding: 10px 0;
+}
+.openbot-account + .openbot-account { border-top: 1px solid var(--hairline); }
+.openbot-account.is-off { opacity: .55; }
+.openbot-account__name { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.openbot-account__name strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.openbot-account__name small { flex: 0 0 auto; font-size: 11px; color: var(--text-3); }
+.openbot-account__name small.is-wrong { color: var(--permission); font-weight: 600; }
+.openbot-account__pool { display: grid; gap: 4px; min-width: 0; }
+.openbot-account__pool small { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.openbot-account__pool b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.openbot-account__empty { grid-column: 1 / -1; font-size: 11px; color: var(--text-3); }
+.openbot-summary__runtimes { display: flex; flex-wrap: wrap; gap: 6px; }
+.openbot-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 999px;
+  background: var(--card-surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  font-size: 11.5px;
+}
+.openbot-runtime .provider-chip { --chip-size: 20px; border-radius: 999px; }
+.openbot-runtime__generic { color: var(--text-2); }
+.openbot-runtime strong { font-weight: 600; }
+.openbot-runtime small { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.openbot-summary__hint { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+.openbot-summary__accounts + .openbot-summary__label { margin-top: 4px; }
+
+/* ---------- Motion: the panel slides out of the screen edge, screens fade in ----------
+   Short and with a purpose (Padrão de Interface 7.2): it shows where the panel came
+   from and that the content changed. Off for people who ask for less motion. */
+.app-shell--right .dock-panel--wide { --panel-from: 18px; }
+.app-shell--left .dock-panel--wide { --panel-from: -18px; }
+/* Starts hidden toward the edge; App adds .is-ready once the window has its size,
+   and .is-closing for the way back before the window shrinks. */
+.dock-panel--wide {
+  opacity: 0;
+  transform: translateX(var(--panel-from, 18px)) scale(.985);
+  transition: opacity 200ms ease-out, transform 280ms cubic-bezier(.2, .8, .2, 1);
+}
+.dock-panel--wide.is-ready { opacity: 1; transform: none; }
+.dock-panel--wide.is-closing {
+  opacity: 0;
+  transform: translateX(var(--panel-from, 18px)) scale(.985);
+  transition: opacity 150ms ease-in, transform 170ms ease-in;
+}
+/* The pill comes back out of the edge after the panel closes, and at start. */
+.compact-shell .dock-pill:not(.dock-pill--preview) { animation: pill-in 300ms cubic-bezier(.2, .8, .2, 1) both; }
+.compact-shell--right .dock-pill { --pill-from: 14px; }
+.compact-shell--left .dock-pill { --pill-from: -14px; }
+@keyframes pill-in {
+  from { opacity: 0; transform: translateX(var(--pill-from, 14px)); }
+  to { opacity: 1; transform: none; }
+}
+.panel-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: screen-in 200ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-screen,
+  .compact-shell .dock-pill:not(.dock-pill--preview) { animation: none; }
+  .dock-panel--wide,
+  .dock-panel--wide.is-closing { opacity: 1; transform: none; transition: none; }
+}
+/* In the hover card the summary takes the place of the windows, with the same gap. */
+.provider-peek > .openbot-summary { margin-top: 14px; }
+
+/* ---------- The cat reacts to the quotas (our own idea) ----------
+   A pixel sweat drop by the temple when a quota is nearly used up, a few hops
+   with sparkles when one renews, and the "?" as a floating speech balloon that
+   counts the questions. Everything stays inside the cat's 64px box, which the
+   window already reserves. */
+.dock-mascot--breathe.is-tight::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 47px;
+  width: 4px;
+  height: 6px;
+  border-radius: 50% 50% 50% 50% / 35% 35% 65% 65%;
+  background: #8fd3ff;
+  box-shadow: inset -1px -1px 0 #4aa8e8, 0 0 0 1px rgba(10, 20, 40, .35);
+  animation: cat-sweat 2.6s ease-in infinite;
+  z-index: 2;
+}
+.dock-pill--right .dock-mascot--breathe.is-tight::after { left: 13px; }
+@keyframes cat-sweat {
+  0%, 20% { opacity: 0; transform: translateY(-2px) scale(.6); }
+  35% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; transform: translateY(7px) scale(1); }
+  100% { opacity: 0; transform: translateY(10px) scale(.8); }
+}
+
+.dock-mascot.is-cheering .dock-mascot__motion { animation: cat-hop 600ms cubic-bezier(.3, .7, .4, 1) 5; }
+@keyframes cat-hop {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-7px); }
+}
+.dock-mascot__sparks { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+/* Pixel plus-shaped stars: a 2px core with four 2px arms. */
+.dock-mascot__sparks i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #ffe066;
+  box-shadow: 2px 0 #ffe066, -2px 0 #ffe066, 0 2px #ffe066, 0 -2px #ffe066;
+  opacity: 0;
+  animation: cat-spark 900ms ease-out infinite;
+}
+.dock-mascot__sparks i:nth-child(1) { top: 12px; left: 6px; }
+.dock-mascot__sparks i:nth-child(2) { top: 6px; left: 56px; animation-delay: 220ms; background: var(--done); box-shadow: 2px 0 var(--done), -2px 0 var(--done), 0 2px var(--done), 0 -2px var(--done); }
+.dock-mascot__sparks i:nth-child(3) { top: 30px; left: 2px; animation-delay: 440ms; background: var(--question); box-shadow: 2px 0 var(--question), -2px 0 var(--question), 0 2px var(--question), 0 -2px var(--question); }
+.dock-mascot__sparks i:nth-child(4) { top: 26px; left: 60px; animation-delay: 660ms; }
+@keyframes cat-spark {
+  0% { opacity: 0; transform: scale(.4); }
+  30% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(.6) translateY(-4px); }
+}
+
+/* "?" and "!" as pixel-art speech balloons (PixelBalloon), drawn on whole
+   pixels so they stay sharp; a slow float, sitting close to the head. */
+.dock-signals { bottom: calc(100% - 2px); }
+.dock-signal--question,
+.dock-signal--bang {
+  width: 22px;
+  min-width: 22px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  animation: signal-float 2.4s steps(2, jump-none) infinite;
+}
+.dock-signal--bang { animation-delay: -1.2s; }
+.dock-signal .pixel-balloon {
+  position: absolute;
+  inset: 0;
+  width: 22px;
+  height: 18px;
+  transform: none;
+}
+.dock-pill--right .pixel-balloon { transform: scaleX(-1); }
+.dock-pill--right .pixel-balloon__mark { transform: scaleX(-1); transform-origin: 5.5px 0; }
+/* A sticker: solid balloon in the notice color, a darker rim, the mark cut out dark. */
+.pixel-balloon__line { fill: color-mix(in srgb, currentColor 62%, #000); }
+.pixel-balloon__fill { fill: currentColor; }
+.pixel-balloon__mark { fill: #15131a; }
+.dock-signal--question { color: var(--question); }
+.dock-signal--bang { color: var(--signal, var(--permission)); }
+/* The notice sits beside the balloons, on their line, toward the screen center:
+   the window keeps one 26px line above the cat, and a box above the balloons
+   used to run past it and get cut. One line, ellipsis when long. */
+.dock-signal-list {
+  top: 50%;
+  bottom: auto;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  max-width: 220px;
+  padding: 0 9px;
+  border-radius: 9px;
+  transform: translateY(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dock-pill--right .dock-signal-list { right: calc(100% + 6px); left: auto; }
+.dock-pill--left .dock-signal-list { left: calc(100% + 6px); right: auto; }
+.dock-signal--question[data-count]::after {
+  content: attr(data-count);
+  position: absolute;
+  /* Stays inside the 26px line the window keeps above the cat, float included. */
+  top: -5px;
+  right: -12px;
+  min-width: 11px;
+  height: 11px;
+  padding: 0 2px;
+  box-shadow: 0 0 0 1.5px var(--bg-pill);
+  border-radius: 999px;
+  background: var(--question);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 11px;
+  text-align: center;
+}
+@keyframes signal-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+/* The count sits on the balloon's top corner, on whole pixels too. */
+/* Above the balloon's outer corner, clear of the "?" itself and inside the 26px line. */
+.dock-signal--question[data-count]::after { top: -8px; right: auto; left: -10px; }
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot--breathe.is-tight::after,
+  .dock-mascot.is-cheering .dock-mascot__motion,
+  .dock-mascot__sparks i,
+  .dock-signal--question,
+  .dock-signal--bang { animation: none; }
+  .dock-mascot--breathe.is-tight::after,
+  .dock-mascot__sparks i { opacity: 1; }
+}
+/* What runs inside OpenBot now: a green dot on the busy AI and one line per conversation. */
+.openbot-runtime { position: relative; }
+.openbot-runtime__busy {
+  width: 7px;
+  height: 7px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent);
+}
+
+/* ---------- Account switch hint (our own idea) ----------
+   The account an agent works in is nearly out; another has room. One line of
+   why, one button that brings that account's window to the front. */
+.switch-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.switch-hint__icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+.switch-hint__copy { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.switch-hint__copy strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-xs); font-weight: 700; }
+.switch-hint__copy small { font-size: 11px; line-height: 1.4; color: var(--text-2); }
+.switch-hint__go {
+  flex: 0 0 auto;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--warning);
+  color: #1a1204;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.switch-hint__go:hover { filter: brightness(1.08); }
+/* In the hover card it sits under the head, full width, the button on its own line. */
+.provider-peek .switch-hint { flex-wrap: wrap; margin-top: 12px; }
+.provider-peek .switch-hint__copy { flex-basis: calc(100% - 38px); }
+.provider-peek .switch-hint__go { flex: 1 1 100%; }
+
+/* The cat blinks: the closed-eye sheet runs in step with the breath and shows
+   for about 150ms every five seconds, now and then twice. */
+.dock-mascot__blink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  animation: cat-breathe-frames 1.6s steps(5, end) infinite, cat-blink 5.2s steps(1, end) infinite;
+}
+@keyframes cat-blink {
+  0%, 93% { opacity: 0; }
+  93.2%, 96% { opacity: 1; }
+  96.1%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot__blink { display: none; }
+}
+
+/* OpenBot's bots: avatar in the bot's own OpenBot color with its short code,
+   name, engine · model · account, and a live dot while it works. */
+.openbot-summary__head small.is-busy { color: var(--good); font-weight: 600; }
+.openbot-bots { display: grid; gap: 2px; margin: -2px 0 4px; padding: 0; list-style: none; }
+.openbot-bots li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 5px 0; }
+.openbot-bots li + li { border-top: 1px solid var(--hairline); }
+.bot-avatar {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: hsl(var(--bot-hue) 70% 55% / .18);
+  box-shadow: inset 0 0 0 1px hsl(var(--bot-hue) 70% 60% / .35);
+  color: hsl(var(--bot-hue) 80% 72%);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+:root[data-theme="light"] .bot-avatar { color: hsl(var(--bot-hue) 65% 35%); }
+.openbot-bots__copy { flex: 1 1 auto; display: grid; min-width: 0; }
+.openbot-bots__copy strong,
+.openbot-bots__copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.openbot-bots__copy strong { font-size: 12px; font-weight: 600; }
+.openbot-bots__copy small { font-size: 11px; color: var(--text-3); }
+.openbot-bots__live {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--good) 70%, transparent);
+  animation: bot-live 1.6s ease-in-out infinite;
+}
+@keyframes bot-live { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .openbot-bots__live { animation: none; } }
+
+/* Asleep, the cat breathes slowly and lets out pixel "Z"s; on a new notice it
+   hops up. Both come from the drawing as it is: no new frames needed. */
+.dock-mascot--sleep .dock-mascot__motion {
+  transform-origin: 50% 100%;
+  animation: cat-sleep-breathe 3.4s ease-in-out infinite;
+}
+@keyframes cat-sleep-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.035); }
+}
+.dock-mascot--alert .dock-mascot__motion { animation: cat-hop 520ms cubic-bezier(.3, .7, .4, 1) 2; }
+.dock-mascot__zzz { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+/* A 4×4 pixel "Z" (top row, the diagonal, bottom row) from one 2px square and its shadows. */
+.dock-mascot__zzz i {
+  position: absolute;
+  top: 14px;
+  left: 48px;
+  width: 2px;
+  height: 2px;
+  background: var(--text-2);
+  box-shadow:
+    2px 0 var(--text-2), 4px 0 var(--text-2), 6px 0 var(--text-2),
+    4px 2px var(--text-2), 2px 4px var(--text-2),
+    0 6px var(--text-2), 2px 6px var(--text-2), 4px 6px var(--text-2), 6px 6px var(--text-2);
+  opacity: 0;
+  animation: cat-zzz 3.2s ease-out infinite;
+}
+.dock-mascot__zzz i:nth-child(2) { animation-delay: 1.6s; }
+.dock-pill--right .dock-mascot__zzz i { left: 8px; }
+@keyframes cat-zzz {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: .9; }
+  80% { opacity: .5; }
+  100% { opacity: 0; transform: translate(4px, -14px); }
+}
+.dock-pill--right .dock-mascot__zzz i { animation-name: cat-zzz-left; }
+@keyframes cat-zzz-left {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: .9; }
+  80% { opacity: .5; }
+  100% { opacity: 0; transform: translate(-4px, -14px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot--sleep .dock-mascot__motion,
+  .dock-mascot--alert .dock-mascot__motion { animation: none; }
+  .dock-mascot__zzz i { animation: none; opacity: .7; }
+  .dock-mascot__zzz i:nth-child(2) { display: none; }
+}
+
+/* ---------- New cat moves (frames drawn from the same cat) ----------
+   Four frames each, 64px apiece in a 256px strip, in the same clipped box as the
+   breath: typing loops while agents work; looking around plays once and the tail
+   wags twice while it waits awake. */
+.dock-mascot--typing .dock-mascot__clip { transform: translateX(-6px); }
+.dock-pill--right .dock-mascot--typing .dock-mascot__clip { transform: scaleX(-1) translateX(-6px); }
+.dock-mascot__sheet--typing,
+.dock-mascot__sheet--look,
+.dock-mascot__sheet--tail { width: 256px; }
+.dock-mascot__sheet--typing { animation: cat-four-frames 720ms steps(4, end) infinite; }
+.dock-mascot__sheet--look { animation: cat-look 3.1s linear 1 both; }
+.dock-mascot__sheet--tail { animation: cat-tail 980ms linear 2 both; }
+@keyframes cat-four-frames {
+  from { transform: translateX(0); }
+  to { transform: translateX(-256px); }
+}
+/* Straight ahead 1.2s, left 0.7s, ahead 0.5s, right 0.7s. */
+@keyframes cat-look {
+  0%, 38.7% { transform: translateX(0); }
+  38.71%, 61.29% { transform: translateX(-64px); }
+  61.3%, 77.41% { transform: translateX(-128px); }
+  77.42%, 100% { transform: translateX(-192px); }
+}
+/* Down 260ms, half up 200ms, up 320ms, half down 200ms. */
+@keyframes cat-tail {
+  0%, 26.5% { transform: translateX(0); }
+  26.6%, 46.9% { transform: translateX(-64px); }
+  47%, 79.5% { transform: translateX(-128px); }
+  79.6%, 100% { transform: translateX(-192px); }
+}
+/* Typing, the head sits a little lower and further in: the sweat drop follows. */
+.dock-mascot--typing.is-tight::after {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: 38px;
+  width: 4px;
+  height: 6px;
+  border-radius: 50% 50% 50% 50% / 35% 35% 65% 65%;
+  background: #8fd3ff;
+  box-shadow: inset -1px -1px 0 #4aa8e8, 0 0 0 1px rgba(10, 20, 40, .35);
+  animation: cat-sweat 2.6s ease-in infinite;
+  z-index: 2;
+}
+.dock-pill--right .dock-mascot--typing.is-tight::after { left: 22px; }
+@media (prefers-reduced-motion: reduce) {
+  .dock-mascot__sheet--typing,
+  .dock-mascot__sheet--look,
+  .dock-mascot__sheet--tail { animation: none; }
+  .dock-mascot--typing.is-tight::after { animation: none; opacity: 1; }
+}

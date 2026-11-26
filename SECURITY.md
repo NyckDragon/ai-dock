@@ -7,7 +7,9 @@ AI Dock runs locally on Windows, macOS and Linux and reads provider data only fr
 - **Claude Code:** `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN`. On the macOS beta, when that file is missing, the login Keychain item `Claude Code-credentials` that Claude Code writes, read only after macOS asks you once
 - **Codex:** `%USERPROFILE%\.codex\auth.json` or `CODEX_HOME`
 - **Cursor:** the authenticated editor state in `%APPDATA%\Cursor\User\globalStorage\state.vscdb` on Windows, `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS, or `~/.config/Cursor/User/globalStorage/state.vscdb` on Linux, opened read-only
-- **Antigravity:** the local language server of each open instance (quota, plan, account email and the model of running conversations), and the files Antigravity writes under each account's `.gemini/antigravity` folder: transcript timestamps and token counts in `brain/*/logs/transcript.jsonl`, the conversation title in `conversation_summaries.db`, the model id in `conversations/*.db` and `antigravity_state.pbtxt`. Databases are opened read-only. AI Dock does not read Antigravity's credential files (`cred.json`) or any other file to find the account email
+- **Antigravity:** the local language server of each open instance (quota, plan, account email and the model of running conversations), and the files Antigravity writes under each account's `.gemini/antigravity` folder: transcript timestamps and token counts in `brain/*/logs/transcript.jsonl`, the conversation title in `conversation_summaries.db`, the model id in `conversations/*.db` and `antigravity_state.pbtxt`. Databases are opened read-only. Since Antigravity 2.34 the token that opens each instance's local server comes from `daemon/hub_*.json` in the account's folder, matched by process id; it only opens that local server and stays in memory. AI Dock does not read Antigravity's credential files (`cred.json`) or any other file to find the account email
+- **OpenBot (Windows):** the Antigravity instances OpenBot runs, through the same local language server, and OpenBot's own database `%APPDATA%\OpenBot\openbot.db`, opened read-only, for each bot's name, engine, model and account and whether it is working now. No OpenBot token, message or conversation text is read
+- **Window focus (Windows):** when you click "Ir para" on a suggested account switch, AI Dock lists the open windows to find that Antigravity account's window and brings it to the front. Nothing else is done with the window list
 - **Claude Web:** the claude.ai session the user signs in to inside AI Dock, or a Cookie the user pastes manually
 - **Costs tab:** the JSONL session logs Claude Code (`~/.claude/projects`, `CLAUDE_CONFIG_DIR`), the Codex CLI (`~/.codex/sessions`, `CODEX_HOME`) and Antigravity (`brain/*/logs/transcript.jsonl` of each account) write locally. Only token counts, model names, timestamps and the project folder name are used; prompts and answers in those files are skipped and never stored or sent anywhere.
 
@@ -53,7 +55,9 @@ Older builds may have written a legacy Claude session fallback in AppData. The c
 
 Cursor credentials are re-read from the local editor database only when needed and remain in memory for the request.
 
-The frontend provider cache stores only non-sensitive quota/provider metadata.
+The frontend provider cache stores only non-sensitive quota/provider metadata, plus the estimated cost of each day for the activity map in Costs.
+
+`openbot-slots.json` in AI Dock's config folder maps each OpenBot account to an AI Dock icon by folder path only. It holds no email, token or credential.
 
 ## Logging
 

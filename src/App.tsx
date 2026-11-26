@@ -1,17 +1,29 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
-import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Coins, Gauge, RefreshCw, ScrollText, Sparkles, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CostsView } from "./components/CostsView";
 import { DockPill } from "./components/DockPill";
 import { Onboarding } from "./components/Onboarding";
 import { PromptLibrary } from "./components/PromptLibrary";
 import { ProviderPeek } from "./components/ProviderPeek";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPanel, SETTINGS_TABS } from "./components/SettingsPanel";
 import { UsageCard, UsageCardSkeleton } from "./components/UsageCard";
+import { AccountsOverview } from "./components/AccountsOverview";
+import { HealthChip } from "./components/HealthChip";
+import { SidebarAccounts } from "./components/SidebarAccounts";
+import { TooltipLayer } from "./components/TooltipLayer";
+import { OpenBotSummary } from "./components/OpenBotSummary";
+import { mergeOpenBot, mergeOpenBotActivity, type OpenBotOverview } from "./lib/openbot";
+import { summarizeCosts } from "./lib/costs";
+import { ProviderDetail } from "./components/ProviderDetail";
+import { ProviderTabs } from "./components/ProviderTabs";
+import { antigravityAccounts, switchSuggestion } from "./lib/accountsOverview";
+import { SwitchHint } from "./components/SwitchHint";
 import { useActivity } from "./hooks/useActivity";
 import { useCosts } from "./hooks/useCosts";
+import { loadDailyCosts } from "./lib/heatmap";
 import { useDockWindow } from "./hooks/useDockWindow";
 import { useFinishSignal } from "./hooks/useFinishSignal";
 import { useNotifications, notify } from "./hooks/useNotifications";
@@ -41,6 +53,7 @@ import {
   onClaudeLogin,
   shareWebUserAgent,
   fetchMonitors,
+  fetchOpenBotOverview,
   focusDock,
   isTauri,
   onTrayAction,
@@ -54,9 +67,11 @@ import {
   setTrayTooltip
 } from "./lib/tauri";
 import type { DockGlassBox } from "./lib/tauri";
-import type { MonitorInfo, PanelView, Settings, SettingsTab } from "./types";
+import type { MonitorInfo, PanelView, ProviderUsage, Settings, SettingsTab } from "./types";
 
 const QUESTION_HEX = /^#[0-9A-Fa-f]{6}$/;
+/** Matches the exit transition of .dock-panel--wide in theme-a.css. */
+const PANEL_EXIT_MS = 170;
 
 function questionSoft(hex: string) {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -79,6 +94,12 @@ function applyStoredColor(name: "--question" | "--permission" | "--done", color:
 
 const TONE_RANK: Record<QuotaTone, number> = { empty: 0, good: 1, warning: 2, danger: 3 };
 
+const PANEL_VIEWS: { id: PanelView; label: string; icon: LucideIcon }[] = [
+  { id: "usage", label: "Uso", icon: Gauge },
+  { id: "costs", label: "Custos", icon: Coins },
+  { id: "prompts", label: "Prompts", icon: ScrollText }
+];
+
 export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [expanded, setExpanded] = useState(() => !settings.onboarded);
@@ -87,6 +108,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("appearance");
   const [focusProvider, setFocusProvider] = useState<string | null>(null);
+  /** The provider page open in Usage; null shows the list. */
+  const [detailProvider, setDetailProvider] = useState<string | null>(null);
   const [promptFocusKey, setPromptFocusKey] = useState(0);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [autostart, setAutostart] = useState<boolean | null>(null);
@@ -109,7 +132,17 @@ export default function App() {
   }, []);
 
   const { providers, loading, lastUpdatedAt, failed, history, refresh } = useProviders(settings.refreshMinutes);
-  const activities = useActivity(expanded);
+  const rawActivities = useActivity(expanded);
+  // Which slots are OpenBot accounts, what else it runs and what runs in it now:
+  // read after each quota refresh and each activity reading.
+  const [openBot, setOpenBot] = useState<OpenBotOverview | null>(null);
+  useEffect(() => {
+    fetchOpenBotOverview()
+      // Same answer, same object: no re-render of everything that depends on it.
+      .then((next) => setOpenBot((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next)))
+      .catch(() => setOpenBot(null));
+  }, [providers, rawActivities]);
+  const activities = useMemo(() => mergeOpenBotActivity(rawActivities, openBot?.bots), [rawActivities, openBot]);
   const promptState = usePrompts(settings.obsidianPath, expanded);
   const statuses = useProviderStatus();
 
@@ -123,12 +156,68 @@ export default function App() {
 
   useNotifications(displayProviders, activities, statuses, settings);
   const costs = useCosts(true, costDays);
+  // Today's spend for the pill: one small read every five minutes.
+  const todayCosts = useCosts(settings.pillTodayCost, 1);
+  // The activity map keeps day totals beyond the logs: the costs view reads the longest range.
+  const monthCosts = useCosts(expanded && view === "costs" && costDays < 30, 31);
+  const daily = useMemo(() => loadDailyCosts(), [costs.report, monthCosts.report, todayCosts.report]);
+  const todayCost = settings.pillTodayCost && todayCosts.report?.entries.length ? summarizeCosts(todayCosts.report.entries, 1).total.cost : null;
   const dock = useDockWindow(settings, expanded);
+  // The panel slides in once the native window has its full size; before that the
+  // entrance played inside a still-small window and nobody saw it.
+  const [panelReady, setPanelReady] = useState(false);
+  useEffect(() => {
+    if (!expanded) {
+      setPanelReady(false);
+      return;
+    }
+    let frame = 0;
+    const show = () => {
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => setPanelReady(true));
+      });
+    };
+    if (dock.placedMode === "expanded") show();
+    // Never stay invisible if the window does not report back.
+    const fallback = window.setTimeout(() => setPanelReady(true), 400);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(fallback);
+    };
+  }, [expanded, dock.placedMode]);
 
   const visibleProviders = useMemo(
-    () => arrangeProviders(displayProviders, settings),
-    [displayProviders, settings.providerOrder, settings.hiddenProviders]
+    () => mergeOpenBot(arrangeProviders(displayProviders, settings), openBot),
+    [displayProviders, settings.providerOrder, settings.hiddenProviders, openBot]
   );
+  // The Antigravity account an agent works in is nearly out: point to the one with room.
+  const suggestion = useMemo(() => switchSuggestion(antigravityAccounts(visibleProviders), activities), [visibleProviders, activities]);
+  const suggestionKey = suggestion ? suggestion.from.id + ">" + suggestion.to.id + ":" + suggestion.pool : "";
+  const lastSuggestionRef = useRef("");
+  useEffect(() => {
+    if (suggestionKey && suggestionKey !== lastSuggestionRef.current && suggestion && settings.notifyLowQuota) {
+      const short = (name: string) => name.replace(/^Antigravity\s*·\s*/i, "");
+      void notify(
+        t("{from} está acabando o {pool}", { from: short(suggestion.from.name), pool: suggestion.pool }),
+        t("{to} tem {value}% livre. Abra o dock e clique em Ir para {to}.", { to: short(suggestion.to.name), value: String(suggestion.toRemaining) })
+      );
+    }
+    lastSuggestionRef.current = suggestionKey;
+  }, [suggestionKey]);
+
+  const openBotSummary = (provider: ProviderUsage, full = false) =>
+    provider.members ? (
+      <OpenBotSummary
+        provider={provider}
+        providers={displayProviders}
+        runtimes={openBot?.runtimes ?? []}
+        accounts={openBot?.accounts}
+        bots={openBot?.bots}
+        display={settings.display}
+        headline={settings.headline}
+        full={full}
+      />
+    ) : undefined;
   const slots = useMemo(
     () => compactSlots(visibleProviders, settings.antigravityGroupMode),
     [visibleProviders, settings.antigravityGroupMode]
@@ -195,16 +284,33 @@ export default function App() {
       setSettingsOpen(false);
       if (slotId) {
         setView("usage");
-        setFocusProvider(baseProviderId(slotId));
+        setDetailProvider(baseProviderId(slotId));
       }
       setExpanded(true);
     },
     [dock.resetPeek]
   );
 
+  // The panel leaves with a short slide toward the screen edge, then the window shrinks.
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+  const expandedNowRef = useRef(expanded);
+  expandedNowRef.current = expanded;
   const collapse = useCallback(() => {
-    setExpanded(false);
-    setSettingsOpen(false);
+    const finish = () => {
+      closingRef.current = false;
+      setClosing(false);
+      setExpanded(false);
+      setSettingsOpen(false);
+    };
+    if (!expandedNowRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finish();
+      return;
+    }
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    window.setTimeout(finish, PANEL_EXIT_MS);
   }, []);
 
   const openSettings = useCallback(
@@ -487,7 +593,14 @@ export default function App() {
           shape(document.querySelector(".dock-panel"));
         } else {
           const root = stageRef.current?.closest(".compact-shell");
-          root?.querySelectorAll(".dock-pill, .dock-signal-list").forEach(shape);
+          root?.querySelectorAll(".dock-pill").forEach(shape);
+          // The notice box is placed with a transform, so its layout box is not where it shows.
+          const notice = root?.querySelector(".dock-signal-list");
+          if (notice instanceof HTMLElement && notice.offsetWidth > 0) {
+            const rect = notice.getBoundingClientRect();
+            const radius = Number.parseFloat(window.getComputedStyle(notice).borderTopLeftRadius) || 0;
+            shapes.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height, radius });
+          }
           shape(root?.querySelector(".peek-wrap--open .provider-peek") ?? null);
         }
       }
@@ -657,12 +770,19 @@ export default function App() {
             glassOpacity={settings.glassOpacity}
             onMascotOverlay={dock.setOverlay}
             onSeen={finish.dismiss}
+            todayCost={todayCost}
+            onOpenCosts={() => {
+              openPanel();
+              setDetailProvider(null);
+              setView("costs");
+            }}
             lockPosition={settings.lockPosition}
             verticalOffset={settings.verticalOffset}
             offsetRange={dock.offsetRange}
             onOffsetChange={(verticalOffset) => setSettings((current) => ({ ...current, verticalOffset }))}
             onOffsetCommit={(verticalOffset) => update({ verticalOffset })}
             onOpen={openPanel}
+            onLeaveSlots={dock.closePeek}
             onHoverSlot={(id) => {
               // An old reading gets a quiet refresh while the peek opens.
               if (!lastUpdatedAt || Date.now() - lastUpdatedAt > 60_000) void refresh({ background: true });
@@ -685,6 +805,8 @@ export default function App() {
                 display={settings.display}
                 now={now}
                 onOpen={() => openPanel(peekProvider.id)}
+                summary={openBotSummary(peekProvider)}
+                switchHint={suggestion && baseProviderId(peekProvider.id) === suggestion.from.id ? <SwitchHint suggestion={suggestion} /> : null}
               />
             </div>
           ) : null}
@@ -702,12 +824,46 @@ export default function App() {
       : lastUpdatedAt
         ? t("Atualizado {age}", { age: formatAge(lastUpdatedAt, now) })
         : t("Aguardando leitura");
+  const detailOpen = detailProvider ? visibleProviders.find((provider) => provider.id === detailProvider) ?? null : null;
+
+  const screenKey = settingsOpen ? "settings-" + settingsTab : detailOpen ? "detail-" + detailOpen.id : view;
+
+  const renderUsageCard = (provider: (typeof visibleProviders)[number]) => (
+    <UsageCard
+      key={provider.id}
+      ref={(node) => {
+        if (node) cardRefs.current.set(provider.id, node);
+        else cardRefs.current.delete(provider.id);
+      }}
+      provider={provider}
+      activity={activityFor(provider.id)}
+      display={settings.display}
+      headline={settings.headline}
+      history={history}
+      historyRange={settings.historyRange}
+      summary={openBotSummary(provider)}
+      status={statusFor(statuses, provider.id)}
+      now={now}
+      highlighted={focusProvider === provider.id}
+      onConnect={provider.id === "claude" ? reconnectClaude : undefined}
+      onOpenDetail={() => setDetailProvider(provider.id)}
+      collapsed={settings.collapsedCards.includes(provider.id)}
+      onToggleCollapse={() =>
+        update({
+          collapsedCards: settings.collapsedCards.includes(provider.id)
+            ? settings.collapsedCards.filter((id) => id !== provider.id)
+            : [...settings.collapsedCards, provider.id]
+        })
+      }
+    />
+  );
   const CollapseIcon = settings.side === "right" ? ChevronRight : ChevronLeft;
 
   return (
     <main className={"app-shell app-shell--" + settings.side}>
-      <div className="dock-panel">
-        <header className="app-header" data-tauri-drag-region>
+      <TooltipLayer />
+      <div className={"dock-panel dock-panel--wide" + (panelReady && !closing ? " is-ready" : "") + (closing ? " is-closing" : "")}>
+        <aside className="panel-nav" data-tauri-drag-region>
           <div className="brand" data-tauri-drag-region>
             <span className="brand-mark" aria-hidden="true">
               <Sparkles size={16} />
@@ -720,7 +876,58 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="header-actions">
+
+          <HealthChip providers={visibleProviders} />
+
+          <nav className="panel-nav__group" aria-label={t("Conteúdo do painel")}>
+            {PANEL_VIEWS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                // With an account page open, the mark sits on the account in "Contas".
+                className={"panel-nav__item" + (!settingsOpen && view === item.id && !(item.id === "usage" && detailOpen) ? " is-selected" : "")}
+                aria-current={!settingsOpen && view === item.id && !(item.id === "usage" && detailOpen) ? "page" : undefined}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setDetailProvider(null);
+                  setView(item.id);
+                  if (item.id === "prompts") setPromptFocusKey((key) => key + 1);
+                }}
+              >
+                <item.icon size={16} aria-hidden="true" />
+                <span>{t(item.label)}</span>
+                {item.id === "prompts" && promptState.prompts.length ? <small>{promptState.prompts.length}</small> : null}
+              </button>
+            ))}
+          </nav>
+
+          <SidebarAccounts
+            providers={visibleProviders}
+            selectedId={!settingsOpen && view === "usage" ? detailOpen?.id ?? null : null}
+            onSelect={(providerId) => {
+              setSettingsOpen(false);
+              setView("usage");
+              setDetailProvider(providerId);
+            }}
+          />
+
+          <nav className="panel-nav__group" aria-label={t("Configurações")}>
+            <span className="panel-nav__label">{t("Configurações")}</span>
+            {SETTINGS_TABS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={"panel-nav__item" + (settingsOpen && settingsTab === item.id ? " is-selected" : "")}
+                aria-current={settingsOpen && settingsTab === item.id ? "page" : undefined}
+                onClick={() => openSettings(item.id)}
+              >
+                <item.icon size={16} aria-hidden="true" />
+                <span>{t(item.label)}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="panel-nav__footer">
             <button
               type="button"
               className={"icon-button" + (loading ? " is-spinning" : "")}
@@ -730,35 +937,27 @@ export default function App() {
             >
               <RefreshCw size={15} />
             </button>
-            <button
-              type="button"
-              className={"icon-button" + (settingsOpen ? " is-active" : "")}
-              onClick={() => (settingsOpen ? setSettingsOpen(false) : openSettings())}
-              aria-label={t("Configurações")}
-              aria-pressed={settingsOpen}
-              title={t("Configurações")}
-            >
-              <Settings2 size={16} />
-            </button>
             <button type="button" className="icon-button" onClick={collapse} aria-label={t("Recolher (Esc)")} title={t("Recolher (Esc)")}>
               <CollapseIcon size={17} />
             </button>
           </div>
-        </header>
+        </aside>
 
-        {settingsOpen ? (
-          <>
-            <div className="subheader">
-              <h2>{t("Configurações")}</h2>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setSettingsOpen(false)}
-                aria-label={t("Fechar configurações")}
-              >
-                <X size={15} />
-              </button>
-            </div>
+        <section className="panel-main">
+          <header className="panel-main__head" data-tauri-drag-region>
+            <h1 data-tauri-drag-region>
+              {settingsOpen
+                ? t(SETTINGS_TABS.find((item) => item.id === settingsTab)?.label ?? "Configurações")
+                : detailOpen
+                  ? detailOpen.name
+                  : t(PANEL_VIEWS.find((item) => item.id === view)?.label ?? "Uso")}
+            </h1>
+            <small data-tauri-drag-region>{settingsOpen ? t("Configurações") : status}</small>
+          </header>
+
+          {/* A new screen slides in; the key re-mounts it so the entrance plays again. */}
+          <div className="panel-screen" key={screenKey}>
+          {settingsOpen ? (
             <SettingsPanel
               tab={settingsTab}
               onTab={setSettingsTab}
@@ -782,68 +981,53 @@ export default function App() {
               }}
               onQuit={() => void quitApp()}
               withDialog={withDialog}
+              hideTabs
+              todayCost={todayCost}
             />
-          </>
-        ) : (
-          <>
-            <div className="view-tabs" role="tablist" aria-label={t("Conteúdo do painel")}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "usage"}
-                className={view === "usage" ? "is-selected" : ""}
-                onClick={() => setView("usage")}
-              >
-                {t("Uso")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "costs"}
-                className={view === "costs" ? "is-selected" : ""}
-                onClick={() => setView("costs")}
-              >
-                {t("Custos")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === "prompts"}
-                className={view === "prompts" ? "is-selected" : ""}
-                onClick={() => {
-                  setView("prompts");
-                  setPromptFocusKey((key) => key + 1);
-                }}
-              >
-                Prompts
-                {promptState.prompts.length ? <small>{promptState.prompts.length}</small> : null}
-              </button>
-            </div>
-
+          ) : (
             <div className="panel-scroll" role="tabpanel">
-              {view === "usage" ? (
-                <div className="usage-stack">
-                  {visibleProviders.length === 0 && loading
-                    ? [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
-                    : visibleProviders.map((provider) => (
-                        <UsageCard
-                          key={provider.id}
-                          ref={(node) => {
-                            if (node) cardRefs.current.set(provider.id, node);
-                            else cardRefs.current.delete(provider.id);
-                          }}
-                          provider={provider}
-                          activity={activityFor(provider.id)}
-                          display={settings.display}
-                          headline={settings.headline}
-                          history={history}
-                          historyRange={settings.historyRange}
-                          status={statusFor(statuses, provider.id)}
-                          now={now}
-                          highlighted={focusProvider === provider.id}
-                          onConnect={provider.id === "claude" ? reconnectClaude : undefined}
-                        />
+              {view === "usage" && detailOpen ? (
+                <ProviderDetail
+                  provider={detailOpen}
+                  providers={visibleProviders}
+                  activity={activityFor(detailOpen.id)}
+                  activityFor={activityFor}
+                  status={statusFor(statuses, detailOpen.id)}
+                  display={settings.display}
+                  headline={settings.headline}
+                  history={history}
+                  now={now}
+                  onSelect={setDetailProvider}
+                  onBack={() => setDetailProvider(null)}
+                  summary={openBotSummary(detailOpen, true)}
+                />
+              ) : view === "usage" ? (
+                <div className={"usage-stack usage-stack--cols-" + settings.usageColumns}>
+                  {visibleProviders.length > 1 ? (
+                    <ProviderTabs
+                      providers={visibleProviders}
+                      display={settings.display}
+                      headline={settings.headline}
+                      activityFor={activityFor}
+                      onSelect={setDetailProvider}
+                    />
+                  ) : null}
+                  <AccountsOverview accounts={antigravityAccounts(visibleProviders)} onPick={setDetailProvider} suggestion={suggestion} />
+                  {visibleProviders.length === 0 && loading ? (
+                    [0, 1, 2].map((index) => <UsageCardSkeleton key={index} />)
+                  ) : settings.usageColumns === 2 ? (
+                    // Alternate cards between two columns: reading order stays row by row,
+                    // and each column stacks on its own, so a tall card leaves no gap.
+                    <div className="usage-columns">
+                      {[0, 1].map((column) => (
+                        <div className="usage-columns__col" key={column}>
+                          {visibleProviders.filter((_, index) => index % 2 === column).map(renderUsageCard)}
+                        </div>
                       ))}
+                    </div>
+                  ) : (
+                    visibleProviders.map(renderUsageCard)
+                  )}
                   {visibleProviders.length === 0 && !loading ? (
                     <button type="button" className="empty-state" onClick={() => openSettings("connections")}>
                       <span>{t("Nenhum provider visível")}</span>
@@ -858,6 +1042,7 @@ export default function App() {
                   days={costDays}
                   onDays={setCostDays}
                   onReload={() => void costs.reload()}
+                  daily={daily}
                 />
               ) : (
                 <PromptLibrary
@@ -872,8 +1057,9 @@ export default function App() {
                 />
               )}
             </div>
-          </>
-        )}
+          )}
+          </div>
+        </section>
 
         {showOnboarding ? (
           <Onboarding

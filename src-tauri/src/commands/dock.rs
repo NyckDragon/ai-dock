@@ -103,7 +103,8 @@ struct DockLayout {
 #[allow(clippy::too_many_arguments)]
 fn dock_rect(
     side: &str,
-    mode: &str,
+    // Every mode touches the edge now; kept so callers and tests stay readable.
+    _mode: &str,
     screen: Screen,
     scale: f64,
     logical_width: f64,
@@ -115,11 +116,11 @@ fn dock_rect(
     let width = physical_px(logical_width, scale);
     let height = physical_px(logical_height, scale);
     let margin = physical_px(10.0, scale);
-    let edge_gap = if mode == "hidden" { 0 } else { margin };
+    // The dock is part of the screen edge: no gap on that side, in every mode.
     let x = if side == "left" {
-        screen.origin_x + edge_gap
+        screen.origin_x
     } else {
-        screen.origin_x + screen.width as i32 - width - edge_gap
+        screen.origin_x + screen.width as i32 - width
     };
     let monitor_height = (screen.height as f64).max(1.0);
     let offset = vertical_offset.clamp(-MAX_OFFSET, MAX_OFFSET) / 100.0;
@@ -195,6 +196,10 @@ fn same_placement(previous: &Placement, side: &str, mode: &str, pixels: DockPixe
 /// the hover starts again.
 static LAST_PLACEMENT: Mutex<Option<Placement>> = Mutex::new(None);
 
+/// The open panel is a real window: a sidebar plus a two-column content area.
+const EXPANDED_WIDTH: f64 = 760.0;
+const EXPANDED_HEIGHT: f64 = 820.0;
+
 /// Width stays 58 in the collapsed dock unless the cat needs the extra 6px.
 fn dock_span(
     mode: &str,
@@ -207,13 +212,13 @@ fn dock_span(
 ) -> (f64, f64, f64) {
     let (width_extra, rise) = mascot_span(mode, mascot, overlay_height, overlay_width);
     let logical_width = match mode {
-        "expanded" => 380.0,
+        "expanded" => EXPANDED_WIDTH,
         "peek" => PEEK_WIDTH + width_extra,
         "hidden" => 12.0,
         _ => PILL_WIDTH + width_extra,
     };
     let logical_height = if mode == "expanded" {
-        560.0_f64.min(max_h)
+        EXPANDED_HEIGHT.min(max_h)
     } else {
         (height.unwrap_or(320.0) + rise).clamp(120.0, max_h)
     };
@@ -901,7 +906,7 @@ mod tests {
         assert_eq!((width, height), (12.0, 300.0));
 
         let (width, height, _) = dock_span("expanded", Some(260.0), Some(260.0), true, 40.0, 200.0, 1000.0);
-        assert_eq!((width, height), (380.0, 560.0));
+        assert_eq!((width, height), (760.0, 820.0));
 
         // Peek is already wider than the cat. Height still grows upward.
         let (width, height, anchor) = dock_span("peek", Some(560.0), Some(260.0), true, 0.0, 0.0, 2000.0);
@@ -996,7 +1001,8 @@ mod tests {
     #[test]
     fn growth_uses_the_new_size_and_keeps_the_pill_on_the_edge() {
         let scale = 1.25;
-        let gap = super::physical_px(10.0, scale);
+        // The dock touches the screen edge.
+        let gap = 0;
         let compact = placed("right", "compact", 64.0, 364.0, 300.0, 64.0);
         let peek = placed("right", "peek", 338.0, 624.0, 300.0, 64.0);
         let signal = placed("right", "compact", 180.0, 386.0, 300.0, 86.0);

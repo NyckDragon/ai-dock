@@ -1,12 +1,12 @@
-import { AlertCircle, CheckCircle2, History } from "lucide-react";
-import { forwardRef } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, History } from "lucide-react";
+import { forwardRef, type ReactNode } from "react";
 import { formatAge } from "../lib/format";
 import { historyKey, pointsInRange, type UsageHistory } from "../lib/history";
 import { t, tr, trLabel } from "../lib/i18n";
 import { balanceReading, displayWord, featuredWindow, quotaTone, shownPercent } from "../lib/quota";
 import type { HeadlineWindow, HistoryRange, PercentDisplay, ProviderActivity, ProviderStatus, ProviderUsage } from "../types";
 import { ActivityBlock } from "./ActivityBlock";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderChip } from "./ProviderIcon";
 import { QuotaWindowRow } from "./QuotaWindowRow";
 import { Sparkline } from "./Sparkline";
 import { StatusBadge } from "./StatusBadge";
@@ -30,8 +30,18 @@ export const UsageCard = forwardRef<
     now: number;
     highlighted?: boolean;
     onConnect?: () => void;
+    /** Folded down to the name and the big number. */
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
+    /** Opens this provider's own page. */
+    onOpenDetail?: () => void;
+    /** Shown in place of the windows (OpenBot's summary of its accounts). */
+    summary?: ReactNode;
   }
->(function UsageCard({ provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect }, ref) {
+>(function UsageCard(
+  { provider, activity, display, headline: featured, history, historyRange, status, now, highlighted, onConnect, collapsed = false, onToggleCollapse, onOpenDetail, summary },
+  ref
+) {
   const shown = featuredWindow(provider, featured);
   const balance = balanceReading(provider);
   const headline = shown ? shownPercent(shown.remainingPercent, display, provider.id) : null;
@@ -43,19 +53,26 @@ export const UsageCard = forwardRef<
       )
     : undefined;
   const displayKindUsed = shown ? shownPercent(0, display, provider.id) === 100 : false;
-  const showTrend = Boolean(shown) && (provider.windows.length > 1 || (trend?.length || 0) > 1);
+  // Only a real history earns the line: an empty chart is noise.
+  const showTrend = Boolean(shown) && (trend?.length || 0) > 1;
 
   return (
     <article
       ref={ref}
-      className={"usage-card" + (highlighted ? " is-highlighted" : "") + (provider.stale ? " is-stale" : "")}
+      className={"usage-card" + (highlighted ? " is-highlighted" : "") + (provider.stale ? " is-stale" : "") + (collapsed ? " is-collapsed" : "")}
       aria-label={provider.name}
     >
       <div className="usage-card__top">
         <div className="usage-card__identity">
-          <ProviderIcon providerId={provider.id} size={18} brand />
+          <ProviderChip providerId={provider.id} />
           <div>
-            <div className="usage-card__name">{provider.name}</div>
+            {onOpenDetail ? (
+              <button type="button" className="usage-card__open" onClick={onOpenDetail} aria-label={t("Abrir a página de {name}", { name: provider.name })}>
+                <span className="usage-card__name">{provider.name}</span>
+              </button>
+            ) : (
+              <div className="usage-card__name">{provider.name}</div>
+            )}
             {provider.stale ? (
               <div className="usage-card__status is-stale">
                 <History size={12} />
@@ -82,12 +99,25 @@ export const UsageCard = forwardRef<
             <small>{displayWord(display, provider.id)}</small>
           </div>
         ) : null}
+        {onToggleCollapse ? (
+          <button
+            type="button"
+            className="usage-card__fold"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? t("Mostrar detalhes de {name}", { name: provider.name }) : t("Recolher {name}", { name: provider.name })}
+            onClick={onToggleCollapse}
+          >
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
+      {collapsed ? null : (
+      <>
       {shown && showTrend ? (
         <div className="usage-card__trend">
           <span>
-            {provider.windows.length > 1 ? t("Em destaque: {window}", { window: trLabel(shown.label) }) : RANGE_TEXT[historyRange]()}
+            {RANGE_TEXT[historyRange]()}
           </span>
           <Sparkline
             points={trend}
@@ -110,7 +140,9 @@ export const UsageCard = forwardRef<
         </div>
       ) : null}
 
-      {provider.windows.length ? (
+      {summary ? (
+        summary
+      ) : provider.windows.length ? (
         <div className="usage-card__windows">
           {provider.windows.map((window) => (
             <QuotaWindowRow key={window.id} window={window} providerId={provider.id} display={display} now={now} stale={provider.stale} />
@@ -118,7 +150,9 @@ export const UsageCard = forwardRef<
         </div>
       ) : null}
 
-      <ActivityBlock activity={activity} now={now} />
+      {summary ? null : <ActivityBlock activity={activity} now={now} />}
+      </>
+      )}
     </article>
   );
 });

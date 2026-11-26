@@ -55,3 +55,13 @@ test("groups are sorted by cost and capped at five", () => {
     ["f", "e", "d", "c", "b"]
   );
 });
+
+test("the pill shows dollars that fit in 58px", async () => {
+  const { formatPillUsd } = await import("../src/lib/costs.ts");
+  assert.equal(formatPillUsd(0), "$0");
+  assert.equal(formatPillUsd(0.4249), "$0.42");
+  assert.equal(formatPillUsd(4.29), "$4.2");
+  assert.equal(formatPillUsd(26.4), "$26");
+  assert.equal(formatPillUsd(189.6), "$190");
+  assert.equal(formatPillUsd(1290), "$1.2k");
+});

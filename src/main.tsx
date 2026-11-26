@@ -6,6 +6,21 @@ import "./styles/panel.css";
 import "./styles/prompts.css";
 import "./styles/settings.css";
 import "./styles/costs.css";
+import "./styles/theme-a.css";
 import App from "./App";
 
-createRoot(document.getElementById("root")!).render(<App />);
+async function start() {
+  const params = new URLSearchParams(location.search);
+  if (import.meta.env.DEV && params.has("demo")) {
+    (await import("./dev/mockTauri")).installDemoBridge();
+    if (params.has("audit")) (await import("./dev/uiAudit")).installUiAudit();
+    const design = params.get("design");
+    if (design) {
+      await import("./dev/designs.css");
+      document.documentElement.dataset.design = design;
+    }
+  }
+  createRoot(document.getElementById("root")!).render(<App />);
+}
+
+void start();

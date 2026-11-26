@@ -30,7 +30,7 @@ function nativeWidth(mode: DockMode, mascot: boolean, overlayWidth: number): num
     extra =
       mode === "peek" ? Math.max(0, overlay - PEEK_WIDTH) : Math.max(MASCOT_SIZE - PILL_WIDTH, overlay - PILL_WIDTH);
   }
-  if (mode === "expanded") return 380;
+  if (mode === "expanded") return 760;
   if (mode === "peek") return PEEK_WIDTH + extra;
   if (mode === "hidden") return 12;
   return PILL_WIDTH + extra;
@@ -65,6 +65,8 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   const [hidden, setHidden] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekPhase, setPeekPhase] = useState<PeekPhase>("closed");
+  /** The mode the native window last finished taking, so the panel can wait for its size. */
+  const [placedMode, setPlacedMode] = useState<DockMode | null>(null);
   const peekPhaseRef = useRef<PeekPhase>("closed");
   peekPhaseRef.current = peekPhase;
 
@@ -120,7 +122,10 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
             overlayWidth: room.width
           };
           const previous = lastSentRef.current;
-          if (previous && samePlacement(previous, next)) continue;
+          if (previous && samePlacement(previous, next)) {
+            setPlacedMode(next.mode);
+            continue;
+          }
           const widening =
             previous != null &&
             nativeWidth(next.mode, next.mascot, next.overlayWidth) >
@@ -144,6 +149,7 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
             if (widening) ignoreLeaveUntilRef.current = 0;
             /* The next placement replaces a failed one. */
           }
+          setPlacedMode(next.mode);
         }
       } finally {
         if (pendingModeRef.current != null) {
@@ -262,6 +268,8 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
   );
 
   const closePeek = useCallback(() => {
+    // Already on its way out: a second call must not restart the timer.
+    if (peekPhaseRef.current === "closing") return;
     clearCloseTimer();
     peekTargetRef.current = null;
     if (peekPhaseRef.current === "closed") {
@@ -318,6 +326,7 @@ export function useDockWindow(settings: Settings, expanded: boolean) {
     overlay,
     setOverlay,
     hidden,
+    placedMode,
     peekId,
     peekPhase,
     openPeek,

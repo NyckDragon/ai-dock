@@ -160,3 +160,56 @@ test("robot art is ready with the idle frame, and walk frames stay in order", ()
   assert.deepEqual(robotPoseSrc("sit", { "public/mascot/robot-idle.png": "/idle" }), { src: "/idle", frames: [] });
   assert.deepEqual(robotPoseSrc("alert", { "public/mascot/robot-idle.png": "/idle" }), { src: "/idle", frames: [] });
 });
+
+test("the cat sweats when a live window is nearly used up, not when it is empty or old", async () => {
+  const { quotaTight } = await import("../src/lib/mascot.ts");
+  const slot = (remaining: number, extra = {}) => ({ id: "x", connected: true, windows: [{ id: "w", remainingPercent: remaining }], ...extra });
+  assert.equal(quotaTight([slot(50)]), false);
+  assert.equal(quotaTight([slot(50), slot(8)]), true);
+  assert.equal(quotaTight([slot(10)]), true);
+  assert.equal(quotaTight([slot(0)]), false);
+  assert.equal(quotaTight([slot(5, { stale: true })]), false);
+  assert.equal(quotaTight([slot(5, { connected: false })]), false);
+});
+
+test("a window that jumps back up counts as renewed, after the first reading", async () => {
+  const { quotaRenewed } = await import("../src/lib/mascot.ts");
+  const slots = (remaining: number) => [{ id: "claude", connected: true, windows: [{ id: "session", remainingPercent: remaining }] }];
+  const first = quotaRenewed(null, slots(5));
+  assert.equal(first.renewed, false);
+  assert.equal(quotaRenewed(first.next, slots(20)).renewed, false);
+  assert.equal(quotaRenewed(first.next, slots(100)).renewed, true);
+});
+
+test("the balloon counts only questions", async () => {
+  const { questionCount } = await import("../src/lib/mascot.ts");
+  assert.equal(
+    questionCount([
+      { slotId: "a", name: "A", kind: "question" },
+      { slotId: "b", name: "B", kind: "question" },
+      { slotId: "c", name: "C", kind: "done" }
+    ]),
+    2
+  );
+});
+
+test("every notice of a mark fits one line", async () => {
+  const { mascotNoticeLine } = await import("../src/lib/mascot.ts");
+  const done = (name: string) => ({ slotId: name, name, kind: "done" as const });
+  assert.equal(mascotNoticeLine([done("Claude")]), "Claude finalizou");
+  assert.equal(mascotNoticeLine([done("Claude"), done("Nyck")]), "Claude e Nyck finalizaram");
+  assert.equal(mascotNoticeLine([done("A"), done("B"), done("C"), done("D")]), "A, B e mais 2 finalizaram");
+  assert.equal(
+    mascotNoticeLine([done("Claude"), { slotId: "n", name: "Nyck", kind: "permission" }]),
+    "Nyck precisa de permissão · Claude finalizou"
+  );
+  assert.equal(mascotNoticeLine([]), "");
+});
+
+test("the cat types while agents work, stays awake after, then sleeps", async () => {
+  const { catFigure } = await import("../src/lib/mascot.ts");
+  assert.equal(catFigure("sit", false), "typing");
+  assert.equal(catFigure("sleep", true), "awake");
+  assert.equal(catFigure("sleep", false), "sleep");
+  assert.equal(catFigure("alert", true), "alert");
+});

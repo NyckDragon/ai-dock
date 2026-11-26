@@ -1,0 +1,77 @@
+/* Dev-only design studies, on top of the real dock. Open
+   http://localhost:1420/?demo&design=a (or b). "atual" shows today's look over
+   the same fake desktop, for a fair comparison. Never shipped. */
+
+/* A fake desktop behind the dock, so glass has something to show. */
+:root[data-design] body {
+  background:
+    radial-gradient(circle at 18% 22%, #27406e 0 120px, transparent 121px),
+    radial-gradient(circle at 92% 38%, #5a2d63 0 130px, transparent 131px),
+    radial-gradient(circle at 30% 80%, #1f5a4a 0 90px, transparent 91px),
+    linear-gradient(90deg, transparent 0 80%, #2b5d8c 80% 100%) 0 560px / 100% 160px no-repeat,
+    #0b0d14;
+}
+
+/* ---------- A: glass that is part of the screen edge ---------- */
+:root[data-design="a"] .compact-shell--right .dock-pill {
+  right: 0;
+  border-radius: 20px 0 0 20px;
+  border-right: none;
+}
+:root[data-design="a"] .compact-shell--left .dock-pill {
+  left: 0;
+  border-radius: 0 20px 20px 0;
+  border-left: none;
+}
+:root[data-design="a"] .dock-pill {
+  width: 64px;
+  flex-basis: 64px;
+  padding: 12px 0 10px;
+  gap: 10px;
+  background: rgba(20, 23, 34, 0.55);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+:root[data-design="a"] .provider-peek,
+:root[data-design="a"] .dock-panel {
+  background: rgba(20, 23, 34, 0.62);
+  backdrop-filter: blur(26px) saturate(1.5);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+:root[data-design="a"] .provider-peek { border-radius: 20px; }
+:root[data-design="a"] .slot-value { font-weight: 650; letter-spacing: 0; }
+
+/* ---------- B: clean solid tiles ---------- */
+:root[data-design="b"] .dock-pill {
+  width: 62px;
+  flex-basis: 62px;
+  padding: 8px 0;
+  gap: 6px;
+  background: #151823;
+  border-color: #262b3a;
+  border-radius: 16px;
+}
+:root[data-design="b"] .dock-pill__slots { gap: 6px; }
+:root[data-design="b"] .pill-slot {
+  width: 50px;
+  padding: 6px 0 5px;
+  border-radius: 12px;
+  background: #1d2130;
+  border: 1px solid #262b3a;
+}
+:root[data-design="b"] .pill-slot:hover { border-color: var(--accent-border); }
+:root[data-design="b"] .slot-value { font-size: 12px; font-weight: 700; }
+:root[data-design="b"] .provider-peek,
+:root[data-design="b"] .dock-panel {
+  background: #151823;
+  border-color: #262b3a;
+}
+:root[data-design="b"] .provider-peek { border-radius: 16px; }
+:root[data-design="b"] .provider-peek__windows > * {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #1d2130;
+}
+:root[data-design="b"] .provider-peek__divider { display: none; }

@@ -1,0 +1,225 @@
+/**
+ * Dev-only demo: open http://localhost:1420/?demo to see the real dock in a
+ * browser with sample readings. It stands in for the Tauri bridge, so nothing
+ * here ships: production builds never load it.
+ */
+type Handler = (args: Record<string, unknown>) => unknown;
+
+const hours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+const win = (id: string, label: string, remainingPercent: number, resetInHours: number) => ({
+  id,
+  label,
+  remainingPercent,
+  resetAt: hours(resetInHours)
+});
+const account = (id: string, name: string, email: string, gemini: number, claude: number) => ({
+  id,
+  name,
+  connected: true,
+  plan: "Google AI Pro",
+  email,
+  error: null,
+  windows: [
+    win("gemini-session", "Gemini · 5h", gemini, 3),
+    win("gemini-weekly", "Gemini · Semanal", Math.min(100, gemini + 10), 70),
+    win("claude-gpt-session", "Claude + GPT · 5h", claude, 2),
+    win("claude-gpt-weekly", "Claude + GPT · Semanal", Math.min(100, claude + 15), 70)
+  ]
+});
+
+const usage = [
+  {
+    id: "claude",
+    name: "Claude",
+    connected: true,
+    plan: "Max 5x",
+    error: null,
+    windows: [win("session", "Sessão · 5h", 13, 2.05), win("weekly", "Semanal", 62, 19.5)]
+  },
+  {
+    id: "codex",
+    name: "Codex",
+    connected: true,
+    plan: "plus",
+    error: null,
+    windows: [win("session", "Sessão · 5h", 11, 2.1), win("weekly", "Semanal", 86, 74)]
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    connected: true,
+    plan: "X Premium",
+    error: null,
+    windows: [win("weekly", "Semanal", 34, 52)]
+  },
+  {
+    id: "grok",
+    name: "Grok",
+    connected: false,
+    plan: "X Premium",
+    error: "A semana virou. Abra o Grok Bot para atualizar.",
+    windows: [win("weekly", "Semanal", 76, -2)]
+  },
+  account("antigravity", "Antigravity · Conta 1 (Principal)", "conta1@example.com", 87, 100),
+  account("antigravity-2", "Antigravity · Conta 2", "conta2@example.com", 72, 65),
+  account("antigravity-3", "Antigravity · Conta 3", "conta3@example.com", 91, 84),
+  account("antigravity-4", "Antigravity · Conta 4", "conta4@example.com", 12, 8),
+  // Like the real PC: two accounts only OpenBot uses, plus Nyck shared with the app.
+  account("antigravity-openbot", "Antigravity · OpenBot", "openbot.um@example.com", 37, 0),
+  account("antigravity-openbot3", "Antigravity · OpenBot 3", "openbot.tres@example.com", 76, 64),
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    connected: false,
+    plan: null,
+    error: "DeepSeek Harness não encontrado neste PC.",
+    windows: []
+  }
+];
+
+/** Like the real logs: up to 31 days back, lighter weekends, a few days off. */
+function demoCosts(days = 7) {
+  const day = (back: number) => {
+    const date = new Date(Date.now() - back * 86_400_000);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const weight = (back: number) => {
+    const weekday = new Date(Date.now() - back * 86_400_000).getDay();
+    if ([4, 11, 12, 19, 25, 26].includes(back)) return 0;
+    return (weekday === 0 || weekday === 6 ? 0.35 : 1) * (0.6 + ((back * 37) % 9) / 10);
+  };
+  const rows = [
+    ["claude", "claude-opus-5-5", "ai-dock", 8.4],
+    ["claude", "claude-sonnet-5-5", "site-medina", 3.1],
+    ["codex", "gpt-6-codex", "ai-dock", 2.2],
+    ["claude", "claude-opus-5-5", "nave-seguidores", 5.6],
+    ["codex", "gpt-6-codex", "dm-automation", 1.4]
+  ] as const;
+  return Array.from({ length: Math.min(31, Math.max(1, days)) }, (_, back) =>
+    rows.filter((_, index) => weight(back) > 0 && (back === 0 || (back + index) % 3 !== 0)).map(([provider, model, project, cost], index) => ({
+      date: day(back),
+      provider,
+      model,
+      project,
+      inputTokens: Math.round(120_000 * (index + 1) * weight(back)),
+      outputTokens: Math.round(18_000 * (index + 1) * weight(back)),
+      cacheWriteTokens: 40_000,
+      cacheReadTokens: Math.round(900_000 * weight(back)),
+      costUsd: Math.round(cost * weight(back) * (1 + ((back * 7 + index) % 5) / 6) * 100) / 100
+    }))
+  ).flat();
+}
+
+const handlers: Record<string, Handler> = {
+  get_provider_usage: () => usage,
+  // Like the real PC: OpenBot is a set of bots, each on an account and an engine.
+  get_openbot_overview: () => ({
+    slots: ["antigravity-2", "antigravity-openbot", "antigravity-openbot3"],
+    runtimes: ["claude", "grok", "opencode"],
+    accounts: [
+      { id: null, slot: "antigravity-openbot" },
+      { id: "acc1", slot: "antigravity-openbot" },
+      { id: "acc2", slot: null },
+      { id: "acc3", slot: "antigravity-openbot3" }
+    ],
+    bots: [
+      { name: "PIN · Produtor Pinterest", provider: "antigravity", model: "gemini-4-hydrogen", account: "antigravity-openbot", accountId: "acc1", hue: 0, running: false, since: null },
+      { name: "KRZ · Operador Flow 2K", provider: "antigravity", model: "gemini-3.8-flash", account: "antigravity-openbot", accountId: "acc1", hue: 210, running: true, since: new Date(Date.now() - 95_000).toISOString() },
+      { name: "IG · Radar de Pautas", provider: "antigravity", model: "gemini-3.8-flash", account: "antigravity-openbot3", accountId: "acc3", hue: 330, running: false, since: null },
+      { name: "IG · Produtor Studio & Copy", provider: "antigravity", model: "gemini-4-neon", account: "antigravity-openbot3", accountId: "acc3", hue: 280, running: false, since: null },
+      { name: "QA · Auditor Geral", provider: "antigravity", model: "gemini-4-neon", account: null, accountId: "acc2", hue: 40, running: false, since: null },
+      { name: "Nicholas Benjamin", provider: "grok", model: "grok-4.7", account: null, accountId: "grokacc", hue: 150, running: true, since: new Date(Date.now() - 95_000).toISOString() }
+    ]
+  }),
+  get_antigravity_account_pins: () => ({ "antigravity-4": "conta4@example.com" }),
+  get_provider_activity: () => [
+    {
+      providerId: "claude",
+      state: "working",
+      confidence: "inferred",
+      sessions: [
+        { id: "c1", title: "ATI · Antigravity Contas - Login Preso por Conta · Correção #1", detail: "Usando Bash", state: "working", since: Date.now() - 20_000 },
+        { id: "c2", title: "ATI · Sistema Medina da Rocha · Criação #3", detail: "Executando tarefa", state: "working", since: Date.now() - 70_000 }
+      ]
+    },
+    {
+      providerId: "codex",
+      state: "working",
+      confidence: "high",
+      sessions: [
+        { id: "x1", title: "Agent Pauli", detail: "Executando tarefa", state: "working", since: Date.now() - 10_000 },
+        { id: "x2", title: "Agent Averroes", detail: "Executando tarefa", state: "working", since: Date.now() - 60_000 },
+        { id: "x3", title: "Agent Pasteur", detail: "Executando tarefa", state: "working", since: Date.now() - 120_000 },
+        { id: "x4", title: "Agent Curie", detail: "Executando tarefa", state: "working", since: Date.now() - 180_000 }
+      ]
+    },
+    // Juba works in Claude + GPT with 8% left: the dock suggests moving to Nyco.
+    {
+      providerId: "antigravity-4",
+      state: "working",
+      confidence: "direct",
+      sessions: [{ id: "g1", title: "Landing da clínica", detail: "Executando tarefa", state: "working", since: Date.now() - 240_000, pool: "claude-gpt" }]
+    }
+  ],
+
+  get_provider_status: () => [],
+  get_monitors: () => [
+    { index: 0, name: "\\\\.\\DISPLAY1", width: 1920, height: 1080, scaleFactor: 1 },
+    { index: 1, name: "\\\\.\\DISPLAY3", width: 3440, height: 1440, scaleFactor: 1 },
+    { index: 2, name: "\\\\.\\DISPLAY4", width: 2360, height: 1640, scaleFactor: 1.5 }
+  ],
+  get_local_costs: (args) => ({ entries: demoCosts(Number(args.days) || 7), prices: "online", files: 42 }),
+  provider_setup_status: () => ({ installed: true, authenticated: true, version: "demo", npmAvailable: true }),
+  claude_web_status: () => usage[0],
+  scan_obsidian_prompts: () => [
+    { path: "Prompts/Revisar PR.md", title: "Revisar PR com foco em bugs", category: "Código", tags: ["review", "git"], favorite: true, content: "Revise o diff de {{branch}} procurando bugs reais..." },
+    { path: "Prompts/Legenda Reels.md", title: "Legenda de Reels sem cara de IA", category: "Conteúdo", tags: ["instagram"], favorite: true, content: "Escreva a legenda do Reels sobre {{tema}}..." },
+    { path: "Prompts/Handoff.md", title: "Handoff de conversa longa", category: "Organização", tags: ["handoff"], favorite: false, content: "Resuma o estado atual do projeto {{projeto|AI Dock}}..." },
+    { path: "Prompts/Landing.md", title: "Landing page com referências reais", category: "Design", tags: ["site", "design"], favorite: false, content: "Monte a landing de {{cliente}} a partir das referências..." },
+    { path: "Prompts/Carrossel.md", title: "Carrossel de 7 slides", category: "Conteúdo", tags: ["instagram", "carrossel"], favorite: false, content: "Crie um carrossel sobre {{tema}} com gancho no slide 1..." }
+  ]
+};
+
+/** The demo starts with the same choices as the real dock: names, glass, three monitors. */
+function seedDemoSettings() {
+  const key = "ai-dock-settings";
+  const current = JSON.parse(localStorage.getItem(key) || "{}");
+  if (current.demoSeeded) return;
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      ...current,
+      demoSeeded: true,
+      onboarded: true,
+      glassEnabled: true,
+      glassOpacity: 10,
+      monitorIndex: 1,
+      obsidianPath: "D:\\Obsidian\\Prompts",
+      providerAliases: { antigravity: "Nyco", "antigravity-2": "Nyck", "antigravity-3": "Jessy", "antigravity-4": "Juba" }
+    })
+  );
+}
+
+export function installDemoBridge() {
+  seedDemoSettings();
+  let nextId = 1;
+  const callbacks = new Map<number, (payload: unknown) => void>();
+  (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
+    metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
+    transformCallback(callback: (payload: unknown) => void) {
+      const id = nextId++;
+      callbacks.set(id, callback);
+      return id;
+    },
+    unregisterCallback(id: number) {
+      callbacks.delete(id);
+    },
+    convertFileSrc: (path: string) => path,
+    async invoke(cmd: string, args: Record<string, unknown> = {}) {
+      const handler = handlers[cmd];
+      if (handler) return handler(args);
+      if (cmd.startsWith("plugin:event|listen")) return nextId++;
+      return null;
+    }
+  };
+}
